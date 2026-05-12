@@ -8,4 +8,11 @@
     <reportString>把 TargetA 送入数字存储核心。</reportString>
   </JobDef>
 
+  <!-- 阶段 4.2：从核心取料做 bill -->
+  <JobDef>
+    <defName>DigitalStorage_WithdrawToBill</defName>
+    <driverClass>DigitalStorage.AI.JobDriver_DS_WithdrawForBill</driverClass>
+    <reportString>从数字存储核心取料为 TargetA 做工。</reportString>
+  </JobDef>
+
 </Defs>

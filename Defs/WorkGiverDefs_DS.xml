@@ -15,4 +15,18 @@
     </requiredCapacities>
   </WorkGiverDef>
 
+  <!-- 阶段 4.2：从核心取料做 bill（priorityInType=999 抢在所有 DoBillsXxx 前）-->
+  <WorkGiverDef>
+    <defName>DigitalStorage_WithdrawForBill</defName>
+    <label>从数字存储核心取料做工</label>
+    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
+    <workType>Crafting</workType>
+    <verb>做</verb>
+    <gerund>做工中</gerund>
+    <priorityInType>999</priorityInType>
+    <requiredCapacities>
+      <li>Manipulation</li>
+    </requiredCapacities>
+  </WorkGiverDef>
+
 </Defs>

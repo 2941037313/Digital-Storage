@@ -76,6 +76,9 @@
 
     <Compile Include="AI\JobDriver_DS_Ingest.cs" />
     <Compile Include="AI\WorkGiver_DS_HaulToCore.cs" />
+    <Compile Include="AI\LedgerBillPlanner.cs" />
+    <Compile Include="AI\JobDriver_DS_WithdrawForBill.cs" />
+    <Compile Include="AI\WorkGiver_DS_WithdrawForBill.cs" />
 
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
