@@ -3,7 +3,8 @@
     "allow": [
       "mcp__rimworld-code-rag__rough_search",
       "mcp__rimworld-code-rag__get_item",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(rmdir *)"
     ]
   }
 }

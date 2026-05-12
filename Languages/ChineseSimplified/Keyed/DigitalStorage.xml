@@ -3,13 +3,32 @@
 
   <!-- ========== Building_StorageCore ========== -->
   <DS_UnnamedNetwork>未命名网络</DS_UnnamedNetwork>
-  <DS_ViewStorage>查看存储</DS_ViewStorage>
-  <DS_ViewStorageDesc>查看虚拟存储中的所有物品</DS_ViewStorageDesc>
   <DS_RenameNetwork>重命名网络</DS_RenameNetwork>
   <DS_RenameNetworkDesc>为此存储网络设置一个名称</DS_RenameNetworkDesc>
   <DS_InspectNetwork>网络: {0}</DS_InspectNetwork>
-  <DS_InspectCapacity>容量: {0}/{1} 组</DS_InspectCapacity>
+  <DS_InspectCapacity>容量: {0} / {1} 组</DS_InspectCapacity>
   <DS_NoPower>无电力</DS_NoPower>
+  <DS_DebugIngestAdjacent>吞入相邻</DS_DebugIngestAdjacent>
+  <DS_DebugIngestAdjacentDesc>（调试）把核心周围 9 格内所有可吞物品存入账本</DS_DebugIngestAdjacentDesc>
+  <DS_DebugIngestResult>已吞入 {0} 件，拒绝 {1} 件</DS_DebugIngestResult>
+
+  <!-- ========== ITab_DigitalStorage ========== -->
+  <DS_TabDigitalStorage>虚拟存储</DS_TabDigitalStorage>
+  <DS_CapacityBar>{0} / {1} 组</DS_CapacityBar>
+  <DS_Kinds>种</DS_Kinds>
+  <DS_Reserved>预订 {0}</DS_Reserved>
+  <DS_WithdrawBtn>取出</DS_WithdrawBtn>
+  <DS_WithdrawTitle>取出 {0}</DS_WithdrawTitle>
+  <DS_WithdrawAvailable>可用: {0}</DS_WithdrawAvailable>
+  <DS_NoSpaceNearCore>核心周围没有空位</DS_NoSpaceNearCore>
+
+  <!-- ========== 分组 ========== -->
+  <DS_Group_Raw>原料</DS_Group_Raw>
+  <DS_Group_Food>食物</DS_Group_Food>
+  <DS_Group_Manufactured>制成品</DS_Group_Manufactured>
+  <DS_Group_MedicalAmmo>药品耗材</DS_Group_MedicalAmmo>
+  <DS_Group_BodyParts>义体植入</DS_Group_BodyParts>
+  <DS_Group_Other>其他</DS_Group_Other>
 
   <!-- ========== Building_InputInterface ========== -->
   <DS_ConnectedTo>连接到: {0}</DS_ConnectedTo>
@@ -17,51 +36,11 @@
   <DS_ConnectToCore>连接到核心</DS_ConnectToCore>
   <DS_ConnectToCoreDescInterface>选择要连接的存储核心</DS_ConnectToCoreDescInterface>
   <DS_NoCoresAvailable>无可用核心</DS_NoCoresAvailable>
-  <DS_InspectInterfaceStorage>存储: {0}/{1}</DS_InspectInterfaceStorage>
 
   <!-- ========== Dialog_RenameNetwork ========== -->
   <DS_EnterNetworkName>输入网络名称:</DS_EnterNetworkName>
   <DS_Confirm>确定</DS_Confirm>
   <DS_Cancel>取消</DS_Cancel>
-
-  <!-- ========== ITab_VirtualStorage ========== -->
-  <DS_TabVirtualStorage>虚拟存储</DS_TabVirtualStorage>
-  <DS_TabHeader>虚拟存储 ({0}/{1} 组)</DS_TabHeader>
-  <DS_EmptyStorage>空</DS_EmptyStorage>
-  <DS_ExtractAll>全部取出</DS_ExtractAll>
-  <DS_ExtractSlider>取出 {0}:</DS_ExtractSlider>
-  <DS_PendingSection>等待吸收 ({0})</DS_PendingSection>
-  <DS_VirtualSection>虚拟存储 ({0})</DS_VirtualSection>
-  <DS_PendingTooltip>{0} x{1}</DS_PendingTooltip>
-
-  <!-- ========== Dialog_VirtualStorage ========== -->
-  <DS_VirtualStorageTitle>虚拟存储 - {0}</DS_VirtualStorageTitle>
-  <DS_CapacityInfo>容量: {0} / {1}  |  物品种类: {2}</DS_CapacityInfo>
-  <DS_ClearSearch>清除</DS_ClearSearch>
-  <DS_HeaderIcon>图标</DS_HeaderIcon>
-  <DS_HeaderName>名称</DS_HeaderName>
-  <DS_HeaderQuality>品质</DS_HeaderQuality>
-  <DS_HeaderCount>数量</DS_HeaderCount>
-  <DS_HeaderDurability>耐久</DS_HeaderDurability>
-  <DS_ExtractX1>提取 x1</DS_ExtractX1>
-  <DS_Extract1Stack>1 堆叠</DS_Extract1Stack>
-  <DS_ExtractCustom>自定义</DS_ExtractCustom>
-  <DS_CoreUnavailable>核心不可用</DS_CoreUnavailable>
-  <DS_Extracted>已提取 {0} x{1}</DS_Extracted>
-  <DS_NoSpaceNearCore>核心周围没有空位</DS_NoSpaceNearCore>
-  <DS_ExtractionFailed>提取失败</DS_ExtractionFailed>
-  <DS_UnknownItem>未知物品</DS_UnknownItem>
-  <DS_TooltipCount>数量: {0}</DS_TooltipCount>
-  <DS_TooltipQuality>品质: {0}</DS_TooltipQuality>
-  <DS_TooltipDurability>耐久: {0} / {1} ({2}%)</DS_TooltipDurability>
-
-  <!-- ========== Dialog_ExtractAmount ========== -->
-  <DS_ExtractAmountTitle>提取数量</DS_ExtractAmountTitle>
-  <DS_ExtractAmountItem>物品: {0}</DS_ExtractAmountItem>
-  <DS_ExtractAmountAvailable>可用: {0}  (堆叠上限: {1})</DS_ExtractAmountAvailable>
-  <DS_InvalidNumber>请输入有效的数字</DS_InvalidNumber>
-  <DS_AmountMustBePositive>数量必须大于 0</DS_AmountMustBePositive>
-  <DS_AmountExceedsMax>数量不能超过 {0}</DS_AmountExceedsMax>
 
   <!-- ========== CompUseEffect_TerminalImplant ========== -->
   <DS_ImplantSuccess>{0} 已植入终端芯片，现在可以远程访问数字存储系统</DS_ImplantSuccess>
@@ -70,25 +49,13 @@
   <DS_ImplantConfirm>确定要为 {0} 植入终端芯片吗？\n\n植入后可以远程访问数字存储系统，物品将直接传送到脚下。</DS_ImplantConfirm>
 
   <!-- ========== Settings ========== -->
-  <DS_SettingsCategory>数字存储 Digital Storage 2.0</DS_SettingsCategory>
+  <DS_SettingsCategory>数字存储 Digital Storage 3.0</DS_SettingsCategory>
   <DS_CostSettings>造价设置</DS_CostSettings>
   <DS_CostMultiplier>造价倍率: {0:F1}x</DS_CostMultiplier>
   <DS_CostMultiplierDesc>调整所有建筑和物品的材料消耗</DS_CostMultiplierDesc>
-  <DS_ReservedSettings>预留物品设置</DS_ReservedSettings>
-  <DS_ReservedCountPerItem>每种物品预留数量: {0}</DS_ReservedCountPerItem>
-  <DS_ReservedDesc>预留物品保持真实状态，WorkGiver 可以直接找到</DS_ReservedDesc>
   <DS_DebugSettings>调试设置</DS_DebugSettings>
   <DS_EnableDebugLog>启用详细日志</DS_EnableDebugLog>
-  <DS_EnableDebugLogDesc>在日志中显示详细的调试信息（占位符创建、物品生成等）</DS_EnableDebugLogDesc>
-  <DS_EnableConversionLog>启用转换日志</DS_EnableConversionLog>
-  <DS_EnableConversionLogDesc>在日志中显示物品转换过程的详细信息（Tick检查、统计、转换等）</DS_EnableConversionLogDesc>
-  <DS_EnableTradeLog>启用交易日志</DS_EnableTradeLog>
-  <DS_EnableTradeLogDesc>在日志中显示交易过程的详细信息（物品注册、扣除、轨道交易等）</DS_EnableTradeLogDesc>
-  <DS_CountVirtualWealth>虚拟物品计入财富</DS_CountVirtualWealth>
-  <DS_CountVirtualWealthDesc>将数字化物品计入殖民地财富（影响故事叙事者威胁点）</DS_CountVirtualWealthDesc>
-  <DS_InterfaceInstantDigitize>输入接口即时数字化</DS_InterfaceInstantDigitize>
-  <DS_InterfaceInstantDigitizeDesc>启用后，放到输入接口的物品会立即数字化，不再先掉落到核心附近</DS_InterfaceInstantDigitizeDesc>
-  <DS_DebugWarning>注意：启用后会产生大量日志，仅用于调试问题</DS_DebugWarning>
+  <DS_EnableDebugLogDesc>在日志中显示详细的调试信息</DS_EnableDebugLogDesc>
 
   <!-- ========== 升级系统 ========== -->
   <DS_Upgrade>升级</DS_Upgrade>
@@ -108,7 +75,6 @@
   <DS_MaxLevelDesc>此存储核心已达到最高等级。</DS_MaxLevelDesc>
   <DS_MinLevelDesc>此存储核心已达到最低等级。</DS_MinLevelDesc>
   <DS_UpgradeNoMaterials>升级材料不足</DS_UpgradeNoMaterials>
-  <DS_DowngradeTooFull>无法降级：已存储 {0} 组物品，降级后容量仅为 {1}</DS_DowngradeTooFull>
   <DS_InspectLevel>等级: {0}/{1}</DS_InspectLevel>
   <DS_UpgradeLevel_1>基础</DS_UpgradeLevel_1>
   <DS_UpgradeLevel_2>进阶</DS_UpgradeLevel_2>

@@ -105,19 +105,7 @@ namespace DigitalStorage.Components
         {
             if (level <= MinLevel || IsBusy || IsOnCooldown) return;
 
-            // 检查降级后容量是否足够
-            Building_StorageCore core = this.parent as Building_StorageCore;
-            if (core != null)
-            {
-                StorageCoreUpgrade prevUpgrade = Props.upgrades[level - 1];
-                int usedCapacity = core.GetUsedCapacity();
-                if (usedCapacity > prevUpgrade.capacity)
-                {
-                    Messages.Message("DS_DowngradeTooFull".Translate(usedCapacity, prevUpgrade.capacity), this.parent, MessageTypeDefOf.RejectInput);
-                    return;
-                }
-            }
-
+            // v3 过渡态：容量占用校验等账本层接入后再补上
             upgradeDirection = -1;
             downgradeProgressTick = 0;
             Messages.Message("DS_DowngradeStarted".Translate(this.parent.LabelCap), this.parent, MessageTypeDefOf.NeutralEvent);
@@ -154,13 +142,8 @@ namespace DigitalStorage.Components
             {
                 if (cost == null || cost.thingDef == null) continue;
 
+                // v3 过渡态：只看地图上的真实物品，账本层接入后会叠加核心库存
                 long available = this.parent.Map.resourceCounter.GetCount(cost.thingDef);
-
-                Building_StorageCore core = this.parent as Building_StorageCore;
-                if (core != null)
-                {
-                    available += core.GetVirtualItemCount(cost.thingDef);
-                }
 
                 if (available < cost.count)
                 {
@@ -180,7 +163,7 @@ namespace DigitalStorage.Components
 
                 int remaining = cost.count;
 
-                // 先从地图上消耗
+                // v3 过渡态：从地图上消耗；账本层接入后再补"核心扣账本"分支
                 List<Thing> mapThings = this.parent.Map.listerThings.ThingsOfDef(cost.thingDef);
                 foreach (Thing thing in mapThings.ToList())
                 {
@@ -197,16 +180,6 @@ namespace DigitalStorage.Components
                     else
                     {
                         thing.SplitOff(take).Destroy(DestroyMode.Vanish);
-                    }
-                }
-
-                // 不够的从虚拟存储扣
-                if (remaining > 0)
-                {
-                    Building_StorageCore core = this.parent as Building_StorageCore;
-                    if (core != null)
-                    {
-                        core.DeductVirtualItems(cost.thingDef, remaining);
                     }
                 }
             }

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
 using DigitalStorage.Services;
-using DigitalStorage.Settings;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -9,18 +8,18 @@ using Verse;
 namespace DigitalStorage.Components
 {
     /// <summary>
-    /// 输入接口：pawn 把物品放到接口上，物品自动传送到绑定的核心
+    /// 输入接口 —— v3 纯交互建筑。
+    /// 不再继承 Building_Storage：原版 haul/StoreUtility 看不到它，不会被乱扔物品堵口。
+    /// 作用是给 pawn 一个"走到这里伸手"的真实坐标，由核心代理点列表调度。
     /// </summary>
-    public class Building_InputInterface : Building_Storage
+    public class Building_InputInterface : Building
     {
         private Building_StorageCore boundCore;
         private CompPowerTrader powerComp;
         private string savedCoreNetworkName;
 
         public Building_StorageCore BoundCore => boundCore;
-
         public bool Powered => powerComp != null && powerComp.PowerOn;
-
         public bool IsActive => Powered && boundCore != null && boundCore.Powered;
 
         public override void SpawnSetup(Map map, bool respawningAfterLoad)
@@ -31,32 +30,27 @@ namespace DigitalStorage.Components
             if (boundCore == null && Map != null)
             {
                 TryAutoConnect();
-                // 如果还没连上（核心可能还没spawn），延迟到所有建筑放置完后重试
                 if (boundCore == null && !string.IsNullOrEmpty(savedCoreNetworkName))
                 {
-                    LongEventHandler.ExecuteWhenFinished(delegate
+                    LongEventHandler.ExecuteWhenFinished(() =>
                     {
-                        if (this.Spawned && this.boundCore == null)
+                        if (Spawned && boundCore == null)
                         {
                             TryAutoConnect();
-                            RefreshStoreSettings();
                         }
                     });
                 }
             }
-            RefreshStoreSettings();
+
+            boundCore?.RegisterInterface(this);
         }
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
-            // Vanish/WillReplace（奥德赛飞船迁移等）保留连接信息，到新地图后自动重连
+            boundCore?.DeregisterInterface(this);
             if (mode == DestroyMode.Vanish || mode == DestroyMode.WillReplace)
             {
                 boundCore = null;
-            }
-            else
-            {
-                SetBoundCore(null);
             }
             base.DeSpawn(mode);
         }
@@ -70,23 +64,22 @@ namespace DigitalStorage.Components
 
         public override string GetInspectString()
         {
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
             string baseStr = base.GetInspectString();
             if (!string.IsNullOrEmpty(baseStr))
             {
                 sb.AppendLine(baseStr);
             }
-            
+
             if (boundCore != null)
             {
                 sb.AppendLine("DS_ConnectedTo".Translate(boundCore.NetworkName));
-                sb.AppendLine("DS_InspectInterfaceStorage".Translate(boundCore.GetUsedCapacity(), boundCore.GetCapacity()));
             }
             else
             {
                 sb.AppendLine("DS_NotConnected".Translate());
             }
-            
+
             if (!Powered)
             {
                 sb.AppendLine("DS_NoPower".Translate());
@@ -96,7 +89,7 @@ namespace DigitalStorage.Components
 
         public override IEnumerable<Gizmo> GetGizmos()
         {
-            foreach (Gizmo gizmo in base.GetGizmos())
+            foreach (var gizmo in base.GetGizmos())
             {
                 yield return gizmo;
             }
@@ -106,22 +99,21 @@ namespace DigitalStorage.Components
                 defaultLabel = "DS_ConnectToCore".Translate(),
                 defaultDesc = "DS_ConnectToCoreDescInterface".Translate(),
                 icon = ContentFinder<Texture2D>.Get("UI/Commands/LaunchReport", true),
-                action = delegate
+                action = () =>
                 {
-                    List<FloatMenuOption> options = new List<FloatMenuOption>();
-                    DigitalStorageGameComponent gameComp = Current.Game?.GetComponent<DigitalStorageGameComponent>();
-
+                    var options = new List<FloatMenuOption>();
+                    var gameComp = Current.Game?.GetComponent<DigitalStorageGameComponent>();
                     if (gameComp != null)
                     {
-                        foreach (Building_StorageCore core in gameComp.GetAllCores())
+                        foreach (var core in gameComp.GetAllCores())
                         {
                             if (core != null && core.Spawned && core.Map == Map)
                             {
-                                options.Add(new FloatMenuOption(core.NetworkName, () => SetBoundCore(core)));
+                                var localCore = core;
+                                options.Add(new FloatMenuOption(localCore.NetworkName, () => SetBoundCore(localCore)));
                             }
                         }
                     }
-
                     if (options.Count == 0)
                     {
                         options.Add(new FloatMenuOption("DS_NoCoresAvailable".Translate(), null));
@@ -133,22 +125,23 @@ namespace DigitalStorage.Components
 
         public void SetBoundCore(Building_StorageCore core)
         {
+            if (boundCore == core) return;
+            boundCore?.DeregisterInterface(this);
             boundCore = core;
             savedCoreNetworkName = core?.NetworkName;
-            RefreshStoreSettings();
+            if (Spawned) boundCore?.RegisterInterface(this);
         }
 
         private void TryAutoConnect()
         {
             if (Map == null) return;
 
-            // 优先：按保存的网络名查找同地图核心
             if (!string.IsNullOrEmpty(savedCoreNetworkName))
             {
-                DigitalStorageGameComponent gameComp = Current.Game?.GetComponent<DigitalStorageGameComponent>();
+                var gameComp = Current.Game?.GetComponent<DigitalStorageGameComponent>();
                 if (gameComp != null)
                 {
-                    foreach (Building_StorageCore core in gameComp.GetAllCores())
+                    foreach (var core in gameComp.GetAllCores())
                     {
                         if (core != null && core.Spawned && core.Map == Map && core.NetworkName == savedCoreNetworkName)
                         {
@@ -159,125 +152,15 @@ namespace DigitalStorage.Components
                 }
             }
 
-            // 回退：查找相邻核心
             foreach (IntVec3 cell in GenAdj.CellsAdjacent8Way(this))
             {
-                if (!cell.InBounds(Map))
-                    continue;
-
-                Building_StorageCore core = cell.GetFirstBuilding(Map) as Building_StorageCore;
-                if (core != null)
+                if (!cell.InBounds(Map)) continue;
+                if (cell.GetFirstBuilding(Map) is Building_StorageCore core)
                 {
                     SetBoundCore(core);
-                    break;
+                    return;
                 }
             }
-        }
-
-        private void RefreshStoreSettings()
-        {
-            if (boundCore != null)
-            {
-                settings = boundCore.GetStoreSettings();
-            }
-        }
-
-        /// <summary>
-        /// 当物品被放到接口上时，自动传送到核心
-        /// </summary>
-        public override void Notify_ReceivedThing(Thing newItem)
-        {
-            base.Notify_ReceivedThing(newItem);
-
-            if (!IsActive || boundCore == null || boundCore.Map == null)
-            {
-                return;
-            }
-
-            if (!boundCore.CanReceiveThing(newItem))
-            {
-                return;
-            }
-
-            // 方案A：接口即时数字化（默认开启，体验更丝滑，不会堵口）
-            if (DigitalStorageSettings.interfaceInstantDigitize)
-            {
-                boundCore.StoreItem(newItem);
-                if (newItem.Spawned)
-                {
-                    newItem.DeSpawn(DestroyMode.Vanish);
-                }
-                newItem.Destroy(DestroyMode.Vanish);
-                FleckMaker.ThrowLightningGlow(boundCore.DrawPos, boundCore.Map, 0.5f);
-
-                if (DigitalStorageSettings.enableDebugLog)
-                {
-                    Log.Message($"[数字存储] 输入接口即时数字化: {newItem.Label} 到 {boundCore.NetworkName}");
-                }
-                return;
-            }
-
-            // 方案B：保留旧行为（先传送到核心附近），但做失败回滚，避免物品卡住
-            bool wasSpawned = newItem.Spawned;
-            IntVec3 fallbackPos = this.Position;
-            Map fallbackMap = this.Map;
-
-            if (wasSpawned)
-            {
-                newItem.DeSpawn(DestroyMode.Vanish);
-            }
-
-            bool placed = GenPlace.TryPlaceThing(newItem, boundCore.Position, boundCore.Map, ThingPlaceMode.Near);
-            if (!placed)
-            {
-                // 回滚：放回接口附近，避免吞物或卡住
-                if (fallbackMap != null)
-                {
-                    GenPlace.TryPlaceThing(newItem, fallbackPos, fallbackMap, ThingPlaceMode.Near);
-                }
-
-                if (DigitalStorageSettings.enableDebugLog)
-                {
-                    Log.Warning($"[数字存储] 输入接口传送失败，已回滚: {newItem.Label}");
-                }
-                return;
-            }
-
-            FleckMaker.ThrowLightningGlow(boundCore.DrawPos, boundCore.Map, 0.5f);
-
-            if (DigitalStorageSettings.enableDebugLog)
-            {
-                Log.Message($"[数字存储] 输入接口传送: {newItem.Label} x{newItem.stackCount} 到 {boundCore.NetworkName}");
-            }
-        }
-
-        public new bool Accepts(Thing t)
-        {
-            if (!IsActive || boundCore == null)
-            {
-                return false;
-            }
-
-            if (!boundCore.CanReceiveThing(t))
-            {
-                return false;
-            }
-
-            return base.Accepts(t);
-        }
-
-        public new StorageSettings GetStoreSettings()
-        {
-            return boundCore?.GetStoreSettings() ?? settings;
-        }
-
-        public new StorageSettings GetParentStoreSettings()
-        {
-            if (boundCore != null)
-            {
-                return boundCore.GetParentStoreSettings();
-            }
-            return def.building?.fixedStorageSettings ?? StorageSettings.EverStorableFixedSettings();
         }
     }
 }

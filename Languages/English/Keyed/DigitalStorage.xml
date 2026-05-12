@@ -3,116 +3,82 @@
 
   <!-- ========== Building_StorageCore ========== -->
   <DS_UnnamedNetwork>Unnamed Network</DS_UnnamedNetwork>
-  <DS_ViewStorage>View Storage</DS_ViewStorage>
-  <DS_ViewStorageDesc>View all items in virtual storage</DS_ViewStorageDesc>
-  <DS_RenameNetwork>Rename Network</DS_RenameNetwork>
-  <DS_RenameNetworkDesc>Set a name for this storage network</DS_RenameNetworkDesc>
+  <DS_RenameNetwork>Rename network</DS_RenameNetwork>
+  <DS_RenameNetworkDesc>Set a name for this storage network.</DS_RenameNetworkDesc>
   <DS_InspectNetwork>Network: {0}</DS_InspectNetwork>
-  <DS_InspectCapacity>Capacity: {0}/{1} groups</DS_InspectCapacity>
+  <DS_InspectCapacity>Capacity: {0} / {1} slots</DS_InspectCapacity>
   <DS_NoPower>No power</DS_NoPower>
+  <DS_DebugIngestAdjacent>Ingest adjacent</DS_DebugIngestAdjacent>
+  <DS_DebugIngestAdjacentDesc>(Debug) Ingest all valid items within 9 cells around the core into the ledger.</DS_DebugIngestAdjacentDesc>
+  <DS_DebugIngestResult>Ingested {0}, rejected {1}.</DS_DebugIngestResult>
+
+  <!-- ========== ITab_DigitalStorage ========== -->
+  <DS_TabDigitalStorage>Virtual storage</DS_TabDigitalStorage>
+  <DS_CapacityBar>{0} / {1} slots</DS_CapacityBar>
+  <DS_Kinds>kinds</DS_Kinds>
+  <DS_Reserved>reserved {0}</DS_Reserved>
+  <DS_WithdrawBtn>Withdraw</DS_WithdrawBtn>
+  <DS_WithdrawTitle>Withdraw {0}</DS_WithdrawTitle>
+  <DS_WithdrawAvailable>Available: {0}</DS_WithdrawAvailable>
+  <DS_NoSpaceNearCore>No space near the core.</DS_NoSpaceNearCore>
+
+  <!-- ========== Groups ========== -->
+  <DS_Group_Raw>Raw</DS_Group_Raw>
+  <DS_Group_Food>Food</DS_Group_Food>
+  <DS_Group_Manufactured>Manufactured</DS_Group_Manufactured>
+  <DS_Group_MedicalAmmo>Medical &amp; ammo</DS_Group_MedicalAmmo>
+  <DS_Group_BodyParts>Bodyparts</DS_Group_BodyParts>
+  <DS_Group_Other>Other</DS_Group_Other>
 
   <!-- ========== Building_InputInterface ========== -->
   <DS_ConnectedTo>Connected to: {0}</DS_ConnectedTo>
   <DS_NotConnected>Not connected</DS_NotConnected>
-  <DS_ConnectToCore>Connect to Core</DS_ConnectToCore>
-  <DS_ConnectToCoreDescInterface>Select a storage core to connect to</DS_ConnectToCoreDescInterface>
+  <DS_ConnectToCore>Connect to core</DS_ConnectToCore>
+  <DS_ConnectToCoreDescInterface>Select a storage core to connect to.</DS_ConnectToCoreDescInterface>
   <DS_NoCoresAvailable>No cores available</DS_NoCoresAvailable>
-  <DS_InspectInterfaceStorage>Storage: {0}/{1}</DS_InspectInterfaceStorage>
 
   <!-- ========== Dialog_RenameNetwork ========== -->
   <DS_EnterNetworkName>Enter network name:</DS_EnterNetworkName>
   <DS_Confirm>Confirm</DS_Confirm>
   <DS_Cancel>Cancel</DS_Cancel>
 
-  <!-- ========== ITab_VirtualStorage ========== -->
-  <DS_TabVirtualStorage>Virtual Storage</DS_TabVirtualStorage>
-  <DS_TabHeader>Virtual Storage ({0}/{1} groups)</DS_TabHeader>
-  <DS_EmptyStorage>Empty</DS_EmptyStorage>
-  <DS_ExtractAll>Extract all</DS_ExtractAll>
-  <DS_ExtractSlider>Extract {0}:</DS_ExtractSlider>
-  <DS_PendingSection>Pending Absorption ({0})</DS_PendingSection>
-  <DS_VirtualSection>Virtual Storage ({0})</DS_VirtualSection>
-  <DS_PendingTooltip>{0} x{1}</DS_PendingTooltip>
-
-  <!-- ========== Dialog_VirtualStorage ========== -->
-  <DS_VirtualStorageTitle>Virtual Storage - {0}</DS_VirtualStorageTitle>
-  <DS_CapacityInfo>Capacity: {0} / {1}  |  Item types: {2}</DS_CapacityInfo>
-  <DS_ClearSearch>Clear</DS_ClearSearch>
-  <DS_HeaderIcon>Icon</DS_HeaderIcon>
-  <DS_HeaderName>Name</DS_HeaderName>
-  <DS_HeaderQuality>Quality</DS_HeaderQuality>
-  <DS_HeaderCount>Count</DS_HeaderCount>
-  <DS_HeaderDurability>Durability</DS_HeaderDurability>
-  <DS_ExtractX1>Extract x1</DS_ExtractX1>
-  <DS_Extract1Stack>1 stack</DS_Extract1Stack>
-  <DS_ExtractCustom>Custom</DS_ExtractCustom>
-  <DS_CoreUnavailable>Core unavailable</DS_CoreUnavailable>
-  <DS_Extracted>{0} x{1} extracted</DS_Extracted>
-  <DS_NoSpaceNearCore>No space near core</DS_NoSpaceNearCore>
-  <DS_ExtractionFailed>Extraction failed</DS_ExtractionFailed>
-  <DS_UnknownItem>Unknown item</DS_UnknownItem>
-  <DS_TooltipCount>Count: {0}</DS_TooltipCount>
-  <DS_TooltipQuality>Quality: {0}</DS_TooltipQuality>
-  <DS_TooltipDurability>Durability: {0} / {1} ({2}%)</DS_TooltipDurability>
-
-  <!-- ========== Dialog_ExtractAmount ========== -->
-  <DS_ExtractAmountTitle>Extract Amount</DS_ExtractAmountTitle>
-  <DS_ExtractAmountItem>Item: {0}</DS_ExtractAmountItem>
-  <DS_ExtractAmountAvailable>Available: {0}  (Stack limit: {1})</DS_ExtractAmountAvailable>
-  <DS_InvalidNumber>Please enter a valid number</DS_InvalidNumber>
-  <DS_AmountMustBePositive>Amount must be greater than 0</DS_AmountMustBePositive>
-  <DS_AmountExceedsMax>Amount cannot exceed {0}</DS_AmountExceedsMax>
-
   <!-- ========== CompUseEffect_TerminalImplant ========== -->
-  <DS_ImplantSuccess>{0} has been implanted with a terminal chip and can now remotely access the digital storage system</DS_ImplantSuccess>
-  <DS_OnlyHumans>Only humans can use this</DS_OnlyHumans>
-  <DS_AlreadyImplanted>Terminal chip already installed</DS_AlreadyImplanted>
-  <DS_ImplantConfirm>Are you sure you want to implant a terminal chip in {0}?\n\nAfter implantation, items will be teleported directly to their feet, no need to walk to the storage core.</DS_ImplantConfirm>
+  <DS_ImplantSuccess>{0} has been implanted with a terminal chip and can now access the digital storage system remotely.</DS_ImplantSuccess>
+  <DS_OnlyHumans>Only humans can use this.</DS_OnlyHumans>
+  <DS_AlreadyImplanted>Already has a terminal implant.</DS_AlreadyImplanted>
+  <DS_ImplantConfirm>Implant a terminal chip into {0}?\n\nOnce implanted, they can access the digital storage system remotely and items will appear at their feet.</DS_ImplantConfirm>
 
   <!-- ========== Settings ========== -->
-  <DS_SettingsCategory>Digital Storage 2.0</DS_SettingsCategory>
-  <DS_CostSettings>Cost Settings</DS_CostSettings>
+  <DS_SettingsCategory>Digital Storage 3.0</DS_SettingsCategory>
+  <DS_CostSettings>Cost settings</DS_CostSettings>
   <DS_CostMultiplier>Cost multiplier: {0:F1}x</DS_CostMultiplier>
-  <DS_CostMultiplierDesc>Adjust material costs for all buildings and items</DS_CostMultiplierDesc>
-  <DS_ReservedSettings>Reserved Items Settings</DS_ReservedSettings>
-  <DS_ReservedCountPerItem>Reserved count per item type: {0}</DS_ReservedCountPerItem>
-  <DS_ReservedDesc>Reserved items remain in physical form so WorkGivers can find them directly</DS_ReservedDesc>
-  <DS_DebugSettings>Debug Settings</DS_DebugSettings>
-  <DS_EnableDebugLog>Enable verbose logging</DS_EnableDebugLog>
-  <DS_EnableDebugLogDesc>Show detailed debug info in log (placeholder creation, item spawning, etc.)</DS_EnableDebugLogDesc>
-  <DS_EnableConversionLog>Enable conversion logging</DS_EnableConversionLog>
-  <DS_EnableConversionLogDesc>Show detailed conversion process info in log (tick checks, statistics, conversion, etc.)</DS_EnableConversionLogDesc>
-  <DS_EnableTradeLog>Enable trade logging</DS_EnableTradeLog>
-  <DS_EnableTradeLogDesc>Show detailed trade process info in log (item registration, deduction, orbital trade, etc.)</DS_EnableTradeLogDesc>
-  <DS_CountVirtualWealth>Count virtual items as wealth</DS_CountVirtualWealth>
-  <DS_CountVirtualWealthDesc>Include digitized items in colony wealth calculation (storyteller threat points)</DS_CountVirtualWealthDesc>
-  <DS_InterfaceInstantDigitize>Input interface instant digitize</DS_InterfaceInstantDigitize>
-  <DS_InterfaceInstantDigitizeDesc>When enabled, items placed on input interface are digitized immediately instead of being dropped near core first</DS_InterfaceInstantDigitizeDesc>
-  <DS_DebugWarning>Warning: Enabling these will produce a large amount of log output, only use for debugging</DS_DebugWarning>
+  <DS_CostMultiplierDesc>Adjust material cost for all buildings and items.</DS_CostMultiplierDesc>
+  <DS_DebugSettings>Debug settings</DS_DebugSettings>
+  <DS_EnableDebugLog>Enable detailed log</DS_EnableDebugLog>
+  <DS_EnableDebugLogDesc>Print detailed debug information to the log.</DS_EnableDebugLogDesc>
 
-  <!-- ========== Upgrade System ========== -->
+  <!-- ========== Upgrade ========== -->
   <DS_Upgrade>Upgrade</DS_Upgrade>
   <DS_Downgrade>Downgrade</DS_Downgrade>
   <DS_UpgradeDesc>Upgrade storage core.\n\nCapacity: {0} → {1}\nPower: {2}W → {3}W</DS_UpgradeDesc>
   <DS_DowngradeDesc>Downgrade storage core.\n\nCapacity: {0} → {1}\nPower: {2}W → {3}W</DS_DowngradeDesc>
-  <DS_UpgradeCost>Cost: {0}</DS_UpgradeCost>
-  <DS_UpgradeStarted>{0} upgrade started</DS_UpgradeStarted>
-  <DS_DowngradeStarted>{0} downgrade started</DS_DowngradeStarted>
-  <DS_UpgradeComplete>{0} upgraded to {1}</DS_UpgradeComplete>
-  <DS_DowngradeComplete>{0} downgraded to {1}</DS_DowngradeComplete>
+  <DS_UpgradeCost>Materials required: {0}</DS_UpgradeCost>
+  <DS_UpgradeStarted>{0} started upgrading.</DS_UpgradeStarted>
+  <DS_DowngradeStarted>{0} started downgrading.</DS_DowngradeStarted>
+  <DS_UpgradeComplete>{0} upgraded to {1}.</DS_UpgradeComplete>
+  <DS_DowngradeComplete>{0} downgraded to {1}.</DS_DowngradeComplete>
   <DS_UpgradeInProgress>In progress: {0}</DS_UpgradeInProgress>
   <DS_DowngradeInProgress>In progress: {0}</DS_DowngradeInProgress>
   <DS_UpgradeCooldown>Cooldown: {0}</DS_UpgradeCooldown>
-  <DS_MaxLevel>Already at maximum level</DS_MaxLevel>
-  <DS_MinLevel>Already at minimum level</DS_MinLevel>
-  <DS_MaxLevelDesc>This storage core is already at maximum level.</DS_MaxLevelDesc>
-  <DS_MinLevelDesc>This storage core is already at minimum level.</DS_MinLevelDesc>
-  <DS_UpgradeNoMaterials>Not enough materials for upgrade</DS_UpgradeNoMaterials>
-  <DS_DowngradeTooFull>Cannot downgrade: {0} items stored, but downgraded capacity is only {1}</DS_DowngradeTooFull>
+  <DS_MaxLevel>Max level reached</DS_MaxLevel>
+  <DS_MinLevel>Min level reached</DS_MinLevel>
+  <DS_MaxLevelDesc>This storage core has reached its maximum level.</DS_MaxLevelDesc>
+  <DS_MinLevelDesc>This storage core has reached its minimum level.</DS_MinLevelDesc>
+  <DS_UpgradeNoMaterials>Not enough upgrade materials.</DS_UpgradeNoMaterials>
   <DS_InspectLevel>Level: {0}/{1}</DS_InspectLevel>
   <DS_UpgradeLevel_1>Basic</DS_UpgradeLevel_1>
   <DS_UpgradeLevel_2>Advanced</DS_UpgradeLevel_2>
-  <DS_UpgradeLevel_3>Superior</DS_UpgradeLevel_3>
+  <DS_UpgradeLevel_3>High-Tech</DS_UpgradeLevel_3>
   <DS_UpgradeLevel_4>Quantum</DS_UpgradeLevel_4>
 
 </LanguageData>

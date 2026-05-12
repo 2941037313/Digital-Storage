@@ -17,10 +17,6 @@
     <comps>
       <li Class="CompProperties_Forbiddable" />
     </comps>
-    <inspectorTabs>
-      <li>ITab_Storage</li>
-      <li>DigitalStorage.UI.ITab_VirtualStorage</li>
-    </inspectorTabs>
     <thingCategories>
       <li>BuildingsFurniture</li>
     </thingCategories>
@@ -30,7 +26,7 @@
   <ThingDef ParentName="DigitalStorage_BuildingBase">
     <defName>DigitalStorage_StorageCore</defName>
     <label>数字存储核心</label>
-    <description>数字存储系统的核心单元。每个核心是一个独立的存储网络，可以命名。基础容量 1000 个物品，通过连接磁盘柜扩展容量。\n\n存储在网络中的物品不会老化或变质。\n\n有终端芯片的殖民者可以远程传送物品。</description>
+    <description>数字存储系统的核心单元。每个核心是一个独立的虚拟存储网络，可以命名。\n\n物品通过输入接口送入后转为数字数据，不占地图空间，也不会老化或变质。\n\n装载终端芯片的殖民者可以无需走到接口直接存取。</description>
     <thingClass>DigitalStorage.Components.Building_StorageCore</thingClass>
     <graphicData>
       <texPath>2.0/基座</texPath>
@@ -48,70 +44,11 @@
       <Mass>50</Mass>
     </statBases>
     <size>(3,3)</size>
-    <building>
-      <blueprintClass>Blueprint_Storage</blueprintClass>
-      <maxItemsInCell>200</maxItemsInCell>
-      <preventDeteriorationOnTop>true</preventDeteriorationOnTop>
-      <ignoreStoredThingsBeauty>true</ignoreStoredThingsBeauty>
-      <groupingLabel>Digital Storage</groupingLabel>
-      <fixedStorageSettings>
-        <priority>Normal</priority>
-        <filter>
-          <disallowNotEverStorable>true</disallowNotEverStorable>
-          <categories Inherit="False">
-            <li>Foods</li>
-            <li>ResourcesRaw</li>
-            <li>Textiles</li>
-            <li>Medicine</li>
-            <li>Drugs</li>
-            <li>MortarShells</li>
-            <li>BodyParts</li>
-          </categories>
-          <thingDefs>
-            <li>Neutroamine</li>
-            <li>Chemfuel</li>
-            <li>ComponentIndustrial</li>
-            <li>ComponentSpacer</li>
-            <li>Wort</li>
-            <li>SignalChip</li>
-            <li>NanostructuringChip</li>
-            <li>PowerfocusChip</li>
-            <li>SubcoreBasic</li>
-            <li>SubcoreRegular</li>
-            <li>SubcoreHigh</li>
-
-          </thingDefs>
-        </filter>
-      </fixedStorageSettings>
-      <defaultStorageSettings>
-        <priority>Important</priority>
-        <filter>
-          <categories>
-            <li>Foods</li>
-            <li>ResourcesRaw</li>
-            <li>Textiles</li>
-            <li>Medicine</li>
-            <li>Drugs</li>
-            <li>MortarShells</li>
-            <li>BodyParts</li>
-          </categories>
-          <thingDefs>
-            <li>Neutroamine</li>
-            <li>Chemfuel</li>
-            <li>ComponentIndustrial</li>
-            <li>ComponentSpacer</li>
-            <li>Wort</li>
-            <li>SignalChip</li>
-            <li>NanostructuringChip</li>
-            <li>PowerfocusChip</li>
-            <li>SubcoreBasic</li>
-            <li>SubcoreRegular</li>
-            <li>SubcoreHigh</li>
-
-          </thingDefs>
-        </filter>
-      </defaultStorageSettings>
-    </building>
+    <hasInteractionCell>true</hasInteractionCell>
+    <interactionCellOffset>(0, 0, -2)</interactionCellOffset>
+    <inspectorTabs>
+      <li>DigitalStorage.UI.ITab_DigitalStorage</li>
+    </inspectorTabs>
     <tickerType>Normal</tickerType>
     <comps>
       <li Class="CompProperties_Power">
@@ -206,7 +143,7 @@
   <ThingDef ParentName="DigitalStorage_BuildingBase">
     <defName>DigitalStorage_InputInterface</defName>
     <label>数字存储输入接口</label>
-    <description>数字存储系统的输入接口。殖民者将物品放到接口上后，物品会自动传送到绑定的存储核心。\n\n放置后会自动连接到相邻的存储核心，也可以手动选择连接目标。</description>
+    <description>数字存储系统的输入接口。作为核心的远端接入点，殖民者可以走到这里把物品存入核心，或从核心取出物品带走。\n\n放置后会自动连接到相邻的存储核心，也可以手动选择连接目标。</description>
     <thingClass>DigitalStorage.Components.Building_InputInterface</thingClass>
     <graphicData>
       <texPath>接口</texPath>
@@ -222,69 +159,6 @@
       <Mass>20</Mass>
     </statBases>
     <size>(1,1)</size>
-    <building>
-      <maxItemsInCell>100</maxItemsInCell>
-      <preventDeteriorationOnTop>true</preventDeteriorationOnTop>
-      <ignoreStoredThingsBeauty>true</ignoreStoredThingsBeauty>
-      <groupingLabel>Digital Storage</groupingLabel>
-      <fixedStorageSettings>
-        <priority>Normal</priority>
-        <filter>
-          <disallowNotEverStorable>true</disallowNotEverStorable>
-          <categories Inherit="False">
-            <li>Foods</li>
-            <li>ResourcesRaw</li>
-            <li>Textiles</li>
-            <li>Medicine</li>
-            <li>Drugs</li>
-            <li>MortarShells</li>
-            <li>BodyParts</li>
-          </categories>
-          <thingDefs>
-            <li>Neutroamine</li>
-            <li>Chemfuel</li>
-            <li>ComponentIndustrial</li>
-            <li>ComponentSpacer</li>
-            <li>Wort</li>
-            <li>SignalChip</li>
-            <li>NanostructuringChip</li>
-            <li>PowerfocusChip</li>
-            <li>SubcoreBasic</li>
-            <li>SubcoreRegular</li>
-            <li>SubcoreHigh</li>
-
-          </thingDefs>
-        </filter>
-      </fixedStorageSettings>
-      <defaultStorageSettings>
-        <priority>Critical</priority>
-        <filter>
-          <categories>
-            <li>Foods</li>
-            <li>ResourcesRaw</li>
-            <li>Textiles</li>
-            <li>Medicine</li>
-            <li>Drugs</li>
-            <li>MortarShells</li>
-            <li>BodyParts</li>
-          </categories>
-          <thingDefs>
-            <li>Neutroamine</li>
-            <li>Chemfuel</li>
-            <li>ComponentIndustrial</li>
-            <li>ComponentSpacer</li>
-            <li>Wort</li>
-            <li>SignalChip</li>
-            <li>NanostructuringChip</li>
-            <li>PowerfocusChip</li>
-            <li>SubcoreBasic</li>
-            <li>SubcoreRegular</li>
-            <li>SubcoreHigh</li>
-
-          </thingDefs>
-        </filter>
-      </defaultStorageSettings>
-    </building>
     <comps>
       <li Class="CompProperties_Power">
         <compClass>CompPowerTrader</compClass>
