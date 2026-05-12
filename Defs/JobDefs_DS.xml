@@ -15,4 +15,11 @@
     <reportString>从数字存储核心取料为 TargetA 做工。</reportString>
   </JobDef>
 
+  <!-- 阶段 4.3：从核心取料送蓝图/Frame -->
+  <JobDef>
+    <defName>DigitalStorage_WithdrawToConstruction</defName>
+    <driverClass>DigitalStorage.AI.JobDriver_DS_Withdraw</driverClass>
+    <reportString>从数字存储核心取料送去 TargetA。</reportString>
+  </JobDef>
+
 </Defs>

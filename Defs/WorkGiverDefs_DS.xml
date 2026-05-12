@@ -29,4 +29,18 @@
     </requiredCapacities>
   </WorkGiverDef>
 
+  <!-- 阶段 4.3：从核心取料送蓝图/Frame（priorityInType=200 高于 DeliverResourcesToFrames=10）-->
+  <WorkGiverDef>
+    <defName>DigitalStorage_WithdrawForConstruction</defName>
+    <label>从数字存储核心取料送建筑</label>
+    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForConstruct</giverClass>
+    <workType>Hauling</workType>
+    <verb>送</verb>
+    <gerund>送料中</gerund>
+    <priorityInType>200</priorityInType>
+    <requiredCapacities>
+      <li>Manipulation</li>
+    </requiredCapacities>
+  </WorkGiverDef>
+
 </Defs>
