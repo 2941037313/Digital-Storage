@@ -8,6 +8,7 @@ namespace DigitalStorage.Settings
         public static float costMultiplier = 1.0f;
         public static bool enableDebugLog = false;
         public static bool enableConversionLog = false; // 转换日志（Tick检查、AsyncItemConverter等）
+        public static bool enableTradeLog = false; // 交易日志（交易扣除、物品追踪等）
         public static int reservedCountPerItem = 100; // 每种物品预留数量
         public static bool countVirtualWealth = true; // 虚拟物品是否计入财富
         public static bool interfaceInstantDigitize = true; // 输入接口是否直接数字化
@@ -18,6 +19,7 @@ namespace DigitalStorage.Settings
             Scribe_Values.Look(ref costMultiplier, "costMultiplier", 1.0f);
             Scribe_Values.Look(ref enableDebugLog, "enableDebugLog", false);
             Scribe_Values.Look(ref enableConversionLog, "enableConversionLog", false);
+            Scribe_Values.Look(ref enableTradeLog, "enableTradeLog", false);
             Scribe_Values.Look(ref reservedCountPerItem, "reservedCountPerItem", 100);
             Scribe_Values.Look(ref countVirtualWealth, "countVirtualWealth", true);
             Scribe_Values.Look(ref interfaceInstantDigitize, "interfaceInstantDigitize", true);
@@ -66,8 +68,12 @@ namespace DigitalStorage.Settings
                 "DS_EnableDebugLogDesc".Translate());
             listingStandard.Gap(6f);
             
-            listingStandard.CheckboxLabeled("DS_EnableConversionLog".Translate(), ref enableConversionLog, 
+            listingStandard.CheckboxLabeled("DS_EnableConversionLog".Translate(), ref enableConversionLog,
                 "DS_EnableConversionLogDesc".Translate());
+            listingStandard.Gap(6f);
+
+            listingStandard.CheckboxLabeled("DS_EnableTradeLog".Translate(), ref enableTradeLog,
+                "DS_EnableTradeLogDesc".Translate());
             listingStandard.Gap(6f);
 
             listingStandard.CheckboxLabeled("DS_CountVirtualWealth".Translate(), ref countVirtualWealth,

@@ -107,7 +107,7 @@ namespace DigitalStorage.HarmonyPatches
 
             __result = tradableThings;
 
-            if (DigitalStorageSettings.enableDebugLog)
+            if (DigitalStorageSettings.enableTradeLog)
             {
                 Log.Message($"[数字存储] AllLaunchableThingsForTrade: 添加虚拟存储物品后共 {tradableThings.Count} 种");
             }
@@ -141,7 +141,7 @@ namespace DigitalStorage.HarmonyPatches
 
             __result = tradableThings;
 
-            if (DigitalStorageSettings.enableDebugLog)
+            if (DigitalStorageSettings.enableTradeLog)
             {
                 Log.Message($"[数字存储] ColonyThingsWillingToBuy: 添加虚拟存储物品后共 {tradableThings.Count} 种");
             }
@@ -220,6 +220,13 @@ namespace DigitalStorage.HarmonyPatches
 
                     // 标记来源（用于交易后从虚拟存储扣除）
                     TradeItemTracker.RegisterTradeItem(tradeThing, core, itemData);
+
+                    if (DigitalStorageSettings.enableTradeLog)
+                    {
+                        Log.Message($"[数字存储] 注册交易物品: {tradeThing.Label} x{tradeThing.stackCount}, " +
+                            $"stuff={itemData.stuffDef?.label ?? "null"}, 核心={core.NetworkName}, " +
+                            $"ThingID={tradeThing.thingIDNumber}");
+                    }
 
                     tradableThings.Add(tradeThing);
                 }

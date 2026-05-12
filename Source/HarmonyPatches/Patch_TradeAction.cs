@@ -16,34 +16,40 @@ namespace DigitalStorage.HarmonyPatches
     /// </summary>
 
     /// <summary>
-    /// 来访商人交易：卖出虚拟存储物品时从核心扣除
+    /// 虚拟存储交易扣除的通用逻辑
     /// </summary>
-    [HarmonyPatch(typeof(Pawn_TraderTracker), "GiveSoldThingToTrader")]
-    public static class Patch_TradeAction_GiveSoldThingToTrader
+    public static class TradeDeductionHelper
     {
-        public static bool Prefix(Thing toGive, int countToGive, Pawn playerNegotiator)
+        /// <summary>
+        /// 从虚拟存储扣除交易物品。返回 true 表示已处理（应跳过原版逻辑），false 表示非虚拟物品。
+        /// </summary>
+        public static bool TryDeductVirtualItem(Thing toGive, int countToGive, string tradeType)
         {
             if (toGive == null)
             {
-                return true;
+                return false;
             }
 
-            // 检查是否是虚拟存储中的物品
             var tradeInfo = TradeItemTracker.GetTradeItemInfo(toGive);
             if (tradeInfo == null)
             {
-                // 不是虚拟存储物品，使用原版逻辑
-                return true;
+                return false;
             }
 
-            // 从虚拟存储扣除物品
+            if (DigitalStorageSettings.enableTradeLog)
+            {
+                Log.Message($"[数字存储] 交易扣除开始 ({tradeType}): {tradeInfo.def?.label ?? "null"} x{countToGive}, " +
+                    $"stuff={tradeInfo.stuffDef?.label ?? "null"}, " +
+                    $"核心={tradeInfo.sourceCore?.NetworkName ?? "null"}, " +
+                    $"核心状态: Spawned={tradeInfo.sourceCore?.Spawned}, Powered={tradeInfo.sourceCore?.Powered}");
+            }
+
+            int deducted = 0;
+
             if (tradeInfo.sourceCore != null && tradeInfo.sourceCore.Spawned && tradeInfo.sourceCore.Powered)
             {
-                // 使用 DeductVirtualItems 按 ThingDef 扣除（处理有 stuff 的情况）
-                int deducted = 0;
                 if (tradeInfo.stuffDef != null)
                 {
-                    // 有 stuff 的物品，用精确匹配的 ExtractItem
                     Thing extracted = tradeInfo.sourceCore.ExtractItem(tradeInfo.def, countToGive, tradeInfo.stuffDef);
                     if (extracted != null)
                     {
@@ -53,21 +59,44 @@ namespace DigitalStorage.HarmonyPatches
                 }
                 else
                 {
-                    // 无 stuff 的物品，用 DeductVirtualItems
                     deducted = tradeInfo.sourceCore.DeductVirtualItems(tradeInfo.def, countToGive);
                 }
-
-                if (DigitalStorageSettings.enableDebugLog)
-                {
-                    Log.Message($"[DigitalStorage] Trade deducted (visitor): {tradeInfo.def.label} x{deducted}/{countToGive}");
-                }
+            }
+            else if (DigitalStorageSettings.enableTradeLog)
+            {
+                Log.Warning($"[数字存储] 交易扣除失败 ({tradeType}): 核心不可用, {tradeInfo.def?.label ?? "null"} x{countToGive}");
             }
 
-            // 清理追踪
-            TradeItemTracker.UnregisterTradeItem(toGive);
+            if (DigitalStorageSettings.enableTradeLog)
+            {
+                Log.Message($"[数字存储] 交易扣除完成 ({tradeType}): {tradeInfo.def?.label ?? "null"}, " +
+                    $"请求={countToGive}, 实际扣除={deducted}, 差额={countToGive - deducted}");
+            }
 
-            // 阻止原版逻辑（因为物品不在地图上）
-            return false;
+            if (deducted < countToGive)
+            {
+                Log.Warning($"[数字存储] 交易扣除不足 ({tradeType}): {tradeInfo.def?.label ?? "null"}, " +
+                    $"请求={countToGive}, 实际={deducted}");
+            }
+
+            TradeItemTracker.UnregisterTradeItem(toGive);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 来访商人交易：卖出虚拟存储物品时从核心扣除
+    /// </summary>
+    [HarmonyPatch(typeof(Pawn_TraderTracker), "GiveSoldThingToTrader")]
+    public static class Patch_TradeAction_GiveSoldThingToTrader
+    {
+        public static bool Prefix(Thing toGive, int countToGive, Pawn playerNegotiator)
+        {
+            if (TradeDeductionHelper.TryDeductVirtualItem(toGive, countToGive, "来访商人"))
+            {
+                return false; // 已处理，跳过原版逻辑
+            }
+            return true; // 非虚拟物品，走原版逻辑
         }
     }
 
@@ -79,48 +108,33 @@ namespace DigitalStorage.HarmonyPatches
     {
         public static bool Prefix(Thing toGive, int countToGive, Pawn playerNegotiator)
         {
-            if (toGive == null)
+            if (TradeDeductionHelper.TryDeductVirtualItem(toGive, countToGive, "据点交易"))
             {
-                return true;
+                return false;
             }
+            return true;
+        }
+    }
 
-            // 检查是否是虚拟存储中的物品
-            var tradeInfo = TradeItemTracker.GetTradeItemInfo(toGive);
-            if (tradeInfo == null)
+    /// <summary>
+    /// 轨道交易（商船）：卖出虚拟存储物品时从核心扣除
+    ///
+    /// 这是之前遗漏的关键补丁！
+    /// 原版调用链：TradeDeal.TryExecute → Tradeable.ResolveTrade → TransferableUtility.TransferNoSplit
+    ///   → TradeSession.trader.GiveSoldThingToTrader(thing, count, negotiator)
+    /// 对于轨道交易，TradeSession.trader 是 TradeShip 实例，
+    /// 所以实际调用的是 TradeShip.GiveSoldThingToTrader，而非 Pawn_TraderTracker 的版本。
+    /// </summary>
+    [HarmonyPatch(typeof(TradeShip), "GiveSoldThingToTrader")]
+    public static class Patch_TradeShip_GiveSoldThingToTrader
+    {
+        public static bool Prefix(Thing toGive, int countToGive, Pawn playerNegotiator)
+        {
+            if (TradeDeductionHelper.TryDeductVirtualItem(toGive, countToGive, "轨道交易"))
             {
-                // 不是虚拟存储物品，使用原版逻辑
-                return true;
+                return false;
             }
-
-            // 从虚拟存储扣除物品
-            if (tradeInfo.sourceCore != null && tradeInfo.sourceCore.Spawned && tradeInfo.sourceCore.Powered)
-            {
-                int deducted = 0;
-                if (tradeInfo.stuffDef != null)
-                {
-                    Thing extracted = tradeInfo.sourceCore.ExtractItem(tradeInfo.def, countToGive, tradeInfo.stuffDef);
-                    if (extracted != null)
-                    {
-                        deducted = extracted.stackCount;
-                        extracted.Destroy(DestroyMode.Vanish);
-                    }
-                }
-                else
-                {
-                    deducted = tradeInfo.sourceCore.DeductVirtualItems(tradeInfo.def, countToGive);
-                }
-
-                if (DigitalStorageSettings.enableDebugLog)
-                {
-                    Log.Message($"[DigitalStorage] Trade deducted (settlement): {tradeInfo.def.label} x{deducted}/{countToGive}");
-                }
-            }
-
-            // 清理追踪
-            TradeItemTracker.UnregisterTradeItem(toGive);
-
-            // 阻止原版逻辑（因为物品不在远行队背包中）
-            return false;
+            return true;
         }
     }
 
@@ -225,9 +239,9 @@ namespace DigitalStorage.HarmonyPatches
                 }
             }
 
-            if (DigitalStorageSettings.enableDebugLog)
+            if (DigitalStorageSettings.enableTradeLog)
             {
-                Log.Message($"[DigitalStorage] LaunchThingsOfType: {resDef.label}, debt={debt}, after physical deduction remaining={remaining}");
+                Log.Message($"[数字存储] LaunchThingsOfType: {resDef.label}, debt={debt}, 物理扣除后剩余={remaining}");
             }
 
             // ===== 第二步：从虚拟存储补扣剩余 =====
@@ -248,16 +262,16 @@ namespace DigitalStorage.HarmonyPatches
                     int deducted = core.DeductVirtualItems(resDef, remaining);
                     remaining -= deducted;
 
-                    if (DigitalStorageSettings.enableDebugLog && deducted > 0)
+                    if (DigitalStorageSettings.enableTradeLog && deducted > 0)
                     {
-                        Log.Message($"[DigitalStorage] Orbital trade deducted from virtual: {resDef.label} x{deducted}");
+                        Log.Message($"[数字存储] 轨道交易从虚拟存储扣除: {resDef.label} x{deducted}");
                     }
                 }
             }
 
             if (remaining > 0)
             {
-                Log.Warning($"[DigitalStorage] LaunchThingsOfType: could not fully satisfy debt for {resDef.label}, shortfall={remaining}");
+                Log.Warning($"[数字存储] LaunchThingsOfType: 无法完全满足 {resDef.label} 的需求, 缺口={remaining}");
             }
 
             // 完全接管，不执行原版逻辑
