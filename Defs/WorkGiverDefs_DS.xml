@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- 阶段 4.1：搬运 → 核心（优先级高于 HaulGeneral=15） -->
+  <WorkGiverDef>
+    <defName>DigitalStorage_HaulToCore</defName>
+    <label>把物品送入数字存储核心</label>
+    <giverClass>DigitalStorage.AI.WorkGiver_DS_HaulToCore</giverClass>
+    <workType>Hauling</workType>
+    <verb>搬运</verb>
+    <gerund>搬运中</gerund>
+    <priorityInType>50</priorityInType>
+    <requiredCapacities>
+      <li>Manipulation</li>
+    </requiredCapacities>
+  </WorkGiverDef>
+
+</Defs>

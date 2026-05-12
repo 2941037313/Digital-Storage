@@ -22,6 +22,9 @@
   <DS_WithdrawAvailable>可用: {0}</DS_WithdrawAvailable>
   <DS_NoSpaceNearCore>核心周围没有空位</DS_NoSpaceNearCore>
 
+  <!-- ========== 工单 ========== -->
+  <DS_ReportHaulingToCore>把 {0} 送入数字存储核心 [{1}]</DS_ReportHaulingToCore>
+
   <!-- ========== 分组 ========== -->
   <DS_Group_Raw>原料</DS_Group_Raw>
   <DS_Group_Food>食物</DS_Group_Food>

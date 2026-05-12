@@ -22,6 +22,9 @@
   <DS_WithdrawAvailable>Available: {0}</DS_WithdrawAvailable>
   <DS_NoSpaceNearCore>No space near the core.</DS_NoSpaceNearCore>
 
+  <!-- ========== Jobs ========== -->
+  <DS_ReportHaulingToCore>Hauling {0} into digital storage core [{1}]</DS_ReportHaulingToCore>
+
   <!-- ========== Groups ========== -->
   <DS_Group_Raw>Raw</DS_Group_Raw>
   <DS_Group_Food>Food</DS_Group_Food>

@@ -74,6 +74,9 @@
     <Compile Include="Core\LedgerPolicy.cs" />
     <Compile Include="Core\CoreLedger.cs" />
 
+    <Compile Include="AI\JobDriver_DS_Ingest.cs" />
+    <Compile Include="AI\WorkGiver_DS_HaulToCore.cs" />
+
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
 
