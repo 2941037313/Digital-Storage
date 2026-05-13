@@ -135,12 +135,13 @@ namespace DigitalStorage.Core
 
         /// <summary>
         /// 从账本扣除并生成 Thing（满耐久、满 HP）。
-        /// 扣除数量受可用量（扣除预订）限制。返回生成的 Thing（stackCount=实际扣除量），无货返回 null。
+        /// 传 job 时排除该 job 自己的预订再算可用量——允许自己取自己预订的东西。
+        /// 取多少就从该 job 的预订里扣多少（自动抹平），返回生成的 Thing，无货返回 null。
         /// </summary>
-        public Thing Withdraw(ItemKey key, int requestCount)
+        public Thing Withdraw(ItemKey key, int requestCount, Job forJob = null)
         {
             if (requestCount <= 0) return null;
-            long available = Available(key);
+            long available = AvailableExceptJob(key, forJob);
             if (available <= 0) return null;
 
             int take = requestCount > available ? (int)available : requestCount;
@@ -151,12 +152,47 @@ namespace DigitalStorage.Core
             if (after <= 0) stock.Remove(key);
             else stock[key] = after;
 
+            // 从预订里扣掉已取走的量
+            if (forJob != null && reservedByJob.TryGetValue(forJob, out var list))
+            {
+                for (int i = list.Count - 1; i >= 0; i--)
+                {
+                    if (list[i].key.Equals(key))
+                    {
+                        var e = list[i];
+                        int ded = System.Math.Min(take, e.count);
+                        e.count -= ded;
+                        if (e.count <= 0) list.RemoveAt(i);
+                        else list[i] = e;
+                        break;
+                    }
+                }
+            }
+
             groupTotalsDirty = true;
 
             var thing = ThingMaker.MakeThing(key.def, key.stuff);
             thing.stackCount = take;
-            // MakeThing 默认就是满 HitPoints，无需额外设置
             return thing;
+        }
+
+        /// <summary>
+        /// 可用量 = 库存 - 除自己的预订。传 null 等于 Available()。
+        /// </summary>
+        private long AvailableExceptJob(ItemKey key, Job excludeJob)
+        {
+            if (!stock.TryGetValue(key, out long s)) s = 0;
+            long r = 0;
+            foreach (var kv in reservedByJob)
+            {
+                if (kv.Key == excludeJob) continue;
+                foreach (var e in kv.Value)
+                {
+                    if (e.key.Equals(key)) r += e.count;
+                }
+            }
+            long a = s - r;
+            return a > 0 ? a : 0;
         }
 
         // ========== 预订 ==========

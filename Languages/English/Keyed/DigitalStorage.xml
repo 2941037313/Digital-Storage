@@ -30,6 +30,7 @@
   <DS_WithdrawItemLabel>{0} ({1} available, from {2})</DS_WithdrawItemLabel>
   <DS_NoPathToCore>No path to storage core.</DS_NoPathToCore>
   <DS_WithdrawCarryLimit>Pawn can carry: {0}</DS_WithdrawCarryLimit>
+  <DS_ReportConsuming>Consuming {0} from digital storage.</DS_ReportConsuming>
 
   <!-- ========== Groups ========== -->
   <DS_Group_Raw>Raw</DS_Group_Raw>

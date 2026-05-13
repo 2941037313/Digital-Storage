@@ -30,6 +30,7 @@
   <DS_WithdrawItemLabel>{0}（可用 {1}，来自 {2}）</DS_WithdrawItemLabel>
   <DS_NoPathToCore>无法到达存储核心。</DS_NoPathToCore>
   <DS_WithdrawCarryLimit>pawn 可搬运: {0}</DS_WithdrawCarryLimit>
+  <DS_ReportConsuming>从数字存储取用 {0}。</DS_ReportConsuming>
 
   <!-- ========== 分组 ========== -->
   <DS_Group_Raw>原料</DS_Group_Raw>

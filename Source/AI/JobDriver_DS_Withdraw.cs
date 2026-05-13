@@ -150,7 +150,7 @@ namespace DigitalStorage.AI
                 if (maxCarry <= 0) { EndJobWith(JobCondition.Incompletable); return; }
                 int take = System.Math.Min(planCount, maxCarry);
 
-                var spawned = core.Ledger.Withdraw(planKey, take);
+                var spawned = core.Ledger.Withdraw(planKey, take, job);
                 if (spawned == null) { EndJobWith(JobCondition.Incompletable); return; }
                 actor.carryTracker.TryStartCarry(spawned, spawned.stackCount, false);
             };

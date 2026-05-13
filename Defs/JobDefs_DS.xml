@@ -29,4 +29,11 @@
     <reportString>从数字存储核心取料到指定位置。</reportString>
   </JobDef>
 
+  <!-- 阶段 4.6：从核心取消耗品直接进嘴 -->
+  <JobDef>
+    <defName>DigitalStorage_ConsumeFromLedger</defName>
+    <driverClass>DigitalStorage.AI.JobDriver_DS_Consume</driverClass>
+    <reportString>从数字存储核心取用 TargetA。</reportString>
+  </JobDef>
+
 </Defs>

@@ -125,6 +125,7 @@ namespace DigitalStorage.AI
         public static JobDef DigitalStorage_WithdrawToBill;
         public static JobDef DigitalStorage_WithdrawToConstruction;
         public static JobDef DigitalStorage_WithdrawToSpot;
+        public static JobDef DigitalStorage_ConsumeFromLedger;
 
         static DigitalStorage_JobDefOf() { DefOfHelper.EnsureInitializedInCtor(typeof(DigitalStorage_JobDefOf)); }
     }

@@ -158,7 +158,7 @@ namespace DigitalStorage.AI
                     int need = planCounts[i];
                     while (need > 0)
                     {
-                        var spawned = ledger.Withdraw(key, need);
+                        var spawned = ledger.Withdraw(key, need, job);
                         if (spawned == null)
                         {
                             EndJobWith(JobCondition.Incompletable);
