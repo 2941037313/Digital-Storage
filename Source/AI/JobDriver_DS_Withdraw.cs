@@ -21,6 +21,16 @@ namespace DigitalStorage.AI
         private ItemKey planKey;
         private int planCount;
 
+        // 玩家右键触发时填入，Driver 启动时消费（同帧内，无须入档）
+        private static readonly Dictionary<Job, (ItemKey key, int count)> pendingPlans =
+            new Dictionary<Job, (ItemKey, int)>();
+
+        public static void SetPendingPlan(Job job, ItemKey key, int count)
+        {
+            if (job != null && count > 0)
+                pendingPlans[job] = (key, count);
+        }
+
         public Building_StorageCore TargetCore => job.GetTarget(TargetIndex.C).Thing as Building_StorageCore;
 
         public override bool TryMakePreToilReservations(bool errorOnFailed)
@@ -52,6 +62,15 @@ namespace DigitalStorage.AI
             base.Notify_Starting();
             AddFinishAction(_ => TargetCore?.Ledger.ReleaseByJob(job));
 
+            // 玩家右键触发 → 从 pending 消费
+            if (planCount <= 0 && pendingPlans.TryGetValue(job, out var pp))
+            {
+                planKey = pp.key;
+                planCount = pp.count;
+                pendingPlans.Remove(job);
+            }
+
+            // 构造场景 → 自动规划
             if (planCount <= 0 && TargetCore != null)
             {
                 var constructible = job.GetTarget(TargetIndex.A).Thing as IConstructible;
@@ -122,11 +141,18 @@ namespace DigitalStorage.AI
             toil.defaultCompleteMode = ToilCompleteMode.Instant;
             toil.initAction = () =>
             {
+                var actor = toil.actor;
                 var core = TargetCore;
                 if (core == null) { EndJobWith(JobCondition.Incompletable); return; }
-                var spawned = core.Ledger.Withdraw(planKey, planCount);
+
+                // 裁剪到 pawn 负重上限（Bug #2）
+                int maxCarry = actor.carryTracker.AvailableStackSpace(planKey.def);
+                if (maxCarry <= 0) { EndJobWith(JobCondition.Incompletable); return; }
+                int take = System.Math.Min(planCount, maxCarry);
+
+                var spawned = core.Ledger.Withdraw(planKey, take);
                 if (spawned == null) { EndJobWith(JobCondition.Incompletable); return; }
-                toil.actor.carryTracker.TryStartCarry(spawned, spawned.stackCount, false);
+                actor.carryTracker.TryStartCarry(spawned, spawned.stackCount, false);
             };
             return toil;
         }
@@ -152,7 +178,7 @@ namespace DigitalStorage.AI
                         var taken = actor.carryTracker.innerContainer.Take(carried, carried.stackCount);
                         if (taken != null && container.TryAdd(taken, true))
                         {
-                            actor.Map.designationManager.TryRemoveDesignationOn(taken, DesignationDefOf.Haul);
+                            taken.SetForbidden(true, false);
                             return;
                         }
                         if (taken != null)
@@ -162,10 +188,12 @@ namespace DigitalStorage.AI
 
                 // 非构造场景（右键取料 / 贸易 / 容器放不进）：落地 + 移除 haul 标记
                 IntVec3 dropCell = actor.Position;
-                if (targetThing != null)
+                var targetA = job.GetTarget(TargetIndex.A);
+                if (targetA.HasThing)
                 {
-                    dropCell = targetThing.Position;
-                    if (targetThing is IBillGiver giver)
+                    var t = targetA.Thing;
+                    dropCell = t.Position;
+                    if (t is IBillGiver giver)
                     {
                         foreach (var c in giver.IngredientStackCells)
                         {
@@ -175,10 +203,14 @@ namespace DigitalStorage.AI
                         }
                     }
                 }
+                else if (targetA.IsValid)
+                {
+                    dropCell = targetA.Cell;
+                }
                 if (actor.carryTracker.TryDropCarriedThing(dropCell, ThingPlaceMode.Near, out var dropped, null))
                 {
                     if (dropped != null)
-                        actor.Map.designationManager.TryRemoveDesignationOn(dropped, DesignationDefOf.Haul);
+                        dropped.SetForbidden(true, false);
                 }
             };
             return toil;

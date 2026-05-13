@@ -84,6 +84,7 @@
 
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
+    <Compile Include="UI\FloatMenuOptionProvider_DS_Withdraw.cs" />
 
     <Compile Include="HarmonyPatches\HarmonyInit.cs" />
 

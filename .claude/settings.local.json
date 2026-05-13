@@ -4,7 +4,8 @@
       "mcp__rimworld-code-rag__rough_search",
       "mcp__rimworld-code-rag__get_item",
       "Bash(dotnet build:*)",
-      "Bash(rmdir *)"
+      "Bash(rmdir *)",
+      "Bash(gh issue create --title 'PRD: 数字存储 3.0 — 账本式虚拟存储完整重构' --body ' *)"
     ]
   }
 }

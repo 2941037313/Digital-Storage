@@ -22,4 +22,11 @@
     <reportString>从数字存储核心取料送去 TargetA。</reportString>
   </JobDef>
 
+  <!-- 阶段 4.4：右键强制取料到指定格 -->
+  <JobDef>
+    <defName>DigitalStorage_WithdrawToSpot</defName>
+    <driverClass>DigitalStorage.AI.JobDriver_DS_Withdraw</driverClass>
+    <reportString>从数字存储核心取料到指定位置。</reportString>
+  </JobDef>
+
 </Defs>

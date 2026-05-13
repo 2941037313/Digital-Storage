@@ -3,3 +3,5 @@
 /.codex
 .claude/settings.local.json
 .codex/hooks.json
+.claude/settings.local.json
+/Docs

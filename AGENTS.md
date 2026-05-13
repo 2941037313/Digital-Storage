@@ -72,3 +72,17 @@ This creates a "handoff note" for the next session (or for another AI agent).
 - **Include file paths** in filesModified when relevant
 - **Include related concepts** for better searchability
 - **Prefer storing too much over too little** — the retention system will auto-decay stale memories
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as local markdown files under `Docs/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Six labels including `needs-research` for source-code-tracing prerequisites. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo — `CONTEXT.md` + `docs/adr/` at repo root. RimWorld assemblies at `Assembly-CSharp/`. See `docs/agents/domain.md`.

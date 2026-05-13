@@ -25,6 +25,12 @@
   <!-- ========== 工单 ========== -->
   <DS_ReportHaulingToCore>把 {0} 送入数字存储核心 [{1}]</DS_ReportHaulingToCore>
 
+  <!-- ========== 右键菜单 ========== -->
+  <DS_WithdrawToSpot>从数字存储取出…</DS_WithdrawToSpot>
+  <DS_WithdrawItemLabel>{0}（可用 {1}，来自 {2}）</DS_WithdrawItemLabel>
+  <DS_NoPathToCore>无法到达存储核心。</DS_NoPathToCore>
+  <DS_WithdrawCarryLimit>pawn 可搬运: {0}</DS_WithdrawCarryLimit>
+
   <!-- ========== 分组 ========== -->
   <DS_Group_Raw>原料</DS_Group_Raw>
   <DS_Group_Food>食物</DS_Group_Food>
