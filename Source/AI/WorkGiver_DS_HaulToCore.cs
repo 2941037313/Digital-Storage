@@ -11,6 +11,7 @@ namespace DigitalStorage.AI
     /// 阶段 4.1：扫地图上可搬运物品，派"送进核心"工单。
     /// 优先级在 Defs 里设为高于 HaulGeneral(15)。
     /// 芯片 pawn 跳过走代理点；普通 pawn 走最近接口/核心交互格。
+    /// 跨图支持：通过 CoreFinder 发现远程核心（同 NetworkName + 跨图接口）。
     /// </summary>
     public class WorkGiver_DS_HaulToCore : WorkGiver_Scanner
     {
@@ -25,34 +26,26 @@ namespace DigitalStorage.AI
         public override bool ShouldSkip(Pawn pawn, bool forced = false)
         {
             if (pawn.Map.listerHaulables.ThingsPotentiallyNeedingHauling().Count == 0) return true;
-            var mapComp = pawn.Map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return true;
-            var cores = mapComp.GetAllCores();
-            for (int i = 0; i < cores.Count; i++)
-            {
-                if (IsCoreUsable(cores[i])) return false;
-            }
-            return true;
+            return CoreFinder.AllUsableAccesses(pawn).Count == 0;
         }
 
         public override bool HasJobOnThing(Pawn pawn, Thing t, bool forced = false)
         {
-            return FindAcceptingCore(pawn, t, forced) != null;
+            return FindAcceptingAccess(pawn, t, forced) != null;
         }
 
         public override Job JobOnThing(Pawn pawn, Thing t, bool forced = false)
         {
-            var core = FindAcceptingCore(pawn, t, forced);
-            if (core == null) return null;
+            var best = FindAcceptingAccess(pawn, t, forced);
+            if (best == null) return null;
 
-            // targetA = 地上物品；targetC = 目标核心；targetB = 代理点（芯片 pawn 留 Invalid）
             var job = JobMaker.MakeJob(DigitalStorage_JobDefOf.DigitalStorage_IngestToCore, t);
-            job.SetTarget(TargetIndex.C, core);
+            job.SetTarget(TargetIndex.C, best.Value.ledgerCore);
             job.count = t.stackCount;
 
             if (!Hediff_TerminalImplant.HasTerminalImplant(pawn))
             {
-                IntVec3 proxy = PickProxyCell(pawn, core);
+                IntVec3 proxy = CoreFinder.PickProxyCell(pawn, best.Value.proxyCore);
                 if (!proxy.IsValid) return null;
                 job.SetTarget(TargetIndex.B, proxy);
             }
@@ -61,58 +54,29 @@ namespace DigitalStorage.AI
 
         // ---------- helpers ----------
 
-        private Building_StorageCore FindAcceptingCore(Pawn pawn, Thing t, bool forced)
+        private CoreAccess? FindAcceptingAccess(Pawn pawn, Thing t, bool forced)
         {
             if (t == null || t.Destroyed) return null;
             if (!LedgerPolicy.CanIngest(t)) return null;
             if (!HaulAIUtility.PawnCanAutomaticallyHaulFast(pawn, t, forced)) return null;
 
-            var mapComp = pawn.Map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return null;
-
-            var cores = mapComp.GetAllCores();
-            Building_StorageCore best = null;
+            bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
+            CoreAccess? best = null;
             int bestDist = int.MaxValue;
 
-            for (int i = 0; i < cores.Count; i++)
+            foreach (var access in CoreFinder.AllUsableAccesses(pawn))
             {
-                var core = cores[i];
-                if (!IsCoreUsable(core)) continue;
-                if (!core.Ledger.CanAccept(t, core.GetCapacity())) continue;
-                // 芯片 pawn 不用走代理点，直接按核心距离估
-                IntVec3 anchor = Hediff_TerminalImplant.HasTerminalImplant(pawn)
-                    ? core.Position
-                    : PickProxyCell(pawn, core);
+                if (!access.ledgerCore.Ledger.CanAccept(t, access.ledgerCore.GetCapacity())) continue;
+
+                // 芯片：不走代理点，距离无所谓，用 pawn 自己位置做锚
+                // 远程核心的 Position 在另一个地图——跨图距离无意义
+                IntVec3 anchor = chip
+                    ? pawn.Position
+                    : CoreFinder.PickProxyCell(pawn, access.proxyCore);
                 if (!anchor.IsValid) continue;
+
                 int d = (anchor - pawn.Position).LengthManhattan;
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    best = core;
-                }
-            }
-            return best;
-        }
-
-        private static bool IsCoreUsable(Building_StorageCore core)
-        {
-            return core != null && core.Spawned && !core.Destroyed && core.Powered;
-        }
-
-        private static IntVec3 PickProxyCell(Pawn pawn, Building_StorageCore core)
-        {
-            IntVec3 best = IntVec3.Invalid;
-            int bestDist = int.MaxValue;
-            foreach (var cell in core.GetProxyCells())
-            {
-                if (!cell.InBounds(pawn.Map)) continue;
-                if (!pawn.CanReach(cell, PathEndMode.Touch, Danger.Deadly)) continue;
-                int d = (cell - pawn.Position).LengthManhattan;
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    best = cell;
-                }
+                if (d < bestDist) { bestDist = d; best = access; }
             }
             return best;
         }

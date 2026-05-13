@@ -83,6 +83,7 @@
     <Compile Include="AI\WorkGiver_DS_WithdrawForConstruct.cs" />
     <Compile Include="AI\ConsumptionHelper.cs" />
     <Compile Include="AI\JobDriver_DS_Consume.cs" />
+    <Compile Include="AI\CoreFinder.cs" />
 
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
@@ -90,6 +91,8 @@
 
     <Compile Include="HarmonyPatches\HarmonyInit.cs" />
     <Compile Include="HarmonyPatches\Patch_ConsumeFromLedger.cs" />
+    <Compile Include="HarmonyPatches\Patch_ResourceCounter.cs" />
+    <Compile Include="HarmonyPatches\Patch_DesignatorBuild_ProcessInput.cs" />
 
     <Compile Include="Services\DigitalStorageGameComponent.cs" />
 

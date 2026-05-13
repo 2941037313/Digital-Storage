@@ -142,8 +142,8 @@
   <!-- 输入接口 - 物品放上去自动传送到核心 -->
   <ThingDef ParentName="DigitalStorage_BuildingBase">
     <defName>DigitalStorage_InputInterface</defName>
-    <label>数字存储输入接口</label>
-    <description>数字存储系统的输入接口。作为核心的远端接入点，殖民者可以走到这里把物品存入核心，或从核心取出物品带走。\n\n放置后会自动连接到相邻的存储核心，也可以手动选择连接目标。</description>
+    <label>数字存储接口</label>
+    <description>数字存储系统的接入点。殖民者可以走到这里存取核心网络中的物品。\n\n可手动选择连接目标核心，支持跨地图连接。</description>
     <thingClass>DigitalStorage.Components.Building_InputInterface</thingClass>
     <graphicData>
       <texPath>接口</texPath>

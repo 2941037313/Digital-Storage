@@ -29,18 +29,11 @@ namespace DigitalStorage.AI
         public static Job TryCreateJob(Pawn pawn, Func<ItemKey, bool> filter)
         {
             if (pawn?.Map == null) return null;
-
-            var mapComp = pawn.Map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return null;
-            var cores = mapComp.GetAllCores();
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
 
-            for (int ci = 0; ci < cores.Count; ci++)
+            foreach (var access in CoreFinder.AllUsableAccesses(pawn))
             {
-                var core = cores[ci];
-                if (core == null || !core.Spawned || core.Destroyed || !core.Powered) continue;
-
-                var ledger = core.Ledger;
+                var ledger = access.ledgerCore.Ledger;
                 foreach (var kv in ledger.Stock)
                 {
                     if (kv.Value <= 0) continue;
@@ -52,10 +45,10 @@ namespace DigitalStorage.AI
                     int take = GetIngestAmount(pawn, kv.Key.def, limit);
                     if (take <= 0) continue;
 
-                    if (chip) return MakeJob(core, IntVec3.Invalid, kv.Key, take);
+                    if (chip) return MakeJob(access.ledgerCore, IntVec3.Invalid, kv.Key, take);
 
-                    IntVec3 proxy = PickProxyCell(pawn, core);
-                    if (proxy.IsValid) return MakeJob(core, proxy, kv.Key, take);
+                    IntVec3 proxy = CoreFinder.PickProxyCell(pawn, access.proxyCore);
+                    if (proxy.IsValid) return MakeJob(access.ledgerCore, proxy, kv.Key, take);
                 }
             }
             return null;
@@ -94,18 +87,5 @@ namespace DigitalStorage.AI
             return Math.Min(take, maxAvailable);
         }
 
-        private static IntVec3 PickProxyCell(Pawn pawn, Building_StorageCore core)
-        {
-            IntVec3 best = IntVec3.Invalid;
-            int bestDist = int.MaxValue;
-            foreach (var c in core.GetProxyCells())
-            {
-                if (!c.InBounds(pawn.Map)) continue;
-                if (!pawn.CanReach(c, PathEndMode.Touch, Danger.Deadly)) continue;
-                int d = (c - pawn.Position).LengthManhattan;
-                if (d < bestDist) { bestDist = d; best = c; }
-            }
-            return best;
-        }
     }
 }

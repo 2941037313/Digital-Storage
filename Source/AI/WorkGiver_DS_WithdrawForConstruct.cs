@@ -35,7 +35,7 @@ namespace DigitalStorage.AI
             var mapComp = pawn.Map.GetComponent<DigitalStorageMapComponent>();
             if (mapComp == null) return true;
             var cores = mapComp.GetAllCores();
-            for (int i = 0; i < cores.Count; i++) { if (IsCoreUsable(cores[i])) return false; }
+            for (int i = 0; i < cores.Count; i++) { if (CoreFinder.IsUsable(cores[i])) return false; }
             return true;
         }
 
@@ -49,8 +49,7 @@ namespace DigitalStorage.AI
             if (!GenConstruct.CanConstruct(t, pawn, def.workType, forced, DigitalStorage_JobDefOf.DigitalStorage_WithdrawToConstruction))
                 return false;
 
-            var core = FindCoreWithMaterial(pawn, constructible);
-            return core != null;
+            return FindBestAccess(pawn, constructible) != null;
         }
 
         public override Job JobOnThing(Pawn pawn, Thing t, bool forced = false)
@@ -58,15 +57,15 @@ namespace DigitalStorage.AI
             var constructible = t as IConstructible;
             if (constructible == null) return null;
 
-            var core = FindCoreWithMaterial(pawn, constructible);
-            if (core == null) return null;
+            var best = FindBestAccess(pawn, constructible);
+            if (best == null) return null;
 
             var job = JobMaker.MakeJob(DigitalStorage_JobDefOf.DigitalStorage_WithdrawToConstruction, t);
-            job.SetTarget(TargetIndex.C, core);
+            job.SetTarget(TargetIndex.C, best.Value.ledgerCore);
 
             if (!Hediff_TerminalImplant.HasTerminalImplant(pawn))
             {
-                IntVec3 proxy = PickProxyCell(pawn, core);
+                IntVec3 proxy = CoreFinder.PickProxyCell(pawn, best.Value.proxyCore);
                 if (!proxy.IsValid) return null;
                 job.SetTarget(TargetIndex.B, proxy);
             }
@@ -75,38 +74,17 @@ namespace DigitalStorage.AI
 
         // ---------- helpers ----------
 
-        private Building_StorageCore FindCoreWithMaterial(Pawn pawn, IConstructible c)
+        private CoreAccess? FindBestAccess(Pawn pawn, IConstructible c)
         {
-            var mapComp = pawn.Map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return null;
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
-
-            foreach (var core in mapComp.GetAllCores())
+            foreach (var access in CoreFinder.AllUsableAccesses(pawn))
             {
-                if (!IsCoreUsable(core)) continue;
-                var plan = ConstructLedgerPlanner.TryPlan(c, core);
+                var plan = ConstructLedgerPlanner.TryPlan(c, access.ledgerCore);
                 if (plan == null) continue;
-                if (chip) return core;
-                if (PickProxyCell(pawn, core).IsValid) return core;
+                if (chip) return access;
+                if (CoreFinder.PickProxyCell(pawn, access.proxyCore).IsValid) return access;
             }
             return null;
-        }
-
-        private static bool IsCoreUsable(Building_StorageCore core) =>
-            core != null && core.Spawned && !core.Destroyed && core.Powered;
-
-        private static IntVec3 PickProxyCell(Pawn pawn, Building_StorageCore core)
-        {
-            IntVec3 best = IntVec3.Invalid;
-            int bestDist = int.MaxValue;
-            foreach (var c in core.GetProxyCells())
-            {
-                if (!c.InBounds(pawn.Map)) continue;
-                if (!pawn.CanReach(c, PathEndMode.Touch, Danger.Deadly)) continue;
-                int d = (c - pawn.Position).LengthManhattan;
-                if (d < bestDist) { bestDist = d; best = c; }
-            }
-            return best;
         }
     }
 }

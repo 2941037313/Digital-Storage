@@ -107,10 +107,13 @@ namespace DigitalStorage.Components
                     {
                         foreach (var core in gameComp.GetAllCores())
                         {
-                            if (core != null && core.Spawned && core.Map == Map)
+                            if (core != null && core.Spawned && !core.Destroyed)
                             {
-                                var localCore = core;
-                                options.Add(new FloatMenuOption(localCore.NetworkName, () => SetBoundCore(localCore)));
+                                var c = core;
+                                string label = c.Map != Map
+                                    ? $"{c.NetworkName} ({c.Map?.Parent?.Label ?? "?"})"
+                                    : c.NetworkName;
+                                options.Add(new FloatMenuOption(label, () => SetBoundCore(c)));
                             }
                         }
                     }
@@ -143,7 +146,7 @@ namespace DigitalStorage.Components
                 {
                     foreach (var core in gameComp.GetAllCores())
                     {
-                        if (core != null && core.Spawned && core.Map == Map && core.NetworkName == savedCoreNetworkName)
+                        if (core != null && core.Spawned && !core.Destroyed && core.NetworkName == savedCoreNetworkName)
                         {
                             SetBoundCore(core);
                             return;

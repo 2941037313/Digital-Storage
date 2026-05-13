@@ -49,7 +49,7 @@ namespace DigitalStorage.Components
             for (int i = 0; i < interfaces.Count; i++)
             {
                 var iface = interfaces[i];
-                if (iface != null && iface.Spawned && iface.Map == Map)
+                if (iface != null && iface.Spawned)
                 {
                     yield return iface.Position;
                 }

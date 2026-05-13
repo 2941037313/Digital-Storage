@@ -20,12 +20,7 @@ namespace DigitalStorage.AI
 
         public override bool ShouldSkip(Pawn pawn, bool forced = false)
         {
-            var mapComp = pawn.Map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return true;
-            var cores = mapComp.GetAllCores();
-            bool anyCore = false;
-            for (int i = 0; i < cores.Count; i++) { if (IsCoreUsable(cores[i])) { anyCore = true; break; } }
-            if (!anyCore) return true;
+            if (CoreFinder.AllUsableAccesses(pawn).Count == 0) return true;
 
             var list = pawn.Map.listerThings.ThingsInGroup(ThingRequestGroup.PotentialBillGiver);
             for (int i = 0; i < list.Count; i++)
@@ -46,12 +41,9 @@ namespace DigitalStorage.AI
                 && !pawn.CanReserveSittableOrSpot(thing.InteractionCell, thing, forced))
                 return null;
 
-            var mapComp = pawn.Map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return null;
-            var cores = mapComp.GetAllCores();
-
             billGiver.BillStack.RemoveIncompletableBills();
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
+            var accesses = CoreFinder.AllUsableAccesses(pawn);
 
             for (int i = 0; i < billGiver.BillStack.Count; i++)
             {
@@ -64,17 +56,16 @@ namespace DigitalStorage.AI
                 if (!bill.PawnAllowedToStartAnew(pawn)) continue;
                 if (bill.recipe.FirstSkillRequirementPawnDoesntSatisfy(pawn) != null) continue;
 
-                foreach (var core in cores)
+                foreach (var access in accesses)
                 {
-                    if (!IsCoreUsable(core)) continue;
-                    var plan = LedgerBillPlanner.TryPlan(bill, core);
+                    var plan = LedgerBillPlanner.TryPlan(bill, access.ledgerCore);
                     if (plan == null) continue;
 
-                    if (chip) return MakeJob(thing, bill, core, IntVec3.Invalid);
+                    if (chip) return MakeJob(thing, bill, access.ledgerCore, IntVec3.Invalid);
 
-                    IntVec3 proxy = PickProxyCell(pawn, core);
+                    IntVec3 proxy = CoreFinder.PickProxyCell(pawn, access.proxyCore);
                     if (!proxy.IsValid) continue;
-                    return MakeJob(thing, bill, core, proxy);
+                    return MakeJob(thing, bill, access.ledgerCore, proxy);
                 }
             }
             return null;
@@ -90,21 +81,6 @@ namespace DigitalStorage.AI
             return job;
         }
 
-        private static bool IsCoreUsable(Building_StorageCore core) =>
-            core != null && core.Spawned && !core.Destroyed && core.Powered;
-
-        private static IntVec3 PickProxyCell(Pawn pawn, Building_StorageCore core)
-        {
-            IntVec3 best = IntVec3.Invalid;
-            int bestDist = int.MaxValue;
-            foreach (var c in core.GetProxyCells())
-            {
-                if (!c.InBounds(pawn.Map)) continue;
-                if (!pawn.CanReach(c, PathEndMode.Touch, Danger.Deadly)) continue;
-                int d = (c - pawn.Position).LengthManhattan;
-                if (d < bestDist) { bestDist = d; best = c; }
-            }
-            return best;
-        }
+        // helpers moved to CoreFinder
     }
 }
