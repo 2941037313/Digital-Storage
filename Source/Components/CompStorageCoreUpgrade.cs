@@ -142,7 +142,6 @@ namespace DigitalStorage.Components
             {
                 if (cost == null || cost.thingDef == null) continue;
 
-                // v3 过渡态：只看地图上的真实物品，账本层接入后会叠加核心库存
                 long available = this.parent.Map.resourceCounter.GetCount(cost.thingDef);
 
                 if (available < cost.count)
@@ -163,23 +162,43 @@ namespace DigitalStorage.Components
 
                 int remaining = cost.count;
 
-                // v3 过渡态：从地图上消耗；账本层接入后再补"核心扣账本"分支
+                // 1) 先从地图上消耗真实物品
                 List<Thing> mapThings = this.parent.Map.listerThings.ThingsOfDef(cost.thingDef);
                 foreach (Thing thing in mapThings.ToList())
                 {
                     if (remaining <= 0) break;
                     if (!thing.Spawned) continue;
 
-                    int take = Math.Min(thing.stackCount, remaining);
+                    int take = System.Math.Min(thing.stackCount, remaining);
                     remaining -= take;
 
                     if (take >= thing.stackCount)
-                    {
                         thing.Destroy(DestroyMode.Vanish);
-                    }
                     else
-                    {
                         thing.SplitOff(take).Destroy(DestroyMode.Vanish);
+                }
+
+                // 2) 地图不够 → 从核心账本扣
+                if (remaining > 0)
+                {
+                    var core = parent as Building_StorageCore;
+                    if (core != null)
+                    {
+                        var ledger = core.Ledger;
+                        foreach (var kv in ledger.Stock)
+                        {
+                            if (remaining <= 0) break;
+                            if (kv.Key.def != cost.thingDef) continue;
+                            long avail = ledger.Available(kv.Key);
+                            if (avail <= 0) continue;
+                            int take = (int)System.Math.Min(avail, (long)remaining);
+                            var thing = ledger.Withdraw(kv.Key, take);
+                            if (thing != null)
+                            {
+                                remaining -= take;
+                                thing.Destroy(DestroyMode.Vanish);
+                            }
+                        }
                     }
                 }
             }

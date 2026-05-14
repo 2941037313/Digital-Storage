@@ -68,7 +68,7 @@ namespace DigitalStorage.AI
         public override void Notify_Starting()
         {
             base.Notify_Starting();
-            AddFinishAction(_ => TargetCore?.Ledger.ReleaseByJob(job));
+            JobDriver_DS_ReserveHelper.RegisterRelease(this, TargetCore);
 
             // 启动时基于当前账本+bill重算 plan（WorkGiver 到 StartJob 之间可能隔帧）
             if (planKeys.Count == 0 && TargetCore != null && job.bill != null)

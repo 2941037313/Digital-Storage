@@ -72,6 +72,7 @@
     <Compile Include="Core\ItemKey.cs" />
     <Compile Include="Core\ItemGroup.cs" />
     <Compile Include="Core\LedgerPolicy.cs" />
+    <Compile Include="Core\LedgerItemCollector.cs" />
     <Compile Include="Core\CoreLedger.cs" />
 
     <Compile Include="AI\JobDriver_DS_Ingest.cs" />
@@ -84,6 +85,7 @@
     <Compile Include="AI\ConsumptionHelper.cs" />
     <Compile Include="AI\JobDriver_DS_Consume.cs" />
     <Compile Include="AI\CoreFinder.cs" />
+    <Compile Include="AI\JobDriver_DS_ReserveHelper.cs" />
 
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />

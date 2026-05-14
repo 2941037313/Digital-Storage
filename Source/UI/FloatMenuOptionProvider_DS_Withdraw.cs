@@ -67,7 +67,7 @@ namespace DigitalStorage.UI
                                 context.ClickedCell);
                             job.SetTarget(TargetIndex.C, ledgerCore);
                             if (proxy.IsValid) job.SetTarget(TargetIndex.B, proxy);
-                            JobDriver_DS_Withdraw.SetPendingPlan(job, key, amount);
+                            JobDriver_DS_ReserveHelper.SetPendingPlan(job, key, amount);
                             pawn.jobs.TryTakeOrderedJob(job, JobTag.MiscWork);
                         }));
                     }));

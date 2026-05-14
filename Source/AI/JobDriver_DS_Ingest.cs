@@ -42,7 +42,7 @@ namespace DigitalStorage.AI
         {
             base.Notify_Starting();
             // 工单结束（无论什么原因）统一释放账本预订
-            AddFinishAction(_ => TargetCore?.Ledger.ReleaseByJob(job));
+            JobDriver_DS_ReserveHelper.RegisterRelease(this, TargetCore);
         }
 
         protected override IEnumerable<Toil> MakeNewToils()

@@ -85,7 +85,7 @@ namespace DigitalStorage.UI
             if (map == null) return;
 
             var merged = new Dictionary<ItemKey, MergedStock>();
-            CollectCoreItems(map, merged);
+            LedgerItemCollector.CollectCoreItems(map, merged);
             if (merged.Count == 0) return;
 
             var coreTransferables = new List<TransferableOneWay>();
@@ -97,7 +97,10 @@ namespace DigitalStorage.UI
                 int available = (int)kv.Value.Avail;
                 if (available <= 0) continue;
 
-                var thing = WithdrawFromLedgers(key, available, kv.Value.Ledgers, state);
+                var thing = LedgerItemCollector.WithdrawFromLedgers(
+                    key, available, kv.Value.Ledgers,
+                    (t, l) => { state.things.Add(t); state.sourceLedgers.Add(l); },
+                    logSkipped: true);
                 if (thing == null) continue;
 
                 var tw = new TransferableOneWay();
@@ -125,16 +128,7 @@ namespace DigitalStorage.UI
         private static void _Rollback(Dialog_FormCaravan dialog)
         {
             var state = GetState(dialog);
-            for (int i = 0; i < state.things.Count; i++)
-            {
-                var thing = state.things[i];
-                if (thing == null || thing.Destroyed) continue;
-                var key = ItemKey.Of(thing);
-                if (i < state.sourceLedgers.Count && state.sourceLedgers[i] != null)
-                    state.sourceLedgers[i].AddRaw(key, thing.stackCount);
-                if (thing.Spawned) thing.DeSpawn(DestroyMode.Vanish);
-                thing.Destroy(DestroyMode.Vanish);
-            }
+            LedgerItemCollector.Rollback(state.things, state.sourceLedgers);
             state.things.Clear();
             state.sourceLedgers.Clear();
             state.transferables.Clear();
@@ -231,103 +225,6 @@ namespace DigitalStorage.UI
             state.things.RemoveAt(i);
             if (i < state.sourceLedgers.Count) state.sourceLedgers.RemoveAt(i);
             if (i < state.transferables.Count) state.transferables.RemoveAt(i);
-        }
-
-        private struct MergedStock
-        {
-            public long Avail;
-            public List<CoreLedger> Ledgers;
-        }
-
-        private static void CollectCoreItems(Map map, Dictionary<ItemKey, MergedStock> merged)
-        {
-            var seenCores = new HashSet<Building_StorageCore>();
-            var allCores = new List<Building_StorageCore>();
-
-            var mapComp = map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp != null)
-            {
-                foreach (var c in mapComp.GetAllCores())
-                {
-                    if (!CoreFinder.IsUsable(c)) continue;
-                    if (seenCores.Add(c)) allCores.Add(c);
-                }
-            }
-
-            var gameComp = Current.Game?.GetComponent<DigitalStorageGameComponent>();
-            if (gameComp != null)
-            {
-                foreach (var c in gameComp.GetAllCores())
-                {
-                    if (c.Map == map) continue;
-                    if (!CoreFinder.IsUsable(c)) continue;
-                    if (string.IsNullOrEmpty(c.NetworkName)) continue;
-                    if (!seenCores.Add(c)) continue;
-
-                    bool hasLocalPeer = allCores.Any(lc =>
-                        CoreFinder.IsUsable(lc) && lc.NetworkName == c.NetworkName);
-                    bool hasCrossIface = false;
-                    if (!hasLocalPeer)
-                    {
-                        foreach (var cell in c.GetProxyCells())
-                            if (cell.InBounds(map)) { hasCrossIface = true; break; }
-                    }
-                    if (hasLocalPeer || hasCrossIface) allCores.Add(c);
-                }
-            }
-
-            foreach (var core in allCores)
-            {
-                var ledger = core.Ledger;
-                foreach (var kv in ledger.Stock)
-                {
-                    if (kv.Value <= 0) continue;
-                    long avail = ledger.Available(kv.Key);
-                    if (avail <= 0) continue;
-
-                    if (merged.TryGetValue(kv.Key, out var existing))
-                    {
-                        existing.Avail += avail;
-                        existing.Ledgers.Add(ledger);
-                    }
-                    else
-                    {
-                        merged[kv.Key] = new MergedStock { Avail = avail, Ledgers = new List<CoreLedger> { ledger } };
-                    }
-                }
-            }
-        }
-
-        private static Thing WithdrawFromLedgers(ItemKey key, int total, List<CoreLedger> ledgers, DialogState state)
-        {
-            int remaining = total;
-            Thing firstThing = null;
-
-            foreach (var ledger in ledgers)
-            {
-                if (remaining <= 0) break;
-                var thing = ledger.Withdraw(key, remaining, null);
-                if (thing == null) continue;
-
-                // ThingMaker.MakeThing 对某些 def（如 MinifiedThing）可能产生
-                // 渲染阶段无法取 LabelNoCount 的 Thing，提前验证并跳过。
-                try { var _ = thing.LabelNoCount; }
-                catch (System.Exception ex)
-                {
-                    Log.Warning($"[DS] Skipping item {key}: {ex.Message}");
-                    ledger.AddRaw(key, thing.stackCount);
-                    thing.Destroy(DestroyMode.Vanish);
-                    continue;
-                }
-
-                if (firstThing == null) firstThing = thing;
-                else { firstThing.stackCount += thing.stackCount; thing.Destroy(DestroyMode.Vanish); }
-
-                state.things.Add(thing);
-                state.sourceLedgers.Add(ledger);
-                remaining -= thing.stackCount;
-            }
-            return firstThing;
         }
 
         private static TransferableOneWayWidget GetItemsTransfer(Dialog_FormCaravan dialog)

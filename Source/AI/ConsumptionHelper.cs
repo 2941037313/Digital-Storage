@@ -59,7 +59,7 @@ namespace DigitalStorage.AI
             var job = JobMaker.MakeJob(DigitalStorage_JobDefOf.DigitalStorage_ConsumeFromLedger);
             job.SetTarget(TargetIndex.C, core);
             if (proxy.IsValid) job.SetTarget(TargetIndex.B, proxy);
-            JobDriver_DS_Consume.SetPendingPlan(job, key, count);
+            JobDriver_DS_ReserveHelper.SetPendingPlan(job, key, count);
             return job;
         }
 

@@ -20,46 +20,20 @@ namespace DigitalStorage.AI
         private int planCount;
         private bool eatingFromInventory;
 
-        private static readonly Dictionary<Job, (ItemKey key, int count)> pendingPlans =
-            new Dictionary<Job, (ItemKey, int)>();
-
-        public static void SetPendingPlan(Job job, ItemKey key, int count)
-        {
-            if (job != null && count > 0)
-                pendingPlans[job] = (key, count);
-        }
-
         public Building_StorageCore TargetCore => job.GetTarget(TargetIndex.C).Thing as Building_StorageCore;
 
         public override void ExposeData()
         {
             base.ExposeData();
-            if (Scribe.mode == LoadSaveMode.Saving)
-            {
-                string s = planKey.ToSaveString();
-                Scribe_Values.Look(ref s, "planKey");
-                Scribe_Values.Look(ref planCount, "planCount");
-            }
-            else if (Scribe.mode == LoadSaveMode.LoadingVars)
-            {
-                string s = null;
-                Scribe_Values.Look(ref s, "planKey");
-                Scribe_Values.Look(ref planCount, "planCount");
-                if (s != null) ItemKey.TryParse(s, out planKey);
-            }
+            ItemKey.Scribe_KeyAndCount(ref planKey, ref planCount, "planKey", "planCount");
         }
 
         public override void Notify_Starting()
         {
             base.Notify_Starting();
-            // Consume 无预订——Withdraw 在同一帧完成，无需防抢料
 
-            if (planCount <= 0 && pendingPlans.TryGetValue(job, out var pp))
-            {
-                planKey = pp.key;
-                planCount = pp.count;
-                pendingPlans.Remove(job);
-            }
+            if (planCount <= 0)
+                JobDriver_DS_ReserveHelper.TryConsumePendingPlan(job, out planKey, out planCount);
             if (planCount <= 0) { EndJobWith(JobCondition.Incompletable); return; }
 
             eatingFromInventory = Hediff_TerminalImplant.HasTerminalImplant(pawn);

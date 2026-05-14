@@ -66,5 +66,28 @@ namespace DigitalStorage.Core
             key = new ItemKey(def, stuff);
             return true;
         }
+
+        /// <summary>
+        /// #4: 消除 JobDriver 里的 Scribe 模板重复。
+        /// Saves: "keyLabel"=defName|stuff, "countLabel"=int
+        /// Loads: 还原 ItemKey 和 count。
+        /// </summary>
+        public static void Scribe_KeyAndCount(ref ItemKey key, ref int count,
+            string keyLabel, string countLabel)
+        {
+            if (Scribe.mode == LoadSaveMode.Saving)
+            {
+                string s = (key.def != null) ? key.ToSaveString() : null;
+                Scribe_Values.Look(ref s, keyLabel);
+                Scribe_Values.Look(ref count, countLabel);
+            }
+            else if (Scribe.mode == LoadSaveMode.LoadingVars)
+            {
+                string s = null;
+                Scribe_Values.Look(ref s, keyLabel);
+                Scribe_Values.Look(ref count, countLabel);
+                if (s != null) TryParse(s, out key);
+            }
+        }
     }
 }

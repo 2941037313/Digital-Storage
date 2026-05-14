@@ -51,7 +51,7 @@ namespace DigitalStorage.UI
             if (map == null) return;
 
             var merged = new Dictionary<ItemKey, MergedStock>();
-            CollectCoreItems(map, merged);
+            LedgerItemCollector.CollectCoreItems(map, merged, includeCrossMapInterfaces: false);
             if (merged.Count == 0) return;
 
             state.coreStartIndex = cachedList.Count;
@@ -63,25 +63,54 @@ namespace DigitalStorage.UI
                 int available = (int)kv.Value.Avail;
                 if (available <= 0) continue;
 
-                var thing = WithdrawFromLedgers(key, available, kv.Value.Ledgers, state);
+                var thing = LedgerItemCollector.WithdrawFromLedgers(
+                    key, available, kv.Value.Ledgers,
+                    (t, l) => { state.things.Add(t); state.sourceLedgers.Add(l); },
+                    logSkipped: false);
                 if (thing == null) continue;
 
                 var tr = new Tradeable();
                 tr.AddThing(thing, Transactor.Colony);
+                // 所有核心 Tradeable 必须同时加入 TradeDeal.tradeables——UpdateCurrencyCount
+                // 遍历后者算价格。cachedTradeables 只是 UI 渲染列表。
+                TradeSession.deal.AllTradeables.Add(tr);
                 cachedList.Add(tr);
+
+                if (tr.IsCurrency)
+                {
+                    // 和现有的货币 Tradeable 合并（殖民地可能已有白银在地图上）
+                    var currencyField = AccessTools.Field(typeof(Dialog_Trade), "cachedCurrencyTradeable");
+                    var existing = currencyField.GetValue(dialog) as Tradeable;
+                    if (existing != null && existing != tr)
+                    {
+                        existing.AddThing(thing, Transactor.Colony);
+                        Log.Warning($"[DS I4] Silver: merged into existing currency, +{available}");
+                    }
+                    else
+                    {
+                        currencyField.SetValue(dialog, tr);
+                        Log.Warning($"[DS I4] Silver: set new currency, available={available}");
+                    }
+                }
                 state.tradeables.Add(tr);
             }
 
             state.injected = true;
         }
 
-        /// <summary>
-        /// Sort/Filter 触发 CacheTradeables 重新执行时清理旧注入。
-        /// </summary>
         private static void RemoveCoreTradeables(DialogState state, List<Tradeable> cachedList)
         {
+            // 从 cachedTradeables 清除
             for (int i = cachedList.Count - 1; i >= state.coreStartIndex && i >= 0; i--)
                 cachedList.RemoveAt(i);
+            // 从 TradeDeal.tradeables 清除——否则 sort 重 Cache 累计重复
+            var dealTradeables = TradeSession.deal?.AllTradeables;
+            if (dealTradeables != null)
+            {
+                for (int i = dealTradeables.Count - 1; i >= 0; i--)
+                    if (state.tradeables.Contains(dealTradeables[i]))
+                        dealTradeables.RemoveAt(i);
+            }
             state.tradeables.Clear();
             state.coreStartIndex = -1;
         }
@@ -96,16 +125,8 @@ namespace DigitalStorage.UI
 
         private static void RollbackInternal(DialogState state)
         {
-            for (int i = 0; i < state.things.Count; i++)
-            {
-                var thing = state.things[i];
-                if (thing == null || thing.Destroyed) continue;
-                var key = ItemKey.Of(thing);
-                if (i < state.sourceLedgers.Count && state.sourceLedgers[i] != null)
-                    state.sourceLedgers[i].AddRaw(key, thing.stackCount);
-                if (thing.Spawned) thing.DeSpawn(DestroyMode.Vanish);
-                thing.Destroy(DestroyMode.Vanish);
-            }
+            Log.Warning($"[DS I4] Rollback: returning {state.things.Count} things to ledger");
+            LedgerItemCollector.Rollback(state.things, state.sourceLedgers);
             state.things.Clear();
             state.sourceLedgers.Clear();
             state.tradeables.Clear();
@@ -167,88 +188,7 @@ namespace DigitalStorage.UI
         {
             var negotiator = TradeSession.playerNegotiator;
             if (negotiator != null && negotiator.Map != null) return negotiator.Map;
-            // 商队贸易场景：取殖民地所在的地图
             return Find.CurrentMap;
-        }
-
-        private struct MergedStock
-        {
-            public long Avail;
-            public List<CoreLedger> Ledgers;
-        }
-
-        private static void CollectCoreItems(Map map, Dictionary<ItemKey, MergedStock> merged)
-        {
-            var seenCores = new HashSet<Building_StorageCore>();
-            var allCores = new List<Building_StorageCore>();
-
-            var mapComp = map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp != null)
-                foreach (var c in mapComp.GetAllCores())
-                    if (CoreFinder.IsUsable(c) && seenCores.Add(c)) allCores.Add(c);
-
-            var gameComp = Current.Game?.GetComponent<DigitalStorageGameComponent>();
-            if (gameComp != null)
-            {
-                foreach (var c in gameComp.GetAllCores())
-                {
-                    if (c.Map == map) continue;
-                    if (!CoreFinder.IsUsable(c)) continue;
-                    if (string.IsNullOrEmpty(c.NetworkName)) continue;
-                    if (!seenCores.Add(c)) continue;
-                    bool hasPeer = allCores.Exists(lc => CoreFinder.IsUsable(lc) && lc.NetworkName == c.NetworkName);
-                    if (hasPeer) allCores.Add(c);
-                }
-            }
-
-            foreach (var core in allCores)
-            {
-                var ledger = core.Ledger;
-                foreach (var kv in ledger.Stock)
-                {
-                    if (kv.Value <= 0) continue;
-                    long avail = ledger.Available(kv.Key);
-                    if (avail <= 0) continue;
-                    if (merged.TryGetValue(kv.Key, out var existing))
-                    {
-                        existing.Avail += avail;
-                        existing.Ledgers.Add(ledger);
-                    }
-                    else
-                    {
-                        merged[kv.Key] = new MergedStock { Avail = avail, Ledgers = new List<CoreLedger> { ledger } };
-                    }
-                }
-            }
-        }
-
-        private static Thing WithdrawFromLedgers(ItemKey key, int total, List<CoreLedger> ledgers, DialogState state)
-        {
-            int remaining = total;
-            Thing firstThing = null;
-
-            foreach (var ledger in ledgers)
-            {
-                if (remaining <= 0) break;
-                var thing = ledger.Withdraw(key, remaining, null);
-                if (thing == null) continue;
-
-                try { var _ = thing.LabelNoCount; }
-                catch (System.Exception)
-                {
-                    ledger.AddRaw(key, thing.stackCount);
-                    thing.Destroy(DestroyMode.Vanish);
-                    continue;
-                }
-
-                if (firstThing == null) firstThing = thing;
-                else { firstThing.stackCount += thing.stackCount; thing.Destroy(DestroyMode.Vanish); }
-
-                state.things.Add(thing);
-                state.sourceLedgers.Add(ledger);
-                remaining -= thing.stackCount;
-            }
-            return firstThing;
         }
     }
 }

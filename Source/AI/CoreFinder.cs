@@ -27,38 +27,32 @@ namespace DigitalStorage.AI
             var result = new List<CoreAccess>();
             if (pawn?.Map == null) return result;
 
-            var mapComp = pawn.Map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return result;
+            // 核心发现委托给 LedgerItemCollector（消除重复的逻辑）
+            var allCores = Core.LedgerItemCollector.GetAllUsableCores(pawn.Map);
+            if (allCores.Count == 0) return result;
 
-            var localCores = mapComp.GetAllCores();
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
 
-            // 1) 本地核心（账本=代理=同一个）
+            // 本地核心按 NetworkName 建索引（用于远程找代理）
             var localByNetwork = new Dictionary<string, Building_StorageCore>();
             var addedRemotes = new HashSet<Building_StorageCore>();
-            for (int i = 0; i < localCores.Count; i++)
-            {
-                var core = localCores[i];
-                if (!IsUsable(core)) continue;
-                result.Add(new CoreAccess { ledgerCore = core, proxyCore = core });
-                if (!string.IsNullOrEmpty(core.NetworkName) && !localByNetwork.ContainsKey(core.NetworkName))
-                    localByNetwork[core.NetworkName] = core;
-            }
 
-            // 2) 远程核心
-            var gameComp = Current.Game?.GetComponent<DigitalStorageGameComponent>();
-            if (gameComp != null)
+            for (int i = 0; i < allCores.Count; i++)
             {
-                var allCores = gameComp.GetAllCores();
-                for (int i = 0; i < allCores.Count; i++)
+                var core = allCores[i];
+
+                if (core.Map == pawn.Map)
                 {
-                    var core = allCores[i];
-                    if (core.Map == pawn.Map) continue;
-                    if (!IsUsable(core)) continue;
-                    if (string.IsNullOrEmpty(core.NetworkName)) continue;
+                    // 本地核心：账本=代理=同一个
+                    result.Add(new CoreAccess { ledgerCore = core, proxyCore = core });
+                    if (!string.IsNullOrEmpty(core.NetworkName) && !localByNetwork.ContainsKey(core.NetworkName))
+                        localByNetwork[core.NetworkName] = core;
+                }
+                else
+                {
+                    // 远程核心：优先本地同网络代理，兜底跨图接口直连
                     if (addedRemotes.Contains(core)) continue;
 
-                    // 优先：本地同网络核心做代理
                     if (localByNetwork.TryGetValue(core.NetworkName, out var localProxy))
                     {
                         if (chip || HasReachableProxy(pawn, localProxy))
@@ -69,7 +63,6 @@ namespace DigitalStorage.AI
                         }
                     }
 
-                    // 兜底：远程核心的跨图接口直接做代理
                     if (chip || HasReachableProxy(pawn, core))
                     {
                         result.Add(new CoreAccess { ledgerCore = core, proxyCore = core });
