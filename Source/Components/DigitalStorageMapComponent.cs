@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using RimWorld;
 using Verse;
 
 namespace DigitalStorage.Components
@@ -30,6 +29,13 @@ namespace DigitalStorage.Components
             }
         }
 
-        public IReadOnlyList<Building_StorageCore> GetAllCores() => cores;
+        public IReadOnlyList<Building_StorageCore> GetAllCores()
+        {
+            cores.RemoveAll(c => c == null || c.Destroyed);
+            // Scribe 可能留重复引用，去重
+            var seen = new HashSet<Building_StorageCore>();
+            cores.RemoveAll(c => !seen.Add(c));
+            return cores;
+        }
     }
 }

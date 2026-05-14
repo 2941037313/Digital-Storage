@@ -67,6 +67,10 @@
   <DS_EnableDebugLog>Enable detailed log</DS_EnableDebugLog>
   <DS_EnableDebugLogDesc>Print detailed debug information to the log.</DS_EnableDebugLogDesc>
 
+  <!-- ========== Caravan ========== -->
+  <DS_CaravanTab>Digital storage</DS_CaravanTab>
+  <DS_NoCoreItems>No items available in digital storage.</DS_NoCoreItems>
+
   <!-- ========== Upgrade ========== -->
   <DS_Upgrade>Upgrade</DS_Upgrade>
   <DS_Downgrade>Downgrade</DS_Downgrade>

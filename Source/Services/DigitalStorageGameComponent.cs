@@ -44,6 +44,9 @@ namespace DigitalStorage.Services
         public List<Building_StorageCore> GetAllCores()
         {
             globalCores.RemoveAll(c => c == null || c.Destroyed);
+            // Scribe load + SpawnSetup RegisterCore 可能产生重复引用，去重
+            var seen = new HashSet<Building_StorageCore>();
+            globalCores.RemoveAll(c => !seen.Add(c));
             return globalCores;
         }
     }
