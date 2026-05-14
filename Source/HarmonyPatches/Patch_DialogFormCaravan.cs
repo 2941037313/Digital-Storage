@@ -7,7 +7,7 @@ namespace DigitalStorage.HarmonyPatches
 {
     /// <summary>
     /// I2d: 把核心库存以 AddSection 方式注入 itemsTransfer widget，复用原版 UI。
-    /// 提款在 PostOpen → Close/Cancel 回滚 → Send 时合并到 transferables + 按 CountToTransfer 筛选。
+    /// 提款在 PostOpen（unspawned Thing），Close/Cancel 回滚，Send 时合并到 transferables + 按 CountToTransfer 筛选。
     /// </summary>
     [HarmonyPatch(typeof(Dialog_FormCaravan))]
     public static class Patch_DialogFormCaravan
@@ -21,31 +21,25 @@ namespace DigitalStorage.HarmonyPatches
             CaravanDS_Helper.InjectCoreItems(__instance);
         }
 
-        // ---------- PostClose: 未发送则回滚 ----------
+        // ---------- PostClose: WorldRoutePlanner 临时关闭不触发回滚 ----------
 
         [HarmonyPostfix]
         [HarmonyPatch("PostClose")]
         static void PostClose_Postfix(Dialog_FormCaravan __instance)
         {
-            if (!CaravanDS_Helper.WasCaravanSent(__instance))
-                CaravanDS_Helper.Rollback(__instance);
-        }
-
-        // ---------- CalculateAndRecacheTransferables: Prefix 回滚旧提款，Postfix 重新注入 ----------
-
-        [HarmonyPrefix]
-        [HarmonyPatch("CalculateAndRecacheTransferables")]
-        static void CalculateAndRecache_Prefix(Dialog_FormCaravan __instance)
-        {
-            // 原版会 new List<TransferableOneWay>() 清空，先回滚旧提款
+            if (CaravanDS_Helper.WasCaravanSent(__instance)) return;
+            // WorldRoutePlanner.Start → WindowStack.TryRemove 会临时关闭对话框重新打开，
+            // 这种假关闭不应回滚数据。
+            if (System.Environment.StackTrace.Contains("WorldRoutePlanner.Start")) return;
             CaravanDS_Helper.Rollback(__instance);
         }
+
+        // ---------- CalculateAndRecacheTransferables: Reset / 首次创建时注入 ----------
 
         [HarmonyPostfix]
         [HarmonyPatch("CalculateAndRecacheTransferables")]
         static void CalculateAndRecache_Postfix(Dialog_FormCaravan __instance)
         {
-            // 原版已重建 widget，现在注入核心分区
             CaravanDS_Helper.InjectCoreItems(__instance);
         }
 
@@ -63,7 +57,6 @@ namespace DigitalStorage.HarmonyPatches
         static void TryFormAndSend_Postfix(Dialog_FormCaravan __instance, bool __result)
         {
             if (!__result) return;
-
             CaravanDS_Helper.MarkCaravanSent(__instance);
             var map = AccessTools.Field(typeof(Dialog_FormCaravan), "map").GetValue(__instance) as Map;
             if (map != null)
@@ -84,7 +77,6 @@ namespace DigitalStorage.HarmonyPatches
         static void TryReform_Postfix(Dialog_FormCaravan __instance, bool __result)
         {
             if (!__result) return;
-
             CaravanDS_Helper.MarkCaravanSent(__instance);
             var map = AccessTools.Field(typeof(Dialog_FormCaravan), "map").GetValue(__instance) as Map;
             if (map != null)

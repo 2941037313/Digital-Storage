@@ -25,7 +25,6 @@ namespace DigitalStorage.UI
             public List<TransferableOneWay> transferables = new List<TransferableOneWay>();
             public bool caravanSent;
             public bool injected;
-            public bool sectionAdded;
         }
 
         private static readonly Dictionary<Dialog_FormCaravan, DialogState> states
@@ -49,19 +48,44 @@ namespace DigitalStorage.UI
             catch (System.Exception ex) { Log.Error($"[DS] InjectCoreItems: {ex}"); }
         }
 
+        private static bool WidgetHasOurSection(TransferableOneWayWidget widget, string title)
+        {
+            if (widget == null) return false;
+            var sectionsField = AccessTools.Field(typeof(TransferableOneWayWidget), "sections");
+            if (sectionsField == null) return false;
+            var sections = sectionsField.GetValue(widget) as System.Collections.IList;
+            if (sections == null || sections.Count == 0) return false;
+            var titleField = AccessTools.Field(sections[0].GetType(), "title");
+            if (titleField == null) return false;
+            foreach (var s in sections)
+            {
+                var t = titleField.GetValue(s) as string;
+                if (t == title) return true;
+            }
+            return false;
+        }
+
         private static void InjectCoreItemsInternal(Dialog_FormCaravan dialog)
         {
             var state = GetState(dialog);
-            Log.Warning($"[DS] InjectCoreItems: injected={state.injected}, sectionAdded={state.sectionAdded}, things.Count={state.things.Count}");
+            string title = "DS_CaravanTab".Translate();
 
-            if (state.injected) return;
+            var widget = GetItemsTransfer(dialog);
 
+            // 1) section 已存在 → 免疫所有重复调用（WorldRoutePlanner 临时关窗重开等）
+            if (WidgetHasOurSection(widget, title))
+                return;
+
+            // 2) section 不存在但有旧数据 → widget 被重建（Reset 按钮）
+            if (state.injected)
+                _Rollback(dialog);
+
+            // 3) 完整注入
             var map = AccessTools.Field(typeof(Dialog_FormCaravan), "map").GetValue(dialog) as Map;
             if (map == null) return;
 
             var merged = new Dictionary<ItemKey, MergedStock>();
             CollectCoreItems(map, merged);
-            Log.Warning($"[DS] CollectCoreItems: merged.Count={merged.Count}");
             if (merged.Count == 0) return;
 
             var coreTransferables = new List<TransferableOneWay>();
@@ -78,27 +102,14 @@ namespace DigitalStorage.UI
 
                 var tw = new TransferableOneWay();
                 tw.things.Add(thing);
-                // 不加到 dialog.transferables！CreateCaravanTransferableWidgets 内 lazy query
-                // 会在渲染时遍历 transferables，触发 GetTransferableCategory NRE。
-                // 发车时在 Prefix 里加入（CheckForErrors + StartFormingCaravan 拿到完整列表）。
                 coreTransferables.Add(tw);
                 state.transferables.Add(tw);
             }
 
-            Log.Warning($"[DS] Created {coreTransferables.Count} transferables, state.things.Count={state.things.Count}");
             if (coreTransferables.Count == 0) return;
 
-            var widget = GetItemsTransfer(dialog);
-            if (widget != null && !state.sectionAdded)
-            {
-                widget.AddSection("DS_CaravanTab".Translate(), coreTransferables);
-                state.sectionAdded = true;
-                Log.Warning($"[DS] AddSection called with {coreTransferables.Count} items");
-            }
-            else
-            {
-                Log.Warning($"[DS] AddSection skipped: widget={widget != null}, sectionAdded={state.sectionAdded}");
-            }
+            if (widget != null)
+                widget.AddSection(title, coreTransferables);
 
             state.injected = true;
         }
@@ -128,7 +139,6 @@ namespace DigitalStorage.UI
             state.sourceLedgers.Clear();
             state.transferables.Clear();
             state.injected = false;
-            state.sectionAdded = false;
         }
 
         // ---------- Finalize: caravan 确认后的清理 ----------
