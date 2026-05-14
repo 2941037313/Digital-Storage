@@ -123,12 +123,14 @@ namespace DigitalStorage.AI
 
                 int maxCarry = pawn.carryTracker.AvailableStackSpace(planKey.def);
                 if (maxCarry <= 0) { Fail(); return; }
-                int take = Math.Min(planCount, Math.Min(maxCarry, planKey.def.stackLimit));
+                int take = Math.Min(planCount, maxCarry);
 
                 var spawned = core.Ledger.Withdraw(planKey, take, job);
                 if (spawned == null) { Fail(); return; }
 
                 int taken = pawn.carryTracker.TryStartCarry(spawned, spawned.stackCount, false);
+                // TryStartCarry 内部已调用 spawned.SplitOff(taken)——pawn 背的是分出来的新 Thing，
+                // spawned 引用的是剩余的原始 Thing（stackCount 已被 SplitOff 自动扣减）。
                 if (taken <= 0)
                 {
                     core.Ledger.AddRaw(planKey, spawned.stackCount);
@@ -138,7 +140,7 @@ namespace DigitalStorage.AI
                 }
                 if (taken < spawned.stackCount)
                 {
-                    spawned.stackCount -= taken;
+                    // spawned 是 SplitOff 后的剩余部分，直接归还账本即可
                     core.Ledger.AddRaw(planKey, spawned.stackCount);
                     spawned.Destroy(DestroyMode.Vanish);
                 }

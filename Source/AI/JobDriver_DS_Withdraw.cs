@@ -178,7 +178,7 @@ namespace DigitalStorage.AI
                         var taken = actor.carryTracker.innerContainer.Take(carried, carried.stackCount);
                         if (taken != null && container.TryAdd(taken, true))
                         {
-                            taken.SetForbidden(true, false);
+                            // B2: 不设 forbidden。蓝图 reservation 已保护材料；建造失败时原版退回材料不会带 forbidden。
                             return;
                         }
                         if (taken != null)
@@ -186,7 +186,7 @@ namespace DigitalStorage.AI
                     }
                 }
 
-                // 非构造场景（右键取料 / 贸易 / 容器放不进）：落地 + 移除 haul 标记
+                // 非构造场景（右键取料 / 贸易 / 容器放不进）：落地
                 IntVec3 dropCell = actor.Position;
                 var targetA = job.GetTarget(TargetIndex.A);
                 if (targetA.HasThing)
@@ -209,7 +209,7 @@ namespace DigitalStorage.AI
                 }
                 if (actor.carryTracker.TryDropCarriedThing(dropCell, ThingPlaceMode.Near, out var dropped, null))
                 {
-                    if (dropped != null)
+                    if (dropped != null && !(targetThing is IConstructible))
                         dropped.SetForbidden(true, false);
                 }
             };

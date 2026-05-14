@@ -15,12 +15,65 @@
     </requiredCapacities>
   </WorkGiverDef>
 
-  <!-- 阶段 4.2：从核心取料做 bill（priorityInType=999 抢在所有 DoBillsXxx 前）-->
+  <!-- 阶段 4.2：从核心取料做 bill（priorityInType=999 抢在所有 DoBillsXxx 前）。
+       每个 workType 需要一个独立 Def，因为 WorkGiver_Scanner 匹配 workType。 -->
   <WorkGiverDef>
-    <defName>DigitalStorage_WithdrawForBill</defName>
+    <defName>DigitalStorage_WithdrawForBill_Crafting</defName>
     <label>从数字存储核心取料做工</label>
     <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
     <workType>Crafting</workType>
+    <verb>做</verb>
+    <gerund>做工中</gerund>
+    <priorityInType>999</priorityInType>
+    <requiredCapacities>
+      <li>Manipulation</li>
+    </requiredCapacities>
+  </WorkGiverDef>
+
+  <WorkGiverDef>
+    <defName>DigitalStorage_WithdrawForBill_Smithing</defName>
+    <label>从数字存储核心取料做工</label>
+    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
+    <workType>Smithing</workType>
+    <verb>做</verb>
+    <gerund>做工中</gerund>
+    <priorityInType>999</priorityInType>
+    <requiredCapacities>
+      <li>Manipulation</li>
+    </requiredCapacities>
+  </WorkGiverDef>
+
+  <WorkGiverDef>
+    <defName>DigitalStorage_WithdrawForBill_Tailoring</defName>
+    <label>从数字存储核心取料做工</label>
+    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
+    <workType>Tailoring</workType>
+    <verb>做</verb>
+    <gerund>做工中</gerund>
+    <priorityInType>999</priorityInType>
+    <requiredCapacities>
+      <li>Manipulation</li>
+    </requiredCapacities>
+  </WorkGiverDef>
+
+  <WorkGiverDef>
+    <defName>DigitalStorage_WithdrawForBill_Art</defName>
+    <label>从数字存储核心取料做工</label>
+    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
+    <workType>Art</workType>
+    <verb>做</verb>
+    <gerund>做工中</gerund>
+    <priorityInType>999</priorityInType>
+    <requiredCapacities>
+      <li>Manipulation</li>
+    </requiredCapacities>
+  </WorkGiverDef>
+
+  <WorkGiverDef>
+    <defName>DigitalStorage_WithdrawForBill_Cooking</defName>
+    <label>从数字存储核心取料做工</label>
+    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
+    <workType>Cooking</workType>
     <verb>做</verb>
     <gerund>做工中</gerund>
     <priorityInType>999</priorityInType>

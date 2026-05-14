@@ -24,6 +24,8 @@ namespace DigitalStorage.HarmonyPatches
         static void Postfix(ResourceCounter __instance, ThingDef rDef, ref int __result)
         {
             if (rDef.resourceReadoutPriority == ResourceCountPriority.Uncounted) return;
+            // I4c: 交易对话框已通过 TradeDS_Helper 注入核心 Tradeable，此处跳过避免殖民地栏重复计数
+            if (Find.WindowStack.WindowOfType<Dialog_Trade>() != null) return;
 
             var map = (Map)mapField.GetValue(__instance);
             if (map == null) return;
