@@ -11,6 +11,8 @@
   <DS_DebugIngestAdjacent>吞入相邻</DS_DebugIngestAdjacent>
   <DS_DebugIngestAdjacentDesc>（调试）把核心周围 9 格内所有可吞物品存入账本</DS_DebugIngestAdjacentDesc>
   <DS_DebugIngestResult>已吞入 {0} 件，拒绝 {1} 件</DS_DebugIngestResult>
+  <DS_AutoIngest>自动收纳</DS_AutoIngest>
+  <DS_AutoIngestDesc>开启后，存储核心每 tick 自动吸收范围内的散落物品，无需殖民者搬运。断电自动停止。</DS_AutoIngestDesc>
 
   <!-- ========== ITab_DigitalStorage ========== -->
   <DS_TabDigitalStorage>虚拟存储</DS_TabDigitalStorage>

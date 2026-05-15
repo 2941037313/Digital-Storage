@@ -11,6 +11,8 @@
   <DS_DebugIngestAdjacent>Ingest adjacent</DS_DebugIngestAdjacent>
   <DS_DebugIngestAdjacentDesc>(Debug) Ingest all valid items within 9 cells around the core into the ledger.</DS_DebugIngestAdjacentDesc>
   <DS_DebugIngestResult>Ingested {0}, rejected {1}.</DS_DebugIngestResult>
+  <DS_AutoIngest>Auto-Ingest</DS_AutoIngest>
+  <DS_AutoIngestDesc>When enabled, the core automatically absorbs nearby loose items each tick without requiring hauling. Stops when unpowered.</DS_AutoIngestDesc>
 
   <!-- ========== ITab_DigitalStorage ========== -->
   <DS_TabDigitalStorage>Virtual storage</DS_TabDigitalStorage>

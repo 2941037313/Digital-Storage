@@ -125,6 +125,20 @@ namespace DigitalStorage.Components
                 action = () => Find.WindowStack.Add(new Dialog_RenameNetwork(this))
             };
 
+            // I5b: 自动收纳开关（研究后可见）
+            var autoIngest = GetComp<CompAutoIngest>();
+            if (autoIngest != null && autoIngest.IsResearched)
+            {
+                yield return new Command_Toggle
+                {
+                    defaultLabel = "DS_AutoIngest".Translate(),
+                    defaultDesc = "DS_AutoIngestDesc".Translate(),
+                    icon = ContentFinder<Texture2D>.Get("收纳", true),
+                    isActive = () => autoIngest.Enabled,
+                    toggleAction = () => autoIngest.Enabled = !autoIngest.Enabled
+                };
+            }
+
             // 临时 gizmo（阶段 4 派工完成后会删掉）
             yield return new Command_Action
             {

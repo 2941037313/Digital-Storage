@@ -51,8 +51,56 @@
     </prerequisites>
     <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
     <tab>DigitalStorage_Tab</tab>
+    <researchViewX>3</researchViewX>
+    <researchViewY>2</researchViewY>
+  </ResearchProjectDef>
+
+  <!-- 自动收纳 1 级 -->
+  <ResearchProjectDef>
+    <defName>DigitalStorage_AutoIngest1</defName>
+    <label>自动收纳 I</label>
+    <description>解锁核心自动收纳功能。存储核心可直接吸收范围内的散落物品，无需殖民者搬运。</description>
+    <baseCost>1000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites>
+      <li>DigitalStorage_Interface</li>
+    </prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
     <researchViewX>2</researchViewX>
     <researchViewY>2</researchViewY>
+  </ResearchProjectDef>
+
+  <!-- 自动收纳 2 级 -->
+  <ResearchProjectDef>
+    <defName>DigitalStorage_AutoIngest2</defName>
+    <label>自动收纳 II</label>
+    <description>提升自动收纳速度至 5 堆叠/tick。</description>
+    <baseCost>2000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites>
+      <li>DigitalStorage_AutoIngest1</li>
+    </prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>2</researchViewX>
+    <researchViewY>1</researchViewY>
+  </ResearchProjectDef>
+
+  <!-- 自动收纳 3 级 -->
+  <ResearchProjectDef>
+    <defName>DigitalStorage_AutoIngest3</defName>
+    <label>自动收纳 III</label>
+    <description>提升自动收纳速度至 10 堆叠/tick。</description>
+    <baseCost>3000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites>
+      <li>DigitalStorage_AutoIngest2</li>
+    </prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>2</researchViewX>
+    <researchViewY>0</researchViewY>
   </ResearchProjectDef>
 
 </Defs>

@@ -67,6 +67,8 @@
     <Compile Include="Components\CompUseEffect_TerminalImplant.cs" />
     <Compile Include="Components\CompStorageCoreUpgrade.cs" />
     <Compile Include="Components\CompProperties_StorageCoreUpgrade.cs" />
+    <Compile Include="Components\CompProperties_AutoIngest.cs" />
+    <Compile Include="Components\CompAutoIngest.cs" />
     <Compile Include="Components\StorageCoreUpgrade.cs" />
 
     <Compile Include="Core\ItemKey.cs" />
@@ -100,6 +102,7 @@
     <Compile Include="HarmonyPatches\Patch_FindBestMedicine.cs" />
     <Compile Include="HarmonyPatches\Patch_RefuelFromLedger.cs" />
     <Compile Include="HarmonyPatches\Patch_FixBrokenFromLedger.cs" />
+    <Compile Include="HarmonyPatches\Patch_FeedFromLedger.cs" />
     <Compile Include="HarmonyPatches\Patch_DialogTrade.cs" />
     <Compile Include="UI\TradeDS_Helper.cs" />
     <Compile Include="UI\CaravanDS_Helper.cs" />

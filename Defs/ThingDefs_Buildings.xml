@@ -57,6 +57,7 @@
         <shortCircuitInRain>true</shortCircuitInRain>
       </li>
       <li Class="CompProperties_Breakdownable" />
+      <li Class="DigitalStorage.Components.CompProperties_AutoIngest" />
       <li Class="DigitalStorage.Components.CompProperties_StorageCoreUpgrade">
         <upgrades>
           <!-- 等级 1: 基础 -->
