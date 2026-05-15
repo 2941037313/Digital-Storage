@@ -58,7 +58,9 @@ namespace DigitalStorage.AI
         {
             if (t == null || t.Destroyed) return null;
             if (!LedgerPolicy.CanIngest(t)) return null;
+            if (t.IsForbidden(Faction.OfPlayer)) return null;
             if (!HaulAIUtility.PawnCanAutomaticallyHaulFast(pawn, t, forced)) return null;
+            if (t.Map.reservationManager.IsReserved(t)) return null;
 
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
             CoreAccess? best = null;

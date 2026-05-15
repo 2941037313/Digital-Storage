@@ -171,17 +171,29 @@ namespace DigitalStorage.AI
                         if (placeCell.IsValid)
                         {
                             placed = GenPlace.TryPlaceThing(spawned, placeCell, actor.Map, ThingPlaceMode.Direct,
-                                (t, added) => HaulAIUtility.UpdateJobWithPlacedThings(job, t, added));
+                                (t, added) =>
+                                {
+                                    HaulAIUtility.UpdateJobWithPlacedThings(job, t, added);
+                                    actor.Reserve(t, job, 1, t.stackCount, null, true);
+                                });
                             if (!placed)
                             {
                                 GenPlace.TryPlaceThing(spawned, actor.Position, actor.Map, ThingPlaceMode.Near,
-                                    (t, added) => HaulAIUtility.UpdateJobWithPlacedThings(job, t, added));
+                                    (t, added) =>
+                                    {
+                                        HaulAIUtility.UpdateJobWithPlacedThings(job, t, added);
+                                        actor.Reserve(t, job, 1, t.stackCount, null, true);
+                                    });
                             }
                         }
                         else
                         {
                             GenPlace.TryPlaceThing(spawned, actor.Position, actor.Map, ThingPlaceMode.Near,
-                                (t, added) => HaulAIUtility.UpdateJobWithPlacedThings(job, t, added));
+                                (t, added) =>
+                                {
+                                    HaulAIUtility.UpdateJobWithPlacedThings(job, t, added);
+                                    actor.Reserve(t, job, 1, t.stackCount, null, true);
+                                });
                         }
 
                         need -= taken;

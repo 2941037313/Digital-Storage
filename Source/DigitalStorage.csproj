@@ -97,6 +97,7 @@
     <Compile Include="HarmonyPatches\Patch_DesignatorBuild_ProcessInput.cs" />
     <Compile Include="HarmonyPatches\Patch_DialogFormCaravan.cs" />
     <Compile Include="HarmonyPatches\Patch_RecipeDef_MissingIngredients.cs" />
+    <Compile Include="HarmonyPatches\Patch_FindBestMedicine.cs" />
     <Compile Include="HarmonyPatches\Patch_DialogTrade.cs" />
     <Compile Include="UI\TradeDS_Helper.cs" />
     <Compile Include="UI\CaravanDS_Helper.cs" />

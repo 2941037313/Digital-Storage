@@ -82,6 +82,20 @@
     </requiredCapacities>
   </WorkGiverDef>
 
+  <!-- G1.5：医生手术/植入——从核心取药+植入物（priorityInType=999 抢在原版 Doctor DoBill 前） -->
+  <WorkGiverDef>
+    <defName>DigitalStorage_WithdrawForBill_Doctor</defName>
+    <label>从数字存储核心取料做手术</label>
+    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
+    <workType>Doctor</workType>
+    <verb>做</verb>
+    <gerund>做工中</gerund>
+    <priorityInType>999</priorityInType>
+    <requiredCapacities>
+      <li>Manipulation</li>
+    </requiredCapacities>
+  </WorkGiverDef>
+
   <!-- 阶段 4.3：从核心取料送蓝图/Frame（priorityInType=200 高于 DeliverResourcesToFrames=10）-->
   <WorkGiverDef>
     <defName>DigitalStorage_WithdrawForConstruction</defName>
