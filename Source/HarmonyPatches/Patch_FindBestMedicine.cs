@@ -18,6 +18,7 @@ namespace DigitalStorage.HarmonyPatches
     {
         static void Postfix(Pawn healer, Pawn patient, bool onlyUseInventory, ref Thing __result)
         {
+            if (__result is Ghost.GhostThing) __result = null;
             if (__result != null || onlyUseInventory) return;
             if (healer?.Map == null || patient == null) return;
 

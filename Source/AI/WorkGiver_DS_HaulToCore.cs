@@ -68,6 +68,7 @@ namespace DigitalStorage.AI
 
             foreach (var access in CoreFinder.AllUsableAccesses(pawn))
             {
+                if (!access.ledgerCore.AllowsItem(t)) continue;
                 if (!access.ledgerCore.Ledger.CanAccept(t, access.ledgerCore.GetCapacity())) continue;
 
                 // 芯片：不走代理点，距离无所谓，用 pawn 自己位置做锚

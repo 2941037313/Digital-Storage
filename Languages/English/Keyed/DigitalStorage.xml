@@ -97,4 +97,10 @@
   <DS_UpgradeLevel_3>High-Tech</DS_UpgradeLevel_3>
   <DS_UpgradeLevel_4>Quantum</DS_UpgradeLevel_4>
 
+  <DS_StorageFilter>Storage Filter</DS_StorageFilter>
+  <DS_StorageFilterDesc>Set which item types are allowed into this core. All allowed by default.</DS_StorageFilterDesc>
+  <DS_CoreDestroyLossTitle>Core Destroyed - Items Lost</DS_CoreDestroyLossTitle>
+  <DS_CoreDestroyLossDesc>A storage core was destroyed. Due to excessive item count (over 30,000 stacks), {0} stacks were lost.</DS_CoreDestroyLossDesc>
+  <DS_GhostNotSellable>Digital Storage virtual items cannot be traded</DS_GhostNotSellable>
+
 </LanguageData>

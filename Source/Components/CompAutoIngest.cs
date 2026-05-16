@@ -58,6 +58,7 @@ namespace DigitalStorage.Components
             {
                 if (taken >= rate) break;
                 if (!LedgerPolicy.CanIngest(t)) continue;
+                if (!core.AllowsItem(t)) continue;
                 if (t.IsForbidden(Faction.OfPlayer)) continue;
                 if (map.reservationManager.IsReserved(t)) continue;
                 if (!ledger.CanAccept(t, capacity)) continue;

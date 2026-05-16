@@ -19,6 +19,7 @@ namespace DigitalStorage.HarmonyPatches
     {
         static void Postfix(Pawn getter, Pawn eater, ref Thing foodSource, ref ThingDef foodDef, ref bool __result)
         {
+            if (foodSource is Ghost.GhostThing) { foodSource = null; __result = false; }
             if (__result || foodSource != null) return;
             if (getter?.Map == null || eater == null) return;
 

@@ -18,6 +18,7 @@ namespace DigitalStorage.HarmonyPatches
     {
         static void Postfix(Pawn pawn, ref Thing __result)
         {
+            if (__result is Ghost.GhostThing) __result = null;
             if (__result != null || pawn?.Map == null) return;
 
             var accesses = CoreFinder.AllUsableAccesses(pawn);

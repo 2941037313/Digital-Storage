@@ -25,11 +25,34 @@ namespace DigitalStorage.Ghost
         public override void DrawExtraSelectionOverlays() { }
 
         // ═══════════════════════════════════════════
-        // 消费防御：全部拒绝
+        // 消费桥接：外部取物 → 从账本扣除
         // ═══════════════════════════════════════════
 
+        // 部分取：SplitOff → 从账本提取真货返回
+        public override Thing SplitOff(int count)
+        {
+            if (count <= 0) return null;
+            var index = Map?.GetComponent<GhostLedgerIndex>();
+            if (index == null) return null;
+            return index.MaterializeFromLedger(Key, count);
+        }
+
+        // 全部取：DeSpawn → 外部拿走整个 Ghost → 账本扣全额
+        public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
+        {
+            if (stackCount > 0)
+            {
+                var index = Map?.GetComponent<GhostLedgerIndex>();
+                if (index != null)
+                {
+                    var withdrawn = index.MaterializeFromLedger(Key, stackCount);
+                    if (withdrawn != null && !withdrawn.Destroyed)
+                        withdrawn.Destroy(DestroyMode.Vanish);
+                }
+            }
+        }
+
         public override bool IngestibleNow => false;
-        public override Thing SplitOff(int count) => null;
         public override bool CanStackWith(Thing other) => false;
         public override bool TryAbsorbStack(Thing other, bool respectStackLimit) => false;
         public override float MarketValue => 0f;
@@ -41,10 +64,14 @@ namespace DigitalStorage.Ghost
         }
 
         // ═══════════════════════════════════════════
-        // 销毁/生命周期：由 GhostLedgerIndex 管理
+        // 销毁防御：Destroy/Kill 不允许外部调用
         // ═══════════════════════════════════════════
 
-        public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish) { }
+        public override void ExposeData()
+        {
+            Log.Warning($"[DS-Ghost] ExposeData called on ghost: {Key}, mode={Scribe.mode}");
+        }
+
         public override void Destroy(DestroyMode mode = DestroyMode.Vanish) { }
         public override void Kill(DamageInfo? dinfo = null, Hediff exactCulprit = null) { }
 

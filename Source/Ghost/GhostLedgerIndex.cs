@@ -12,9 +12,11 @@ namespace DigitalStorage.Ghost
     {
         private readonly Dictionary<ItemKey, GhostThing> ghosts = new Dictionary<ItemKey, GhostThing>();
         private readonly HashSet<Thing> ghostThings = new HashSet<Thing>();
+        private static int nextGhostId = -100000;
 
-        private static readonly FieldInfo mapIndexField =
-            typeof(Thing).GetField("mapIndexOrState", BindingFlags.NonPublic | BindingFlags.Instance);
+        // 反射访问 listerThings 内部字典（绕过 onThingAdded 回调，防止进入 save 系统）
+        private static readonly FieldInfo listsByDefField =
+            typeof(ListerThings).GetField("listsByDef", BindingFlags.NonPublic | BindingFlags.Instance);
 
         public GhostLedgerIndex(Map map) : base(map) { }
 
@@ -122,15 +124,12 @@ namespace DigitalStorage.Ghost
                 if (key.stuff != null)
                     ghost.SetStuffDirect(key.stuff);
 
-                // 设 mapIndexOrState 让 thing.Spawned=true, thing.Map=map
-                if (mapIndexField != null)
-                    mapIndexField.SetValue(ghost, (sbyte)map.Index);
-
+                ghost.thingIDNumber = nextGhostId--;
                 ghost.stackCount = ClampToInt(aggregate);
                 ghost.Key = key;
 
-                // 直接注入 listerThings 索引，不经过 GenSpawn
-                map.listerThings.Add(ghost);
+                // 直接操作 listerThings 内部字典，绕过 onThingAdded 回调
+                AddToListerDirect(ghost);
 
                 ghosts[key] = ghost;
                 ghostThings.Add(ghost);
@@ -143,9 +142,37 @@ namespace DigitalStorage.Ghost
 
         private void RemoveGhost(ItemKey key, GhostThing ghost)
         {
-            map.listerThings.Remove(ghost);
+            RemoveFromListerDirect(ghost);
             ghosts.Remove(key);
             ghostThings.Remove(ghost);
+        }
+
+        // ═══════════════════════════════════════════
+        // 直接操作 listerThings 内部字典（不触发回调）
+        // ═══════════════════════════════════════════
+
+        private void AddToListerDirect(Thing t)
+        {
+            var lister = map.listerThings;
+            var listsByDef = (Dictionary<ThingDef, List<Thing>>)listsByDefField.GetValue(lister);
+
+            // 只注入 listsByDef（ThingsOfDef 查询）
+            // 不注入 listsByGroup（避免进入 AllThings → Map.ExposeData 序列化）
+            if (!listsByDef.TryGetValue(t.def, out var defList))
+            {
+                defList = new List<Thing>();
+                listsByDef[t.def] = defList;
+            }
+            defList.Add(t);
+        }
+
+        private void RemoveFromListerDirect(Thing t)
+        {
+            var lister = map.listerThings;
+            var listsByDef = (Dictionary<ThingDef, List<Thing>>)listsByDefField.GetValue(lister);
+
+            if (listsByDef.TryGetValue(t.def, out var defList))
+                defList.Remove(t);
         }
 
         // ═══════════════════════════════════════════
@@ -154,9 +181,9 @@ namespace DigitalStorage.Ghost
 
         public void RebuildAll()
         {
-            // 清理所有现有 ghost
+            // 清理所有现有 ghost（用直接操作，不触发回调）
             foreach (var ghost in ghosts.Values.ToList())
-                map.listerThings.Remove(ghost);
+                RemoveFromListerDirect(ghost);
             ghosts.Clear();
             ghostThings.Clear();
 
@@ -174,6 +201,48 @@ namespace DigitalStorage.Ghost
 
             foreach (var key in allKeys)
                 ProcessKey(key);
+        }
+
+        // ═══════════════════════════════════════════
+        // Materializer：从账本提取真货
+        // ═══════════════════════════════════════════
+
+        public Thing MaterializeFromLedger(ItemKey key, int count)
+        {
+            if (count <= 0) return null;
+
+            var mapComp = map.GetComponent<DigitalStorageMapComponent>();
+            if (mapComp == null) return null;
+
+            int remaining = count;
+            Thing result = null;
+
+            foreach (var core in mapComp.GetAllCores())
+            {
+                if (core == null || !core.Spawned || !core.Powered) continue;
+                long avail = core.Ledger.Available(key);
+                if (avail <= 0) continue;
+
+                int take = remaining > avail ? (int)avail : remaining;
+                Thing withdrawn = core.Ledger.Withdraw(key, take);
+                if (withdrawn == null) continue;
+
+                if (result == null)
+                {
+                    result = withdrawn;
+                }
+                else
+                {
+                    result.stackCount += withdrawn.stackCount;
+                    withdrawn.Destroy(DestroyMode.Vanish);
+                }
+
+                remaining -= take;
+                if (remaining <= 0) break;
+            }
+
+            Log.Warning($"[DS-Ghost] MaterializeFromLedger: {key} x{count}, result={result?.ThingID ?? "null"}, resultDestroyed={result?.Destroyed ?? true}");
+            return result;
         }
 
         // ═══════════════════════════════════════════

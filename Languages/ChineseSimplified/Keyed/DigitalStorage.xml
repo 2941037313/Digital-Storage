@@ -97,4 +97,10 @@
   <DS_UpgradeLevel_3>高级</DS_UpgradeLevel_3>
   <DS_UpgradeLevel_4>量子</DS_UpgradeLevel_4>
 
+  <DS_StorageFilter>存储筛选</DS_StorageFilter>
+  <DS_StorageFilterDesc>设置允许存入核心的物品类型。默认全部允许。</DS_StorageFilterDesc>
+  <DS_CoreDestroyLossTitle>核心摧毁物资丢失</DS_CoreDestroyLossTitle>
+  <DS_CoreDestroyLossDesc>存储核心被摧毁，因物资数量过大（超过3万堆叠），{0}堆叠物资已丢失。</DS_CoreDestroyLossDesc>
+  <DS_GhostNotSellable>数字存储虚拟物品无法交易</DS_GhostNotSellable>
+
 </LanguageData>

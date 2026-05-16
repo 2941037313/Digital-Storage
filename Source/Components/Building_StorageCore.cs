@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using DigitalStorage.Core;
 using RimWorld;
@@ -25,8 +26,27 @@ namespace DigitalStorage.Components
         private CompStorageCoreUpgrade upgradeComp;
         private CoreLedger ledger = new CoreLedger();
         private readonly List<Building_InputInterface> interfaces = new List<Building_InputInterface>();
+        private ThingFilter storageFilter;
+        private static ThingFilter parentFilter;
+
+        private static ThingFilter GetParentFilter()
+        {
+            if (parentFilter == null)
+            {
+                parentFilter = new ThingFilter();
+                // 正向添加：只允许可存储的根类别
+                foreach (ThingDef def in DefDatabase<ThingDef>.AllDefs)
+                {
+                    if (def.category == ThingCategory.Item && !def.IsCorpse && LedgerPolicy.CanIngest(def))
+                        parentFilter.SetAllow(def, true);
+                }
+            }
+            return parentFilter;
+        }
 
         public CoreLedger Ledger => ledger;
+        public ThingFilter StorageFilter => storageFilter;
+        public ThingFilter GetParentFilterPublic() => GetParentFilter();
         public IReadOnlyList<Building_InputInterface> Interfaces => interfaces;
 
         public void RegisterInterface(Building_InputInterface iface)
@@ -79,11 +99,23 @@ namespace DigitalStorage.Components
             return upgradeComp != null ? upgradeComp.GetCapacity() : 100;
         }
 
+        public bool AllowsItem(Thing t)
+        {
+            if (storageFilter == null) return true;
+            return storageFilter.Allows(t.def);
+        }
+
         public override void SpawnSetup(Map map, bool respawningAfterLoad)
         {
             base.SpawnSetup(map, respawningAfterLoad);
             powerComp = GetComp<CompPowerTrader>();
             upgradeComp = GetComp<CompStorageCoreUpgrade>();
+
+            if (storageFilter == null)
+            {
+                storageFilter = new ThingFilter();
+                storageFilter.SetAllowAll(GetParentFilter());
+            }
 
             map.GetComponent<DigitalStorageMapComponent>()?.RegisterCore(this);
             Current.Game?.GetComponent<Services.DigitalStorageGameComponent>()?.RegisterCore(this);
@@ -92,11 +124,70 @@ namespace DigitalStorage.Components
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
+            // I6a: 摧毁前转移库存到存活核心
+            if (mode == DestroyMode.Deconstruct || mode == DestroyMode.KillFinalize)
+                TransferOrQueueDrop();
+
             Map?.GetComponent<Ghost.GhostLedgerIndex>()?.UnregisterCore(this);
             Map?.GetComponent<Ghost.GhostLedgerIndex>()?.OnCoreStateChanged(this);
             Map?.GetComponent<DigitalStorageMapComponent>()?.DeregisterCore(this);
             Current.Game?.GetComponent<Services.DigitalStorageGameComponent>()?.DeregisterCore(this);
             base.DeSpawn(mode);
+        }
+
+        private void TransferOrQueueDrop()
+        {
+            if (ledger == null) return;
+            var map = Map;
+            if (map == null) return;
+
+            var mapComp = map.GetComponent<DigitalStorageMapComponent>();
+            if (mapComp == null) return;
+
+            // 找同图其他 powered 核心，按剩余容量排序
+            var targets = mapComp.GetAllCores()
+                .Where(c => c != this && c.Spawned && c.Powered)
+                .OrderByDescending(c => c.GetCapacity() - c.Ledger.UsedCapacity())
+                .ToList();
+
+            var keysToTransfer = ledger.AllKeys().ToList();
+            var overflow = new List<Core.ItemKey>();
+
+            foreach (var key in keysToTransfer)
+            {
+                long amount = ledger.StockOf(key);
+                if (amount <= 0) continue;
+
+                bool transferred = false;
+                foreach (var target in targets)
+                {
+                    int remaining = target.GetCapacity() - target.Ledger.UsedCapacity();
+                    if (remaining <= 0) continue;
+
+                    // 转移（AddRaw 会 fire StockChanged → Ghost 更新）
+                    target.Ledger.AddRaw(key, amount);
+                    transferred = true;
+                    break;
+                }
+
+                if (!transferred)
+                    overflow.Add(key);
+            }
+
+            // I6b: 溢出部分加入分帧掉落队列
+            if (overflow.Count > 0)
+            {
+                var dropQueue = map.GetComponent<CoreDestroyDropQueue>();
+                if (dropQueue != null)
+                {
+                    foreach (var key in overflow)
+                    {
+                        long amount = ledger.StockOf(key);
+                        if (amount > 0)
+                            dropQueue.Enqueue(key, amount, Position);
+                    }
+                }
+            }
         }
 
         protected override void ReceiveCompSignal(string signal)
@@ -126,6 +217,14 @@ namespace DigitalStorage.Components
         public override IEnumerable<Gizmo> GetGizmos()
         {
             foreach (var g in base.GetGizmos()) yield return g;
+
+            yield return new Command_Action
+            {
+                defaultLabel = "DS_StorageFilter".Translate(),
+                defaultDesc = "DS_StorageFilterDesc".Translate(),
+                icon = ContentFinder<UnityEngine.Texture2D>.Get("UI/Commands/SetTargetFuelLevel", true),
+                action = () => Find.WindowStack.Add(new UI.Dialog_StorageFilter(this))
+            };
 
             yield return new Command_Action
             {
@@ -192,9 +291,15 @@ namespace DigitalStorage.Components
             base.ExposeData();
             Scribe_Values.Look(ref networkName, "networkName");
             Scribe_Deep.Look(ref ledger, "ledger");
+            Scribe_Deep.Look(ref storageFilter, "storageFilter");
             if (Scribe.mode == LoadSaveMode.PostLoadInit && ledger == null)
             {
                 ledger = new CoreLedger();
+            }
+            if (Scribe.mode == LoadSaveMode.PostLoadInit && storageFilter == null)
+            {
+                storageFilter = new ThingFilter();
+                storageFilter.SetAllowAll(null);
             }
         }
 
