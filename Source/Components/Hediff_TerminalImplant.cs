@@ -7,8 +7,17 @@ namespace DigitalStorage.Components
     {
         public static bool HasTerminalImplant(Pawn pawn)
         {
-            bool flag = pawn == null || pawn.health == null;
-            return !flag && pawn.health.hediffSet.HasHediff(DefDatabase<HediffDef>.GetNamed("DigitalStorage_TerminalImplant", true), false);
+            if (pawn == null || pawn.health == null) return false;
+            if (pawn.health.hediffSet.HasHediff(DefDatabase<HediffDef>.GetNamed("DigitalStorage_TerminalImplant", true), false))
+                return true;
+            // 机械体继承机械师的芯片
+            if (pawn.IsColonyMech)
+            {
+                var overseer = pawn.GetOverseer();
+                if (overseer != null && HasTerminalImplant(overseer))
+                    return true;
+            }
+            return false;
         }
 
         public static void AddTerminalImplant(Pawn pawn)
