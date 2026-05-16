@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using DigitalStorage.AI;
 using DigitalStorage.Components;
-using DigitalStorage.Services;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
@@ -26,34 +25,15 @@ namespace DigitalStorage.HarmonyPatches
             var map = __instance.Map;
             if (map == null) return true;
 
-            var mapComp = map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return true;
+            // 用 LedgerItemCollector 统一发现本地+跨图核心
+            var allCores = Core.LedgerItemCollector.GetAllUsableCores(map);
+            if (allCores.Count == 0) return true;
 
-            // 收地图 + 账本的 stuff def
             var mapStuffDefs = new HashSet<ThingDef>();
             var ledgerStuffDefs = new HashSet<ThingDef>();
-            var networkNames = new HashSet<string>();
 
-            foreach (var core in mapComp.GetAllCores())
-            {
-                if (!CoreFinder.IsUsable(core)) continue;
-                if (!string.IsNullOrEmpty(core.NetworkName)) networkNames.Add(core.NetworkName);
+            foreach (var core in allCores)
                 CollectStuffDefs(core, thingDef, ledgerStuffDefs);
-            }
-
-            // 远程同网络核心
-            var gameComp = Current.Game?.GetComponent<DigitalStorageGameComponent>();
-            if (gameComp != null && networkNames.Count > 0)
-            {
-                foreach (var core in gameComp.GetAllCores())
-                {
-                    if (core.Map == map) continue;
-                    if (!CoreFinder.IsUsable(core)) continue;
-                    if (string.IsNullOrEmpty(core.NetworkName)) continue;
-                    if (!networkNames.Contains(core.NetworkName)) continue;
-                    CollectStuffDefs(core, thingDef, ledgerStuffDefs);
-                }
-            }
 
             // 地图上已有的 stuff
             foreach (var d in map.resourceCounter.AllCountedAmounts.Keys)

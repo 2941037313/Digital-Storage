@@ -66,15 +66,18 @@ namespace DigitalStorage.Components
         /// </summary>
         public IEnumerable<IntVec3> GetProxyCells()
         {
+            bool hasInterface = false;
             for (int i = 0; i < interfaces.Count; i++)
             {
                 var iface = interfaces[i];
                 if (iface != null && iface.Spawned)
                 {
+                    hasInterface = true;
                     yield return iface.Position;
                 }
             }
-            if (Spawned) yield return InteractionCell;
+            // 只有没有接口时才用核心自身作为代理点
+            if (!hasInterface && Spawned) yield return InteractionCell;
         }
 
         public string NetworkName

@@ -185,14 +185,15 @@ namespace DigitalStorage.Components
                     if (core != null)
                     {
                         var ledger = core.Ledger;
-                        foreach (var kv in ledger.Stock)
+                        var keys = ledger.AllKeys().ToList();
+                        foreach (var key in keys)
                         {
                             if (remaining <= 0) break;
-                            if (kv.Key.def != cost.thingDef) continue;
-                            long avail = ledger.Available(kv.Key);
+                            if (key.def != cost.thingDef) continue;
+                            long avail = ledger.Available(key);
                             if (avail <= 0) continue;
                             int take = (int)System.Math.Min(avail, (long)remaining);
-                            var thing = ledger.Withdraw(kv.Key, take);
+                            var thing = ledger.Withdraw(key, take);
                             if (thing != null)
                             {
                                 remaining -= take;

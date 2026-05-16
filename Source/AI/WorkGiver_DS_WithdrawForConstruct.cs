@@ -32,11 +32,7 @@ namespace DigitalStorage.AI
 
         public override bool ShouldSkip(Pawn pawn, bool forced = false)
         {
-            var mapComp = pawn.Map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return true;
-            var cores = mapComp.GetAllCores();
-            for (int i = 0; i < cores.Count; i++) { if (CoreFinder.IsUsable(cores[i])) return false; }
-            return true;
+            return CoreFinder.AllUsableAccesses(pawn).Count == 0;
         }
 
         public override bool HasJobOnThing(Pawn pawn, Thing t, bool forced = false)
