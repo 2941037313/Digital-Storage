@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
@@ -23,6 +24,17 @@ namespace DigitalStorage.Core
     /// </summary>
     public class CoreLedger : IExposable
     {
+        public event Action<ItemKey, long> StockChanged;
+        private bool suppressEvents;
+
+        private void NotifyStockChanged(ItemKey key)
+        {
+            if (!suppressEvents)
+                StockChanged?.Invoke(key, Available(key));
+        }
+
+        public IEnumerable<ItemKey> AllKeys() => stock.Keys;
+
         private Dictionary<ItemKey, long> stock = new Dictionary<ItemKey, long>();
         private readonly Dictionary<Job, List<ReservationEntry>> reservedByJob = new Dictionary<Job, List<ReservationEntry>>();
 
@@ -117,6 +129,7 @@ namespace DigitalStorage.Core
             t.Destroy(DestroyMode.Vanish);
 
             groupTotalsDirty = true;
+            NotifyStockChanged(key);
             return true;
         }
 
@@ -129,6 +142,7 @@ namespace DigitalStorage.Core
             if (!stock.TryGetValue(key, out long cur)) cur = 0;
             stock[key] = cur + count;
             groupTotalsDirty = true;
+            NotifyStockChanged(key);
         }
 
         // ========== 取出 ==========
@@ -173,6 +187,7 @@ namespace DigitalStorage.Core
 
             var thing = ThingMaker.MakeThing(key.def, key.stuff);
             thing.stackCount = take;
+            NotifyStockChanged(key);
             return thing;
         }
 
@@ -227,6 +242,7 @@ namespace DigitalStorage.Core
                 }
             }
             list.Add(new ReservationEntry { key = key, count = take });
+            NotifyStockChanged(key);
             return take;
         }
 
@@ -236,13 +252,21 @@ namespace DigitalStorage.Core
         public void ReleaseByJob(Job job)
         {
             if (job == null) return;
-            reservedByJob.Remove(job);
+            if (reservedByJob.TryGetValue(job, out var entries))
+            {
+                reservedByJob.Remove(job);
+                foreach (var e in entries)
+                    NotifyStockChanged(e.key);
+            }
         }
 
         // ========== 存读档 ==========
 
         public void ExposeData()
         {
+            suppressEvents = true;
+            try
+            {
             if (Scribe.mode == LoadSaveMode.Saving)
             {
                 var entries = new List<string>(stock.Count);
@@ -278,6 +302,8 @@ namespace DigitalStorage.Core
                 reservedByJob.Clear();
                 groupTotalsDirty = true;
             }
+            }
+            finally { suppressEvents = false; }
         }
 
         // ========== 分组统计（派生值，脏标记） ==========

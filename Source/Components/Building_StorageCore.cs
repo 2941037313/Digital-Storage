@@ -87,13 +87,23 @@ namespace DigitalStorage.Components
 
             map.GetComponent<DigitalStorageMapComponent>()?.RegisterCore(this);
             Current.Game?.GetComponent<Services.DigitalStorageGameComponent>()?.RegisterCore(this);
+            map.GetComponent<Ghost.GhostLedgerIndex>()?.RegisterCore(this);
         }
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
+            Map?.GetComponent<Ghost.GhostLedgerIndex>()?.UnregisterCore(this);
+            Map?.GetComponent<Ghost.GhostLedgerIndex>()?.OnCoreStateChanged(this);
             Map?.GetComponent<DigitalStorageMapComponent>()?.DeregisterCore(this);
             Current.Game?.GetComponent<Services.DigitalStorageGameComponent>()?.DeregisterCore(this);
             base.DeSpawn(mode);
+        }
+
+        protected override void ReceiveCompSignal(string signal)
+        {
+            base.ReceiveCompSignal(signal);
+            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff")
+                Map?.GetComponent<Ghost.GhostLedgerIndex>()?.OnCoreStateChanged(this);
         }
 
         protected override void DrawAt(Vector3 drawLoc, bool flip = false)

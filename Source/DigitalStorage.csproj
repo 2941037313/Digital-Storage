@@ -71,6 +71,9 @@
     <Compile Include="Components\CompAutoIngest.cs" />
     <Compile Include="Components\StorageCoreUpgrade.cs" />
 
+    <Compile Include="Ghost\GhostThing.cs" />
+    <Compile Include="Ghost\GhostLedgerIndex.cs" />
+
     <Compile Include="Core\ItemKey.cs" />
     <Compile Include="Core\ItemGroup.cs" />
     <Compile Include="Core\LedgerPolicy.cs" />

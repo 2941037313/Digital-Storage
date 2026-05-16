@@ -37,6 +37,7 @@ namespace DigitalStorage.Core
         public static bool CanIngest(Thing t)
         {
             if (t == null || t.Destroyed) return false;
+            if (t is Ghost.GhostThing) return false;
             return CanIngest(t.def);
         }
 
