@@ -19,10 +19,41 @@ namespace DigitalStorage.AI
 
     public static class CoreFinder
     {
+        // tick 级缓存：同一 tick 内同一 pawn 不重复计算
+        private static int cachedTick = -1;
+        private static Pawn cachedPawn;
+        private static List<CoreAccess> cachedResult;
+
         /// <summary>
         /// 返回所有可用核心访问入口。本地优先，远程同网络兜底，跨图接口直连。
+        /// 同一 tick 同一 pawn 缓存结果。
         /// </summary>
         public static List<CoreAccess> AllUsableAccesses(Pawn pawn)
+        {
+            int tick = Find.TickManager.TicksGame;
+            if (tick == cachedTick && pawn == cachedPawn && cachedResult != null)
+                return cachedResult;
+
+            cachedTick = tick;
+            cachedPawn = pawn;
+            cachedResult = BuildAccessList(pawn);
+            return cachedResult;
+        }
+
+        /// <summary>
+        /// 快速检查：有没有任何可用访问入口（不构建完整列表）。
+        /// </summary>
+        public static bool AnyUsableAccess(Pawn pawn)
+        {
+            int tick = Find.TickManager.TicksGame;
+            if (tick == cachedTick && pawn == cachedPawn && cachedResult != null)
+                return cachedResult.Count > 0;
+
+            // 没缓存时走完整构建（会被缓存）
+            return AllUsableAccesses(pawn).Count > 0;
+        }
+
+        private static List<CoreAccess> BuildAccessList(Pawn pawn)
         {
             var result = new List<CoreAccess>();
             if (pawn?.Map == null) return result;

@@ -20,7 +20,7 @@ namespace DigitalStorage.AI
 
         public override bool ShouldSkip(Pawn pawn, bool forced = false)
         {
-            if (CoreFinder.AllUsableAccesses(pawn).Count == 0) return true;
+            if (!CoreFinder.AnyUsableAccess(pawn)) return true;
 
             var list = pawn.Map.listerThings.ThingsInGroup(ThingRequestGroup.PotentialBillGiver);
             for (int i = 0; i < list.Count; i++)

@@ -32,7 +32,7 @@ namespace DigitalStorage.AI
 
         public override bool ShouldSkip(Pawn pawn, bool forced = false)
         {
-            return CoreFinder.AllUsableAccesses(pawn).Count == 0;
+            return !CoreFinder.AnyUsableAccess(pawn);
         }
 
         public override bool HasJobOnThing(Pawn pawn, Thing t, bool forced = false)
