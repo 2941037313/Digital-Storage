@@ -62,6 +62,11 @@ namespace DigitalStorage.AI
             if (!HaulAIUtility.PawnCanAutomaticallyHaulFast(pawn, t, forced)) return null;
             if (t.Map.reservationManager.IsReserved(t)) return null;
 
+            // 如果物品已有合适的储存区目标（如营养膏料斗），让原版搬运处理
+            if (StoreUtility.TryFindBestBetterStoreCellFor(t, pawn, t.Map,
+                StoreUtility.CurrentStoragePriorityOf(t), pawn.Faction, out _, true))
+                return null;
+
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
             CoreAccess? best = null;
             int bestDist = int.MaxValue;
@@ -71,8 +76,6 @@ namespace DigitalStorage.AI
                 if (!access.ledgerCore.AllowsItem(t)) continue;
                 if (!access.ledgerCore.Ledger.CanAccept(t, access.ledgerCore.GetCapacity())) continue;
 
-                // 芯片：不走代理点，距离无所谓，用 pawn 自己位置做锚
-                // 远程核心的 Position 在另一个地图——跨图距离无意义
                 IntVec3 anchor = chip
                     ? pawn.Position
                     : CoreFinder.PickProxyCell(pawn, access.proxyCore);

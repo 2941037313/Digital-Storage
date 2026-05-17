@@ -74,8 +74,9 @@ namespace DigitalStorage.AI
 
                 if (core.Map == pawn.Map)
                 {
-                    // 本地核心：账本=代理=同一个
-                    result.Add(new CoreAccess { ledgerCore = core, proxyCore = core });
+                    // 本地核心：芯片直连，否则必须有可达的代理点（接口）
+                    if (chip || HasReachableProxy(pawn, core))
+                        result.Add(new CoreAccess { ledgerCore = core, proxyCore = core });
                     if (!string.IsNullOrEmpty(core.NetworkName) && !localByNetwork.ContainsKey(core.NetworkName))
                         localByNetwork[core.NetworkName] = core;
                 }
@@ -114,6 +115,10 @@ namespace DigitalStorage.AI
                 if (c.InBounds(pawn.Map) && pawn.CanReach(c, PathEndMode.Touch, Danger.Deadly))
                     return true;
             }
+            // 接口都不可达时，检查核心自身交互格（兜底）
+            if (core.InteractionCell.IsValid && core.InteractionCell.InBounds(pawn.Map)
+                && pawn.CanReach(core.InteractionCell, PathEndMode.Touch, Danger.Deadly))
+                return true;
             return false;
         }
 
@@ -128,6 +133,10 @@ namespace DigitalStorage.AI
                 int d = (c - pawn.Position).LengthManhattan;
                 if (d < bestDist) { bestDist = d; best = c; }
             }
+            // 接口都不可达时，检查核心自身交互格
+            if (!best.IsValid && core.InteractionCell.IsValid && core.InteractionCell.InBounds(pawn.Map)
+                && pawn.CanReach(core.InteractionCell, PathEndMode.Touch, Danger.Deadly))
+                best = core.InteractionCell;
             return best;
         }
     }

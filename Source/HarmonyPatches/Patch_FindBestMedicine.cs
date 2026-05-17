@@ -79,6 +79,7 @@ namespace DigitalStorage.HarmonyPatches
                 // 无芯片：药生成在脚下，就近捡起
                 if (!GenPlace.TryPlaceThing(thing, healer.Position, healer.Map, ThingPlaceMode.Near, null, null, default))
                     return;
+                CompAutoIngest.MarkWithdrawn(thing);
             }
 
             __result = thing;

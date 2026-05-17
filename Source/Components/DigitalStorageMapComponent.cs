@@ -10,6 +10,8 @@ namespace DigitalStorage.Components
     public class DigitalStorageMapComponent : MapComponent
     {
         private readonly List<Building_StorageCore> cores = new List<Building_StorageCore>();
+        private List<Building_StorageCore> cachedCleanList;
+        private int lastCleanTick = -1;
 
         public DigitalStorageMapComponent(Map map) : base(map) { }
 
@@ -18,6 +20,7 @@ namespace DigitalStorage.Components
             if (core != null && !cores.Contains(core))
             {
                 cores.Add(core);
+                cachedCleanList = null;
             }
         }
 
@@ -26,16 +29,31 @@ namespace DigitalStorage.Components
             if (core != null)
             {
                 cores.Remove(core);
+                cachedCleanList = null;
             }
         }
 
         public IReadOnlyList<Building_StorageCore> GetAllCores()
         {
+            int tick = Find.TickManager.TicksGame;
+            if (cachedCleanList != null && tick - lastCleanTick < 60)
+                return cachedCleanList;
+
+            // 清理死引用（低频，60 tick 一次）
             cores.RemoveAll(c => c == null || c.Destroyed);
-            // Scribe 可能留重复引用，去重
-            var seen = new HashSet<Building_StorageCore>();
-            cores.RemoveAll(c => !seen.Add(c));
-            return cores;
+            lastCleanTick = tick;
+
+            // 去重
+            if (cores.Count > 1)
+            {
+                var seen = new HashSet<Building_StorageCore>();
+                for (int i = cores.Count - 1; i >= 0; i--)
+                    if (!seen.Add(cores[i]))
+                        cores.RemoveAt(i);
+            }
+
+            cachedCleanList = new List<Building_StorageCore>(cores);
+            return cachedCleanList;
         }
     }
 }

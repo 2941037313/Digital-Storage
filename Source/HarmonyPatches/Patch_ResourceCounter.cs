@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using DigitalStorage.AI;
 using DigitalStorage.Components;
+using DigitalStorage.Core;
 using DigitalStorage.Services;
 using HarmonyLib;
 using RimWorld;
@@ -11,40 +12,40 @@ using Verse;
 namespace DigitalStorage.HarmonyPatches
 {
     /// <summary>
-    /// I5a：让 resourceCounter.GetCount 把全网账本库存也算进去。
-    /// 本地核心 + 同 NetworkName 远程核心的账本合计。
-    /// 一次修复 DrawPlaceMouseAttachments + DrawPanelReadout 的红字。
-    /// 不影响财富/贸易——那些走独立代码路径。
+    /// 让 ResourceCounter 把核心账本库存也算进去。
+    /// Patch UpdateResourceCounts 的 postfix，直接往 countedAmounts 字典里加。
+    /// 这样 TotalHumanEdibleNutrition、GetCount、GetCountIn 全部自动生效。
     /// </summary>
-    [HarmonyPatch(typeof(ResourceCounter), "GetCount", new Type[] { typeof(ThingDef) })]
-    static class Patch_ResourceCounter_GetCount
+    [HarmonyPatch(typeof(ResourceCounter), "UpdateResourceCounts")]
+    static class Patch_ResourceCounter_UpdateCounts
     {
         private static readonly FieldInfo mapField = AccessTools.Field(typeof(ResourceCounter), "map");
+        private static readonly FieldInfo countedAmountsField = AccessTools.Field(typeof(ResourceCounter), "countedAmounts");
 
-        static void Postfix(ResourceCounter __instance, ThingDef rDef, ref int __result)
+        static void Postfix(ResourceCounter __instance)
         {
-            if (rDef.resourceReadoutPriority == ResourceCountPriority.Uncounted) return;
-            // I4c: 交易对话框已通过 TradeDS_Helper 注入核心 Tradeable，此处跳过避免殖民地栏重复计数
             if (Find.WindowStack.WindowOfType<Dialog_Trade>() != null) return;
 
             var map = (Map)mapField.GetValue(__instance);
             if (map == null) return;
 
+            var countedAmounts = (Dictionary<ThingDef, int>)countedAmountsField.GetValue(__instance);
+            if (countedAmounts == null) return;
+
             var mapComp = map.GetComponent<DigitalStorageMapComponent>();
             if (mapComp == null) return;
 
-            var cores = mapComp.GetAllCores();
             var networkNames = new HashSet<string>();
+            var cores = mapComp.GetAllCores();
 
             for (int i = 0; i < cores.Count; i++)
             {
                 var core = cores[i];
                 if (!CoreFinder.IsUsable(core)) continue;
                 if (!string.IsNullOrEmpty(core.NetworkName)) networkNames.Add(core.NetworkName);
-                AddFromLedger(core.Ledger, rDef, ref __result);
+                AddLedgerToCounts(core.Ledger, countedAmounts);
             }
 
-            // 远程同网络核心
             var gameComp = Current.Game?.GetComponent<DigitalStorageGameComponent>();
             if (gameComp != null && networkNames.Count > 0)
             {
@@ -54,21 +55,26 @@ namespace DigitalStorage.HarmonyPatches
                     if (!CoreFinder.IsUsable(core)) continue;
                     if (string.IsNullOrEmpty(core.NetworkName)) continue;
                     if (!networkNames.Contains(core.NetworkName)) continue;
-                    AddFromLedger(core.Ledger, rDef, ref __result);
+                    AddLedgerToCounts(core.Ledger, countedAmounts);
                 }
             }
         }
 
-        private static void AddFromLedger(Core.CoreLedger ledger, ThingDef def, ref int result)
+        private static void AddLedgerToCounts(CoreLedger ledger, Dictionary<ThingDef, int> countedAmounts)
         {
             foreach (var kv in ledger.Stock)
             {
-                if (kv.Key.def == def && kv.Value > 0)
+                if (kv.Value <= 0 || kv.Key.def == null) continue;
+                if (!kv.Key.def.CountAsResource) continue;
+                long add = kv.Value > int.MaxValue ? int.MaxValue : kv.Value;
+                if (countedAmounts.ContainsKey(kv.Key.def))
                 {
-                    long add = kv.Value > int.MaxValue - result ? int.MaxValue - result : kv.Value;
-                    result += (int)add;
+                    long cur = countedAmounts[kv.Key.def];
+                    long sum = cur + add;
+                    countedAmounts[kv.Key.def] = sum > int.MaxValue ? int.MaxValue : (int)sum;
                 }
             }
         }
     }
+
 }

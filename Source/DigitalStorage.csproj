@@ -89,6 +89,7 @@
     <Compile Include="AI\JobDriver_DS_Withdraw.cs" />
     <Compile Include="AI\WorkGiver_DS_WithdrawForConstruct.cs" />
     <Compile Include="AI\ConsumptionHelper.cs" />
+    <Compile Include="AI\FoodScoring.cs" />
     <Compile Include="AI\JobDriver_DS_Consume.cs" />
     <Compile Include="AI\CoreFinder.cs" />
     <Compile Include="AI\JobDriver_DS_ReserveHelper.cs" />
@@ -109,6 +110,8 @@
     <Compile Include="HarmonyPatches\Patch_FixBrokenFromLedger.cs" />
     <Compile Include="HarmonyPatches\Patch_FeedFromLedger.cs" />
     <Compile Include="HarmonyPatches\Patch_DialogTrade.cs" />
+    <Compile Include="HarmonyPatches\Patch_OrbitalTradeBeacon.cs" />
+    <Compile Include="HarmonyPatches\Patch_WealthWatcher.cs" />
     <Compile Include="UI\TradeDS_Helper.cs" />
     <Compile Include="UI\CaravanDS_Helper.cs" />
 

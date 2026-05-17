@@ -29,6 +29,14 @@ namespace DigitalStorage.Ghost
             return t is GhostThing;
         }
 
+        public static GhostThing FindGhostFor(Map map, ItemKey key)
+        {
+            var comp = map?.GetComponent<GhostLedgerIndex>();
+            if (comp == null) return null;
+            comp.ghosts.TryGetValue(key, out var ghost);
+            return ghost;
+        }
+
         public long AggregateAvailablePublic(ItemKey key) => AggregateAvailable(key);
 
         // ═══════════════════════════════════════════

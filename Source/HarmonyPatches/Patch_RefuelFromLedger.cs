@@ -51,6 +51,7 @@ namespace DigitalStorage.HarmonyPatches
                     // 统一 spawn 脚下：FindBestFuel 只扫地图不扫背包，芯片也无法走背包捷径
                     if (GenPlace.TryPlaceThing(thing, pawn.Position, pawn.Map, ThingPlaceMode.Near, null, null, default))
                     {
+                        CompAutoIngest.MarkWithdrawn(thing);
                         __result = thing;
                         return;
                     }

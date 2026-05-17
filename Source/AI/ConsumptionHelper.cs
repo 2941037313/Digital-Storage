@@ -31,6 +31,9 @@ namespace DigitalStorage.AI
             if (pawn?.Map == null) return null;
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
 
+            // 收集所有候选，按 FoodOptimality 评分降序
+            var candidates = new List<(CoreAccess access, ItemKey key, long avail)>();
+
             foreach (var access in CoreFinder.AllUsableAccesses(pawn))
             {
                 var ledger = access.ledgerCore.Ledger;
@@ -40,16 +43,23 @@ namespace DigitalStorage.AI
                     if (!filter(kv.Key)) continue;
                     long avail = ledger.Available(kv.Key);
                     if (avail <= 0) continue;
-
-                    int limit = avail > int.MaxValue ? int.MaxValue : (int)avail;
-                    int take = GetIngestAmount(pawn, kv.Key.def, limit);
-                    if (take <= 0) continue;
-
-                    if (chip) return MakeJob(access.ledgerCore, IntVec3.Invalid, kv.Key, take);
-
-                    IntVec3 proxy = CoreFinder.PickProxyCell(pawn, access.proxyCore);
-                    if (proxy.IsValid) return MakeJob(access.ledgerCore, proxy, kv.Key, take);
+                    candidates.Add((access, kv.Key, avail));
                 }
+            }
+
+            // 按 FoodOptimality 降序排列
+            candidates.Sort((a, b) => FoodScoring.Score(pawn, b.key.def).CompareTo(FoodScoring.Score(pawn, a.key.def)));
+
+            foreach (var (access, key, avail) in candidates)
+            {
+                int limit = avail > int.MaxValue ? int.MaxValue : (int)avail;
+                int take = GetIngestAmount(pawn, key.def, limit);
+                if (take <= 0) continue;
+
+                if (chip) return MakeJob(access.ledgerCore, IntVec3.Invalid, key, take);
+
+                IntVec3 proxy = CoreFinder.PickProxyCell(pawn, access.proxyCore);
+                if (proxy.IsValid) return MakeJob(access.ledgerCore, proxy, key, take);
             }
             return null;
         }

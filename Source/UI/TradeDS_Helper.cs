@@ -15,11 +15,21 @@ namespace DigitalStorage.UI
     /// </summary>
     public static class TradeDS_Helper
     {
+        private struct WithdrawRecord
+        {
+            public Thing thing;
+            public CoreLedger sourceLedger;
+        }
+
+        private class TradeableEntry
+        {
+            public Tradeable tradeable;
+            public List<WithdrawRecord> records = new List<WithdrawRecord>();
+        }
+
         private class DialogState
         {
-            public List<Thing> things = new List<Thing>();
-            public List<CoreLedger> sourceLedgers = new List<CoreLedger>();
-            public List<Tradeable> tradeables = new List<Tradeable>();
+            public List<TradeableEntry> entries = new List<TradeableEntry>();
             public int coreStartIndex = -1;
             public bool injected;
             public bool dealExecuted;
@@ -43,7 +53,6 @@ namespace DigitalStorage.UI
         {
             var state = GetState(dialog);
 
-            // 如果已注入过（CacheTradeables 被排序变更触发多次），先清理旧注入
             if (state.injected)
                 RemoveCoreTradeables(state, cachedList);
 
@@ -60,39 +69,33 @@ namespace DigitalStorage.UI
             {
                 var key = kv.Key;
                 if (key.def == null) continue;
-                int available = (int)kv.Value.Avail;
+                int available = (int)System.Math.Min(kv.Value.Avail, (long)int.MaxValue);
                 if (available <= 0) continue;
+
+                var entry = new TradeableEntry();
 
                 var thing = LedgerItemCollector.WithdrawFromLedgers(
                     key, available, kv.Value.Ledgers,
-                    (t, l) => { state.things.Add(t); state.sourceLedgers.Add(l); },
+                    (t, l) => { entry.records.Add(new WithdrawRecord { thing = t, sourceLedger = l }); },
                     logSkipped: false);
                 if (thing == null) continue;
 
                 var tr = new Tradeable();
                 tr.AddThing(thing, Transactor.Colony);
-                // 所有核心 Tradeable 必须同时加入 TradeDeal.tradeables——UpdateCurrencyCount
-                // 遍历后者算价格。cachedTradeables 只是 UI 渲染列表。
                 TradeSession.deal.AllTradeables.Add(tr);
                 cachedList.Add(tr);
 
                 if (tr.IsCurrency)
                 {
-                    // 和现有的货币 Tradeable 合并（殖民地可能已有白银在地图上）
                     var currencyField = AccessTools.Field(typeof(Dialog_Trade), "cachedCurrencyTradeable");
                     var existing = currencyField.GetValue(dialog) as Tradeable;
                     if (existing != null && existing != tr)
-                    {
                         existing.AddThing(thing, Transactor.Colony);
-                        Log.Warning($"[DS I4] Silver: merged into existing currency, +{available}");
-                    }
                     else
-                    {
                         currencyField.SetValue(dialog, tr);
-                        Log.Warning($"[DS I4] Silver: set new currency, available={available}");
-                    }
                 }
-                state.tradeables.Add(tr);
+                entry.tradeable = tr;
+                state.entries.Add(entry);
             }
 
             state.injected = true;
@@ -100,18 +103,18 @@ namespace DigitalStorage.UI
 
         private static void RemoveCoreTradeables(DialogState state, List<Tradeable> cachedList)
         {
-            // 从 cachedTradeables 清除
             for (int i = cachedList.Count - 1; i >= state.coreStartIndex && i >= 0; i--)
                 cachedList.RemoveAt(i);
-            // 从 TradeDeal.tradeables 清除——否则 sort 重 Cache 累计重复
             var dealTradeables = TradeSession.deal?.AllTradeables;
             if (dealTradeables != null)
             {
+                var toRemove = new HashSet<Tradeable>();
+                foreach (var e in state.entries) toRemove.Add(e.tradeable);
                 for (int i = dealTradeables.Count - 1; i >= 0; i--)
-                    if (state.tradeables.Contains(dealTradeables[i]))
+                    if (toRemove.Contains(dealTradeables[i]))
                         dealTradeables.RemoveAt(i);
             }
-            state.tradeables.Clear();
+            state.entries.Clear();
             state.coreStartIndex = -1;
         }
 
@@ -125,11 +128,17 @@ namespace DigitalStorage.UI
 
         private static void RollbackInternal(DialogState state)
         {
-            Log.Warning($"[DS I4] Rollback: returning {state.things.Count} things to ledger");
-            LedgerItemCollector.Rollback(state.things, state.sourceLedgers);
-            state.things.Clear();
-            state.sourceLedgers.Clear();
-            state.tradeables.Clear();
+            foreach (var entry in state.entries)
+            {
+                foreach (var rec in entry.records)
+                {
+                    if (rec.thing == null || rec.thing.Destroyed) continue;
+                    rec.sourceLedger?.AddRaw(ItemKey.Of(rec.thing), rec.thing.stackCount);
+                    if (rec.thing.Spawned) rec.thing.DeSpawn(DestroyMode.Vanish);
+                    rec.thing.Destroy(DestroyMode.Vanish);
+                }
+            }
+            state.entries.Clear();
             state.injected = false;
             state.coreStartIndex = -1;
         }
@@ -145,41 +154,31 @@ namespace DigitalStorage.UI
         }
 
         /// <summary>
-        /// I4b: 成交后清理。Tradeable.CountToTransfer > 0 → 已售不归还；= 0 → 归还账本。
-        /// ResolveTrade 用 TransferNoSplit 不销毁原 Thing，不能用 thing.Destroyed 判断。
+        /// 成交后清理。Tradeable.CountToTransferToDestination > 0 → 已售不归还；= 0 → 归还账本。
         /// </summary>
         public static void CleanupAfterDeal(Dialog_Trade dialog)
         {
             var state = GetState(dialog);
-            if (state.things.Count == 0) return;
+            if (state.entries.Count == 0) return;
 
-            for (int i = state.things.Count - 1; i >= 0; i--)
+            foreach (var entry in state.entries)
             {
-                var thing = state.things[i];
-                if (thing == null) { Remove(state, i); continue; }
-
-                var tr = i < state.tradeables.Count ? state.tradeables[i] : null;
-                bool sold = tr != null && tr.CountToTransferToDestination > 0;
+                bool sold = entry.tradeable != null && entry.tradeable.CountToTransferToDestination > 0;
 
                 if (!sold)
                 {
-                    // 未售出 → 归还账本
-                    if (thing.stackCount > 0 && i < state.sourceLedgers.Count && state.sourceLedgers[i] != null)
-                        state.sourceLedgers[i].AddRaw(ItemKey.Of(thing), thing.stackCount);
+                    foreach (var rec in entry.records)
+                    {
+                        if (rec.thing == null) continue;
+                        if (rec.thing.stackCount > 0 && rec.sourceLedger != null)
+                            rec.sourceLedger.AddRaw(ItemKey.Of(rec.thing), rec.thing.stackCount);
+                        if (!rec.thing.Destroyed)
+                            rec.thing.Destroy(DestroyMode.Vanish);
+                    }
                 }
-                // 已售：TradeDeal.ResolveTrade 已转让，thing 归交易方，不归我们管
-
-                if (!sold)
-                    thing.Destroy(DestroyMode.Vanish);
-                Remove(state, i);
             }
-        }
-
-        private static void Remove(DialogState state, int i)
-        {
-            state.things.RemoveAt(i);
-            if (i < state.sourceLedgers.Count) state.sourceLedgers.RemoveAt(i);
-            if (i < state.tradeables.Count) state.tradeables.RemoveAt(i);
+            state.entries.Clear();
+            state.injected = false;
         }
 
         // ---------- helpers ----------

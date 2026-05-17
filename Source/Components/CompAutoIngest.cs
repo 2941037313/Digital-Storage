@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using DigitalStorage.Core;
 using RimWorld;
@@ -14,6 +15,19 @@ namespace DigitalStorage.Components
     {
         private Building_StorageCore core;
         private bool enabled = true;
+        private int ingestRateCache = -1;
+        private bool researchedCache;
+        private int researchCheckTick = -1;
+
+        private static readonly HashSet<int> recentlyWithdrawn = new HashSet<int>();
+        private static Thing[] candidateBuffer = new Thing[30];
+        private static int lastClearTick = -1;
+        private static int nextThrottleOffset;
+
+        public static void MarkWithdrawn(Thing t)
+        {
+            if (t != null) recentlyWithdrawn.Add(t.thingIDNumber);
+        }
 
         public bool Enabled
         {
@@ -21,51 +35,84 @@ namespace DigitalStorage.Components
             set => enabled = value;
         }
 
-        public bool IsResearched =>
-            ResearchProjectDef.Named("DigitalStorage_AutoIngest1")?.IsFinished ?? false;
-
         public override void Initialize(CompProperties props)
         {
             base.Initialize(props);
             core = parent as Building_StorageCore;
         }
 
-        private int IngestRate
+        public bool IsResearched
         {
             get
             {
-                if (ResearchProjectDef.Named("DigitalStorage_AutoIngest3")?.IsFinished ?? false) return 10;
-                if (ResearchProjectDef.Named("DigitalStorage_AutoIngest2")?.IsFinished ?? false) return 5;
-                return 1;
+                int tick = Find.TickManager.TicksGame;
+                if (tick != researchCheckTick)
+                {
+                    researchCheckTick = tick;
+                    researchedCache = (ResearchProjectDef.Named("DigitalStorage_AutoIngest1")?.IsFinished ?? false);
+                    if (ResearchProjectDef.Named("DigitalStorage_AutoIngest3")?.IsFinished ?? false) ingestRateCache = 10;
+                    else if (ResearchProjectDef.Named("DigitalStorage_AutoIngest2")?.IsFinished ?? false) ingestRateCache = 5;
+                    else ingestRateCache = 1;
+                }
+                return researchedCache;
             }
         }
 
         public override void CompTick()
         {
             base.CompTick();
-            if (core == null || !enabled || !IsResearched || !core.Powered) return;
+            if (core == null || !enabled || !core.Powered) return;
+
+            int tick = Find.TickManager.TicksGame;
+
+            // 分散不同核心的 tick 相位，避免所有核心同一 tick 竞争
+            if (tick % 15 != (nextThrottleOffset++ % 15)) return;
+
+            if (!IsResearched) return;
 
             var map = core.Map;
             if (map == null) return;
 
+            if (tick - lastClearTick > 120)
+            {
+                recentlyWithdrawn.Clear();
+                lastClearTick = tick;
+            }
+
             var ledger = core.Ledger;
             int capacity = core.GetCapacity();
-            var haulables = map.listerHaulables.ThingsPotentiallyNeedingHauling().ToList();
-            int rate = IngestRate;
+            int rate = ingestRateCache;
             int taken = 0;
+
+            // 收集候选项到静态小缓冲，避免 Ingest/Destroy 修改 haulables 列表导致迭代异常
+            var haulables = map.listerHaulables.ThingsPotentiallyNeedingHauling();
+            int bufSize = rate * 3;
+            if (candidateBuffer.Length < bufSize)
+                candidateBuffer = new Thing[bufSize];
+            int bufCount = 0;
 
             foreach (var t in haulables)
             {
-                if (taken >= rate) break;
+                if (bufCount >= bufSize) break;
                 if (!LedgerPolicy.CanIngest(t)) continue;
                 if (!core.AllowsItem(t)) continue;
                 if (t.IsForbidden(Faction.OfPlayer)) continue;
                 if (map.reservationManager.IsReserved(t)) continue;
+                if (recentlyWithdrawn.Contains(t.thingIDNumber)) continue;
                 if (!ledger.CanAccept(t, capacity)) continue;
+                candidateBuffer[bufCount++] = t;
+            }
 
+            for (int i = 0; i < bufCount && taken < rate; i++)
+            {
+                var t = candidateBuffer[i];
+                if (t.Destroyed) continue;
                 if (ledger.Ingest(t, capacity))
                     taken++;
             }
+            // 清理引用防止 GC 泄漏
+            for (int i = 0; i < bufCount; i++)
+                candidateBuffer[i] = null;
         }
 
         public override void PostExposeData()

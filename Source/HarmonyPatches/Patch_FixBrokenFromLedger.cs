@@ -40,6 +40,7 @@ namespace DigitalStorage.HarmonyPatches
 
                     if (GenPlace.TryPlaceThing(thing, pawn.Position, pawn.Map, ThingPlaceMode.Near, null, null, default))
                     {
+                        CompAutoIngest.MarkWithdrawn(thing);
                         __result = thing;
                         return;
                     }

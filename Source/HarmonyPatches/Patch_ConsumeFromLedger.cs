@@ -1,4 +1,5 @@
 using DigitalStorage.AI;
+using DigitalStorage.Components;
 using HarmonyLib;
 using RimWorld;
 using Verse;
@@ -37,6 +38,7 @@ namespace DigitalStorage.HarmonyPatches
             for (int i = 0; i < policy.Count; i++)
             {
                 var drugDef = policy[i].drug;
+                if (!pawn.drugs.ShouldTryToTakeScheduledNow(drugDef)) continue;
                 var job = ConsumptionHelper.TryCreateJob(pawn, key => key.def == drugDef);
                 if (job != null) { __result = job; return; }
             }

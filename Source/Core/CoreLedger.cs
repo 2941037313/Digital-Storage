@@ -37,6 +37,7 @@ namespace DigitalStorage.Core
 
         private Dictionary<ItemKey, long> stock = new Dictionary<ItemKey, long>();
         private readonly Dictionary<Job, List<ReservationEntry>> reservedByJob = new Dictionary<Job, List<ReservationEntry>>();
+        private readonly Dictionary<ItemKey, long> reservedTotals = new Dictionary<ItemKey, long>();
 
         // 派生值缓存
         private bool groupTotalsDirty = true;
@@ -64,18 +65,8 @@ namespace DigitalStorage.Core
 
         public long StockOf(ItemKey key) => stock.TryGetValue(key, out long s) ? s : 0;
 
-        public long ReservedTotal(ItemKey key)
-        {
-            long total = 0;
-            foreach (var list in reservedByJob.Values)
-            {
-                for (int i = 0; i < list.Count; i++)
-                {
-                    if (list[i].key.Equals(key)) total += list[i].count;
-                }
-            }
-            return total;
-        }
+        public long ReservedTotal(ItemKey key) =>
+            reservedTotals.TryGetValue(key, out long t) ? t : 0;
 
         public IReadOnlyDictionary<ItemKey, long> Stock => stock;
         public int KindCount => stock.Count;
@@ -178,6 +169,13 @@ namespace DigitalStorage.Core
                         e.count -= ded;
                         if (e.count <= 0) list.RemoveAt(i);
                         else list[i] = e;
+                        // 同步 reservedTotals
+                        if (reservedTotals.TryGetValue(key, out long rt))
+                        {
+                            long afterRt = rt - ded;
+                            if (afterRt <= 0) reservedTotals.Remove(key);
+                            else reservedTotals[key] = afterRt;
+                        }
                         break;
                     }
                 }
@@ -238,10 +236,12 @@ namespace DigitalStorage.Core
                     var e = list[i];
                     e.count += take;
                     list[i] = e;
+                    reservedTotals[key] = reservedTotals.TryGetValue(key, out long rt) ? rt + take : take;
                     return take;
                 }
             }
             list.Add(new ReservationEntry { key = key, count = take });
+            reservedTotals[key] = reservedTotals.TryGetValue(key, out long rt2) ? rt2 + take : take;
             NotifyStockChanged(key);
             return take;
         }
@@ -256,7 +256,15 @@ namespace DigitalStorage.Core
             {
                 reservedByJob.Remove(job);
                 foreach (var e in entries)
+                {
+                    if (reservedTotals.TryGetValue(e.key, out long t))
+                    {
+                        long after = t - e.count;
+                        if (after <= 0) reservedTotals.Remove(e.key);
+                        else reservedTotals[e.key] = after;
+                    }
                     NotifyStockChanged(e.key);
+                }
             }
         }
 
@@ -300,6 +308,7 @@ namespace DigitalStorage.Core
                     }
                 }
                 reservedByJob.Clear();
+                reservedTotals.Clear();
                 groupTotalsDirty = true;
             }
             }
