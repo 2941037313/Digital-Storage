@@ -59,6 +59,7 @@
     <AppDesigner Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Components\Building_BufferWarehouse.cs" />
     <Compile Include="Components\Building_StorageCore.cs" />
     <Compile Include="Components\Building_InputInterface.cs" />
     <Compile Include="Components\DigitalStorageMapComponent.cs" />

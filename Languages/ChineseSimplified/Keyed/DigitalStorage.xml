@@ -103,6 +103,15 @@
   <DS_CoreDestroyLossDesc>存储核心被摧毁，因物资数量过大（超过3万堆叠），{0}堆叠物资已丢失。</DS_CoreDestroyLossDesc>
   <DS_GhostNotSellable>数字存储虚拟物品无法交易</DS_GhostNotSellable>
 
+  <!-- ========== 缓冲仓库 ========== -->
+  <DS_BufferBoundTo>已绑定: {0}</DS_BufferBoundTo>
+  <DS_BufferBoundToDesc>点击切换绑定到其他核心，或解绑。</DS_BufferBoundToDesc>
+  <DS_BufferBindCore>绑定核心</DS_BufferBindCore>
+  <DS_BufferBindCoreDesc>选择一个存储核心与此缓冲仓库绑定。</DS_BufferBindCoreDesc>
+  <DS_BufferSelectCore>{0} [{1}]</DS_BufferSelectCore>
+  <DS_BufferCurrentCore>{0} [{1}] (当前)</DS_BufferCurrentCore>
+  <DS_BufferUnbind>解绑</DS_BufferUnbind>
+
   <!-- ========== 3.0 升级信封 ========== -->
   <DigitalStorage_Letter30_Label>数字存储 3.0 更新说明</DigitalStorage_Letter30_Label>
   <DigitalStorage_Letter30_Text>数字存储已更新至 3.0 大版本。\n\n[新] Ghost 兼容层、存储筛选、核心摧毁保护、智能取料、自动收纳研究、机械体芯片继承\n[修] 跨图建造、寻路优化、大量 bug 修复\n[性] 多项 tick 级性能优化\n\n⚠️ 重要提示：\n如果你是从 2.0 版本直接升级的旧存档，核心内存放物品将丢失。建议拆除旧核心后重建以正常使用全部功能。需要 2.0 旧版本请前往 QQ 群 693252771 获取。\n\nBug 反馈亦请加群，感谢支持！</DigitalStorage_Letter30_Text>

@@ -103,6 +103,15 @@
   <DS_CoreDestroyLossDesc>A storage core was destroyed. Due to excessive item count (over 30,000 stacks), {0} stacks were lost.</DS_CoreDestroyLossDesc>
   <DS_GhostNotSellable>Digital Storage virtual items cannot be traded</DS_GhostNotSellable>
 
+  <!-- ========== Buffer Warehouse ========== -->
+  <DS_BufferBoundTo>Bound to: {0}</DS_BufferBoundTo>
+  <DS_BufferBoundToDesc>Click to switch binding to another core, or unbind.</DS_BufferBoundToDesc>
+  <DS_BufferBindCore>Bind Core</DS_BufferBindCore>
+  <DS_BufferBindCoreDesc>Select a storage core to bind this buffer warehouse to.</DS_BufferBindCoreDesc>
+  <DS_BufferSelectCore>{0} [{1}]</DS_BufferSelectCore>
+  <DS_BufferCurrentCore>{0} [{1}] (current)</DS_BufferCurrentCore>
+  <DS_BufferUnbind>Unbind</DS_BufferUnbind>
+
   <!-- ========== 3.0 Upgrade Letter ========== -->
   <DigitalStorage_Letter30_Label>Digital Storage 3.0 Update</DigitalStorage_Letter30_Label>
   <DigitalStorage_Letter30_Text>Digital Storage has been updated to version 3.0.\n\n[New] Ghost compatibility layer, storage filter, core destruction protection, smart retrieval, auto-collection research, mechanoid chip inheritance\n[Fix] Cross-map construction, pathfinding, numerous bug fixes\n[Perf] Multiple tick-level performance optimizations\n\n⚠️ IMPORTANT:\nIf you are upgrading from version 2.0 on an existing save, items stored in cores will be lost. It is recommended to deconstruct old cores and rebuild them to use all features properly. For the legacy 2.0 version, join QQ group 693252771.\n\nBug reports are also welcome in the group. Thank you for your support!</DigitalStorage_Letter30_Text>

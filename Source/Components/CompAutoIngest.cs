@@ -22,7 +22,6 @@ namespace DigitalStorage.Components
         private static readonly HashSet<int> recentlyWithdrawn = new HashSet<int>();
         private static Thing[] candidateBuffer = new Thing[30];
         private static int lastClearTick = -1;
-        private static int nextThrottleOffset;
 
         public static void MarkWithdrawn(Thing t)
         {
@@ -65,8 +64,8 @@ namespace DigitalStorage.Components
 
             int tick = Find.TickManager.TicksGame;
 
-            // 分散不同核心的 tick 相位，避免所有核心同一 tick 竞争
-            if (tick % 15 != (nextThrottleOffset++ % 15)) return;
+            // 每 15 tick 一次，用核心 ID 错开相位
+            if ((tick + core.thingIDNumber) % 15 != 0) return;
 
             if (!IsResearched) return;
 

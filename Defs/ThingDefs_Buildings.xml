@@ -177,4 +177,60 @@
     </costList>
   </ThingDef>
 
+  <!-- 缓冲仓库 —— 物理存储桥接层，物品在 SlotGroup 真实存在，兼容所有 mod -->
+  <ThingDef ParentName="BuildingBase">
+    <defName>DigitalStorage_BufferWarehouse</defName>
+    <label>缓冲仓库</label>
+    <description>数字存储系统的物理缓冲区。物品在此真实存在，兼容所有 mod。自动从绑定核心补货，超额物品自动收纳。</description>
+    <thingClass>DigitalStorage.Components.Building_BufferWarehouse</thingClass>
+    <graphicData>
+      <texPath>Things/Building/Furniture/ShelfSmall</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(1,1)</drawSize>
+    </graphicData>
+    <uiIconScale>1</uiIconScale>
+    <size>(1,1)</size>
+    <designationCategory>Furniture</designationCategory>
+    <passability>PassThroughOnly</passability>
+    <surfaceType>Item</surfaceType>
+    <drawGUIOverlay>true</drawGUIOverlay>
+    <castEdgeShadows>true</castEdgeShadows>
+    <terrainAffordanceNeeded>Medium</terrainAffordanceNeeded>
+    <minifiedDef>MinifiedThing</minifiedDef>
+    <statBases>
+      <MaxHitPoints>300</MaxHitPoints>
+      <WorkToBuild>500</WorkToBuild>
+      <Mass>10</Mass>
+      <Flammability>0.5</Flammability>
+    </statBases>
+    <fillPercent>0.8</fillPercent>
+    <building>
+      <maxItemsInCell>200</maxItemsInCell>
+      <preventDeteriorationOnTop>true</preventDeteriorationOnTop>
+      <ignoreStoredThingsBeauty>true</ignoreStoredThingsBeauty>
+      <defaultStorageSettings>
+        <priority>Important</priority>
+        <filter>
+          <disallowNotEverStorable>true</disallowNotEverStorable>
+        </filter>
+      </defaultStorageSettings>
+    </building>
+    <inspectorTabs>
+      <li>ITab_Storage</li>
+    </inspectorTabs>
+    <comps>
+      <li Class="CompProperties_Forbiddable" />
+    </comps>
+    <thingCategories>
+      <li>BuildingsFurniture</li>
+    </thingCategories>
+    <researchPrerequisites>
+      <li>DigitalStorage_BufferWarehouse</li>
+    </researchPrerequisites>
+    <costList>
+      <Steel>100</Steel>
+      <ComponentIndustrial>5</ComponentIndustrial>
+    </costList>
+  </ThingDef>
+
 </Defs>
