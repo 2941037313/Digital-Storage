@@ -26,6 +26,13 @@ namespace DigitalStorage.Components
             // 自动绑定同 NetworkName 核心
             if (boundCore == null || boundCore.Destroyed)
                 TryAutoBind();
+
+            // 加载后冻结已有物品
+            if (respawningAfterLoad && slotGroup != null)
+            {
+                foreach (var t in slotGroup.HeldThings)
+                    FreezeItemTick(t);
+            }
         }
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
@@ -112,13 +119,40 @@ namespace DigitalStorage.Components
         public override void Notify_ReceivedThing(Thing newItem)
         {
             base.Notify_ReceivedThing(newItem);
+            FreezeItemTick(newItem);
             // TODO 7c: 触发超额收纳检查
         }
 
         public override void Notify_LostThing(Thing newItem)
         {
             base.Notify_LostThing(newItem);
+            UnfreezeItemTick(newItem);
             // TODO 7c: 触发补货检查
+        }
+
+        // ========== 7b: Tick 冻结 ==========
+
+        /// <summary>
+        /// 物品放入缓冲仓库后冻结：移除 tick 注册 + 停止动态渲染 + 重置腐烂。
+        /// 保留 ListerThings / WealthWatcher / Room 统计（mod 兼容用）。
+        /// </summary>
+        private void FreezeItemTick(Thing t)
+        {
+            var map = Map;
+            if (map == null) return;
+            Find.TickManager.DeRegisterAllTickabilityFor(t);
+            map.dynamicDrawManager.DeRegisterDrawable(t);
+        }
+
+        /// <summary>
+        /// 物品离开缓冲仓库时恢复 tick。
+        /// </summary>
+        private void UnfreezeItemTick(Thing t)
+        {
+            var map = Map;
+            if (map == null) return;
+            Find.TickManager.RegisterAllTickabilityFor(t);
+            map.dynamicDrawManager.RegisterDrawable(t);
         }
 
         // ========== Gizmo + FloatMenu ==========
