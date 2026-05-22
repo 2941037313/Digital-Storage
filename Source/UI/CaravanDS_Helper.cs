@@ -183,14 +183,22 @@ namespace DigitalStorage.UI
                     thing.Destroy(DestroyMode.Vanish);
                     RemoveAt(state, i);
                 }
-                else if (spawnOnMap)
+                else
                 {
                     if (selected < thing.stackCount)
+                    {
+                        // 部分选择：SplitOff 选中部分，剩余归还账本
+                        int remain = thing.stackCount - selected;
+                        thing.stackCount = remain;
+                        var key = ItemKey.Of(thing);
+                        if (i < state.sourceLedgers.Count && state.sourceLedgers[i] != null)
+                            state.sourceLedgers[i].AddRaw(key, remain);
                         thing.stackCount = selected;
-                    if (!thing.Spawned)
+                    }
+                    if (spawnOnMap && !thing.Spawned)
                         GenPlace.TryPlaceThing(thing, avgPos, map, ThingPlaceMode.Near, null, null, default);
+                    // Reform: 不 spawn；原版 AddItemsFromTransferablesToRandomInventories 分发pawn背包
                 }
-                // Reform: 不 spawn；原版 AddItemsFromTransferablesToRandomInventories 会把选中物品分发给pawn背包
             }
         }
 

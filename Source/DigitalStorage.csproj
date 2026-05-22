@@ -59,7 +59,9 @@
     <AppDesigner Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Components\BufferWarehouseUtility.cs" />
     <Compile Include="Components\Building_BufferWarehouse.cs" />
+    <Compile Include="Components\Building_BufferWarehouse_UI.cs" />
     <Compile Include="Components\Building_StorageCore.cs" />
     <Compile Include="Components\Building_InputInterface.cs" />
     <Compile Include="Components\DigitalStorageMapComponent.cs" />
@@ -69,6 +71,8 @@
     <Compile Include="Components\CompStorageCoreUpgrade.cs" />
     <Compile Include="Components\CompProperties_StorageCoreUpgrade.cs" />
     <Compile Include="Components\CompProperties_AutoIngest.cs" />
+    <Compile Include="Components\CompBufferWarehouse.cs" />
+    <Compile Include="Components\CompProperties_BufferWarehouse.cs" />
     <Compile Include="Components\CompAutoIngest.cs" />
     <Compile Include="Components\CoreDestroyDropQueue.cs" />
     <Compile Include="Components\StorageCoreUpgrade.cs" />
@@ -86,6 +90,7 @@
     <Compile Include="AI\WorkGiver_DS_HaulToCore.cs" />
     <Compile Include="AI\LedgerBillPlanner.cs" />
     <Compile Include="AI\JobDriver_DS_WithdrawForBill.cs" />
+    <Compile Include="AI\BufferWarehouseJobHelper.cs" />
     <Compile Include="AI\WorkGiver_DS_WithdrawForBill.cs" />
     <Compile Include="AI\JobDriver_DS_Withdraw.cs" />
     <Compile Include="AI\WorkGiver_DS_WithdrawForConstruct.cs" />
@@ -95,6 +100,7 @@
     <Compile Include="AI\CoreFinder.cs" />
     <Compile Include="AI\JobDriver_DS_ReserveHelper.cs" />
 
+    <Compile Include="UI\ITab_BufferWarehouse.cs" />
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
     <Compile Include="UI\Dialog_StorageFilter.cs" />

@@ -111,9 +111,11 @@
   <DS_BufferSelectCore>{0} [{1}]</DS_BufferSelectCore>
   <DS_BufferCurrentCore>{0} [{1}] (current)</DS_BufferCurrentCore>
   <DS_BufferUnbind>Unbind</DS_BufferUnbind>
+  <DS_TabBufferWarehouse>Buffer Stock</DS_TabBufferWarehouse>
+  <DS_Priority>Haul Priority</DS_Priority>
 
   <!-- ========== 3.0 Upgrade Letter ========== -->
   <DigitalStorage_Letter30_Label>Digital Storage 3.0 Update</DigitalStorage_Letter30_Label>
-  <DigitalStorage_Letter30_Text>Digital Storage has been updated to version 3.0.\n\n[New] Ghost compatibility layer, storage filter, core destruction protection, smart retrieval, auto-collection research, mechanoid chip inheritance\n[Fix] Cross-map construction, pathfinding, numerous bug fixes\n[Perf] Multiple tick-level performance optimizations\n\n⚠️ IMPORTANT:\nIf you are upgrading from version 2.0 on an existing save, items stored in cores will be lost. It is recommended to deconstruct old cores and rebuild them to use all features properly. For the legacy 2.0 version, join QQ group 693252771.\n\nBug reports are also welcome in the group. Thank you for your support!</DigitalStorage_Letter30_Text>
+  <DigitalStorage_Letter30_Text>Digital Storage 3.0 maintenance update.\n\n[Fixed]\n- Trade search wiping core inventory\n- Caravan partial selection losing items\n- Orbital trade selling 1 clearing all 29\n- Minified buildings lost after core ingest\n- Wild animals / non-eating pawns taking core food\n- Wrong work type pawns doing all bills\n- Food selection preferring human meat over meals\n- Hauling / auto-ingest loop\n- Item eject immediately re-collected\n- False low medicine alert\n- Resource counter / wealth not showing core stock\n\n[Added]\n- Buffer Warehouse — 1x1 physical storage shelf, bind to a core, set per-item retention thresholds with auto-replenish. Items exist as real Things for 100% mod compatibility.\n- Orbital trade beacon support\n- Storage core ITab haul priority\n- Storage filter UI\n\n[Performance]\n- Tick-level optimizations (auto-ingest throttle / core discovery cache / reservation O(1) / food scoring no-alloc)\n\n⚠️ IMPORTANT: If upgrading from 2.0 on an existing save, core items will be lost. Deconstruct old cores and rebuild. Legacy 2.0 version: QQ group 693252771.\nBug reports welcome in the group. Thank you for your support!</DigitalStorage_Letter30_Text>
 
 </LanguageData>

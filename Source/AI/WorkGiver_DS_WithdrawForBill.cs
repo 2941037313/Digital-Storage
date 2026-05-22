@@ -22,7 +22,9 @@ namespace DigitalStorage.AI
         public override bool ShouldSkip(Pawn pawn, bool forced = false)
         {
             if (!CoreFinder.AnyUsableAccess(pawn)) return true;
-            // forced（右键）不检查 bills，让 JobOnThing 逐个评估
+            if (pawn.workSettings.GetPriority(def.workType) == 0) return true;
+            if (pawn.WorkTagIsDisabled(def.workTags)) return true;
+
             if (forced) return false;
 
             var list = pawn.Map.listerThings.ThingsInGroup(ThingRequestGroup.PotentialBillGiver);
@@ -53,6 +55,10 @@ namespace DigitalStorage.AI
                 var bill = billGiver.BillStack[i];
                 if (bill.recipe.requiredGiverWorkType != null && bill.recipe.requiredGiverWorkType != def.workType)
                     continue;
+                // 食谱未指定 workType 时，检查技能匹配（防医生做雕塑）
+                if (bill.recipe.requiredGiverWorkType == null && bill.recipe.workSkill != null
+                    && !WorkTypeMatchesSkill(def.workType, bill.recipe.workSkill))
+                    continue;
                 if (Find.TickManager.TicksGame <= bill.nextTickToSearchForIngredients
                     && FloatMenuMakerMap.makingFor != pawn) continue;
                 if (!bill.ShouldDoNow()) continue;
@@ -81,7 +87,12 @@ namespace DigitalStorage.AI
                     if (!proxy.IsValid) continue;
                     return MakeJob(thing, bill, access.ledgerCore, proxy);
                 }
+
+                // 核心无材料 → 芯片 pawn 从缓冲仓库传送
+                if (chip && BufferWarehouseJobHelper.TryTakeForBill(pawn, bill, thing, out var bwJob))
+                    return bwJob;
             }
+
             return null;
         }
 
@@ -93,6 +104,20 @@ namespace DigitalStorage.AI
             if (proxyCell.IsValid) job.SetTarget(TargetIndex.B, proxyCell);
             job.haulMode = HaulMode.ToCellNonStorage;
             return job;
+        }
+
+        private static bool WorkTypeMatchesSkill(WorkTypeDef w, SkillDef s)
+        {
+            string wn = w?.defName ?? "";
+            string sn = s?.defName ?? "";
+            // Crafting/Smithing/Tailoring 共用 Crafting 技能
+            if (sn == "Crafting" && (wn == "Crafting" || wn == "Smithing" || wn == "Tailoring"))
+                return true;
+            if (sn == "Artistic" && wn == "Art") return true;
+            if (sn == "Cooking" && wn == "Cooking") return true;
+            if (sn == "Medicine" && wn == "Doctor") return true;
+            if (sn == "Intellectual" && wn == "Research") return true;
+            return false;
         }
 
         private static UnfinishedThing FindUnfinishedForBill(Pawn pawn, Bill_ProductionWithUft bill)

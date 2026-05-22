@@ -184,9 +184,9 @@
     <description>数字存储系统的物理缓冲区。物品在此真实存在，兼容所有 mod。自动从绑定核心补货，超额物品自动收纳。</description>
     <thingClass>DigitalStorage.Components.Building_BufferWarehouse</thingClass>
     <graphicData>
-      <texPath>Things/Building/Furniture/ShelfSmall</texPath>
+      <texPath>缓冲仓库</texPath>
       <graphicClass>Graphic_Single</graphicClass>
-      <drawSize>(1,1)</drawSize>
+      <drawSize>(1.5,1.5)</drawSize>
     </graphicData>
     <uiIconScale>1</uiIconScale>
     <size>(1,1)</size>
@@ -204,22 +204,46 @@
       <Flammability>0.5</Flammability>
     </statBases>
     <fillPercent>0.8</fillPercent>
+    <tickerType>Normal</tickerType>
     <building>
-      <maxItemsInCell>200</maxItemsInCell>
+      <maxItemsInCell>999</maxItemsInCell>
       <preventDeteriorationOnTop>true</preventDeteriorationOnTop>
       <ignoreStoredThingsBeauty>true</ignoreStoredThingsBeauty>
       <defaultStorageSettings>
-        <priority>Important</priority>
         <filter>
           <disallowNotEverStorable>true</disallowNotEverStorable>
+          <categories>
+            <li>Foods</li>
+            <li>ResourcesRaw</li>
+            <li>Textiles</li>
+            <li>Medicine</li>
+            <li>Drugs</li>
+            <li>MortarShells</li>
+            <li>BodyParts</li>
+            <li>Weapons</li>
+            <li>Apparel</li>
+            <li>Artifacts</li>
+            <li>Buildings</li>
+            <li>Chunks</li>
+            <li>Manufactured</li>
+            <li>PlantMatter</li>
+            <li>StoneBlocks</li>
+            <li>Leathers</li>
+            <li>Wools</li>
+            <li>Metallic</li>
+            <li>Meals</li>
+            <li>Corpses</li>
+          </categories>
         </filter>
       </defaultStorageSettings>
     </building>
     <inspectorTabs>
       <li>ITab_Storage</li>
+      <li>DigitalStorage.UI.ITab_BufferWarehouse</li>
     </inspectorTabs>
     <comps>
       <li Class="CompProperties_Forbiddable" />
+      <li Class="DigitalStorage.Components.CompProperties_BufferWarehouse" />
     </comps>
     <thingCategories>
       <li>BuildingsFurniture</li>

@@ -45,7 +45,27 @@ namespace DigitalStorage.UI
             Text.Anchor = TextAnchor.MiddleCenter;
             Widgets.Label(barRect, "DS_CapacityBar".Translate(used, cap));
             Text.Anchor = TextAnchor.UpperLeft;
-            y += 28f;
+            y += 26f;
+
+            // 搬运优先级
+            Rect prioLabel = new Rect(rect.x, rect.y + y, 60f, 22f);
+            Widgets.Label(prioLabel, "DS_Priority".Translate() + ":");
+            Rect prioRect = new Rect(rect.x + 62f, rect.y + y, 140f, 22f);
+            if (Widgets.ButtonText(prioRect, PriorityLabel(core.storagePriority)))
+            {
+                var options = new List<FloatMenuOption>();
+                foreach (StoragePriority p in System.Enum.GetValues(typeof(StoragePriority)))
+                {
+                    var priority = p;
+                    if (priority == StoragePriority.Unstored) continue;
+                    options.Add(new FloatMenuOption(PriorityLabel(priority), delegate
+                    {
+                        core.storagePriority = priority;
+                    }));
+                }
+                Find.WindowStack.Add(new FloatMenu(options));
+            }
+            y += 26f;
 
             // 搜索框
             Rect searchRect = new Rect(rect.x, rect.y + y, rect.width, 24f);
@@ -116,6 +136,19 @@ namespace DigitalStorage.UI
             }
 
             Widgets.EndScrollView();
+        }
+
+        private static string PriorityLabel(StoragePriority p)
+        {
+            switch (p)
+            {
+                case StoragePriority.Low: return "PriorityLow".Translate();
+                case StoragePriority.Normal: return "PriorityNormal".Translate();
+                case StoragePriority.Preferred: return "PriorityPreferred".Translate();
+                case StoragePriority.Important: return "PriorityImportant".Translate();
+                case StoragePriority.Critical: return "PriorityCritical".Translate();
+                default: return p.ToString();
+            }
         }
 
         private float CalcListHeight(Building_StorageCore core)

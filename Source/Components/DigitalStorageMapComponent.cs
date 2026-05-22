@@ -10,6 +10,7 @@ namespace DigitalStorage.Components
     public class DigitalStorageMapComponent : MapComponent
     {
         private readonly List<Building_StorageCore> cores = new List<Building_StorageCore>();
+        private readonly List<Building_BufferWarehouse> buffers = new List<Building_BufferWarehouse>();
         private List<Building_StorageCore> cachedCleanList;
         private int lastCleanTick = -1;
 
@@ -54,6 +55,24 @@ namespace DigitalStorage.Components
 
             cachedCleanList = new List<Building_StorageCore>(cores);
             return cachedCleanList;
+        }
+
+        public void RegisterBufferWarehouse(Building_BufferWarehouse bw)
+        {
+            if (bw != null && !buffers.Contains(bw))
+                buffers.Add(bw);
+        }
+
+        public void DeregisterBufferWarehouse(Building_BufferWarehouse bw)
+        {
+            if (bw != null)
+                buffers.Remove(bw);
+        }
+
+        public IReadOnlyList<Building_BufferWarehouse> GetAllBufferWarehouses()
+        {
+            buffers.RemoveAll(b => b == null || b.Destroyed);
+            return buffers;
         }
     }
 }

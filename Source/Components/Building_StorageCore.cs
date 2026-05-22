@@ -25,6 +25,7 @@ namespace DigitalStorage.Components
         private CompPowerTrader powerComp;
         private CompStorageCoreUpgrade upgradeComp;
         private CoreLedger ledger = new CoreLedger();
+        public StoragePriority storagePriority = StoragePriority.Normal;
         private readonly List<Building_InputInterface> interfaces = new List<Building_InputInterface>();
         private ThingFilter storageFilter;
         private static ThingFilter parentFilter;
@@ -293,6 +294,7 @@ namespace DigitalStorage.Components
         {
             base.ExposeData();
             Scribe_Values.Look(ref networkName, "networkName");
+            Scribe_Values.Look(ref storagePriority, "storagePriority", StoragePriority.Normal);
             Scribe_Deep.Look(ref ledger, "ledger");
             Scribe_Deep.Look(ref storageFilter, "storageFilter");
             if (Scribe.mode == LoadSaveMode.PostLoadInit && ledger == null)

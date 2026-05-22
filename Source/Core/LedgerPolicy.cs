@@ -39,6 +39,7 @@ namespace DigitalStorage.Core
             if (t == null || t.Destroyed) return false;
             if (t is Ghost.GhostThing) return false;
             if (t is UnfinishedThing) return false;
+            if (t is MinifiedThing) return false;
             return CanIngest(t.def);
         }
 

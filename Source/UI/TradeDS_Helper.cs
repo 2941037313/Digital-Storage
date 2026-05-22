@@ -103,18 +103,22 @@ namespace DigitalStorage.UI
 
         private static void RemoveCoreTradeables(DialogState state, List<Tradeable> cachedList)
         {
+            // 捕获旧的 deal tradeables（归还前）
+            var toRemove = new HashSet<Tradeable>();
+            foreach (var e in state.entries) toRemove.Add(e.tradeable);
+
+            // 归还旧注入的物品
+            RollbackInternal(state);
+
             for (int i = cachedList.Count - 1; i >= state.coreStartIndex && i >= 0; i--)
                 cachedList.RemoveAt(i);
             var dealTradeables = TradeSession.deal?.AllTradeables;
             if (dealTradeables != null)
             {
-                var toRemove = new HashSet<Tradeable>();
-                foreach (var e in state.entries) toRemove.Add(e.tradeable);
                 for (int i = dealTradeables.Count - 1; i >= 0; i--)
                     if (toRemove.Contains(dealTradeables[i]))
                         dealTradeables.RemoveAt(i);
             }
-            state.entries.Clear();
             state.coreStartIndex = -1;
         }
 
@@ -154,30 +158,91 @@ namespace DigitalStorage.UI
         }
 
         /// <summary>
+        /// 对话框关闭时清理 state（防止内存泄漏 + 跨 mod 冲突）
+        /// </summary>
+        public static void CleanupState(Dialog_Trade dialog)
+        {
+            states.Remove(dialog);
+        }
+
+        /// <summary>
+        /// 标记最近注入的交易为"已执行"——不依赖 Dialog_Trade 在窗口栈上。
+        /// （兼容 Dynamic Trade Interface 等替换原版交易窗口的 mod）
+        /// </summary>
+        public static void MarkDealExecutedForAnyActiveDialog()
+        {
+            foreach (var kv in states)
+            {
+                if (kv.Value.injected && !kv.Value.dealExecuted && kv.Value.entries.Count > 0)
+                {
+                    kv.Value.dealExecuted = true;
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 成交后清理——同不依赖 Dialog_Trade 在窗口栈上。
+        /// </summary>
+        public static void CleanupAfterDealForAnyActiveDialog()
+        {
+            foreach (var kv in states)
+            {
+                if (kv.Value.dealExecuted && kv.Value.entries.Count > 0)
+                {
+                    CleanupAfterDealEntries(kv.Value);
+                    kv.Value.injected = false;
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 对 states 中所有未执行的注入进行回滚。
+        /// （兼容替换原版窗口的 mod——窗口关闭时不一定是 Dialog_Trade）
+        /// </summary>
+        public static void RollbackAndCleanupIfNotExecuted()
+        {
+            var toRollback = new List<DialogState>();
+            var toRemove = new List<Dialog_Trade>();
+            foreach (var kv in states)
+            {
+                if (kv.Value.injected && !kv.Value.dealExecuted && kv.Value.entries.Count > 0)
+                {
+                    toRollback.Add(kv.Value);
+                    toRemove.Add(kv.Key);
+                }
+            }
+            foreach (var state in toRollback)
+                RollbackInternal(state);
+            foreach (var key in toRemove)
+                states.Remove(key);
+        }
+
+        private static void CleanupAfterDealEntries(DialogState state)
+        {
+            foreach (var entry in state.entries)
+            {
+                foreach (var rec in entry.records)
+                {
+                    if (rec.thing == null) continue;
+                    if (rec.thing.stackCount > 0 && rec.sourceLedger != null)
+                        rec.sourceLedger.AddRaw(ItemKey.Of(rec.thing), rec.thing.stackCount);
+                    if (!rec.thing.Destroyed)
+                        rec.thing.Destroy(DestroyMode.Vanish);
+                }
+            }
+            state.entries.Clear();
+        }
+
+        /// <summary>
         /// 成交后清理。Tradeable.CountToTransferToDestination > 0 → 已售不归还；= 0 → 归还账本。
         /// </summary>
         public static void CleanupAfterDeal(Dialog_Trade dialog)
         {
             var state = GetState(dialog);
             if (state.entries.Count == 0) return;
-
-            foreach (var entry in state.entries)
-            {
-                bool sold = entry.tradeable != null && entry.tradeable.CountToTransferToDestination > 0;
-
-                if (!sold)
-                {
-                    foreach (var rec in entry.records)
-                    {
-                        if (rec.thing == null) continue;
-                        if (rec.thing.stackCount > 0 && rec.sourceLedger != null)
-                            rec.sourceLedger.AddRaw(ItemKey.Of(rec.thing), rec.thing.stackCount);
-                        if (!rec.thing.Destroyed)
-                            rec.thing.Destroy(DestroyMode.Vanish);
-                    }
-                }
-            }
-            state.entries.Clear();
+            CleanupAfterDealEntries(state);
             state.injected = false;
         }
 

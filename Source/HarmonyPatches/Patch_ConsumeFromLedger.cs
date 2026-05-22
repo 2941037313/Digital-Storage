@@ -20,8 +20,17 @@ namespace DigitalStorage.HarmonyPatches
         {
             if (__result != null) return;
             if (!ConsumePatchUtil.ShouldTry(pawn)) return;
+            if (!CanUseCoreFood(pawn)) return;
             __result = ConsumptionHelper.TryCreateJob(pawn,
                 key => key.def.IsNutritionGivingIngestible);
+        }
+
+        private static bool CanUseCoreFood(Pawn pawn)
+        {
+            if (pawn.Faction == Faction.OfPlayer) return true;
+            if (pawn.IsPrisonerOfColony) return true;
+            if (Hediff_TerminalImplant.HasTerminalImplant(pawn)) return true;
+            return false;
         }
     }
 

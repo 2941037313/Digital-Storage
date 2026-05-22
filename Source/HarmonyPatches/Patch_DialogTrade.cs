@@ -23,8 +23,17 @@ namespace DigitalStorage.HarmonyPatches
         [HarmonyPostfix]
         static void Postfix(Window __instance)
         {
-            if (__instance is Dialog_Trade dialog && !TradeDS_Helper.WasDealExecuted(dialog))
-                TradeDS_Helper.Rollback(dialog);
+            if (__instance is Dialog_Trade dialog)
+            {
+                if (!TradeDS_Helper.WasDealExecuted(dialog))
+                    TradeDS_Helper.Rollback(dialog);
+                TradeDS_Helper.CleanupState(dialog);
+            }
+            else
+            {
+                // 兼容 Dynamic Trade Interface 等替换原版窗口的 mod
+                TradeDS_Helper.RollbackAndCleanupIfNotExecuted();
+            }
         }
     }
 
@@ -34,18 +43,14 @@ namespace DigitalStorage.HarmonyPatches
         [HarmonyPrefix]
         static void Prefix()
         {
-            var dialog = Find.WindowStack.WindowOfType<Dialog_Trade>();
-            if (dialog != null)
-                TradeDS_Helper.MarkDealExecuted(dialog);
+            TradeDS_Helper.MarkDealExecutedForAnyActiveDialog();
         }
 
         [HarmonyPostfix]
         static void Postfix(bool __result)
         {
             if (!__result) return;
-            var dialog = Find.WindowStack.WindowOfType<Dialog_Trade>();
-            if (dialog != null)
-                TradeDS_Helper.CleanupAfterDeal(dialog);
+            TradeDS_Helper.CleanupAfterDealForAnyActiveDialog();
         }
     }
 }

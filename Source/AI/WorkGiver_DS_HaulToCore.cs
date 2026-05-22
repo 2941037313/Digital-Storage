@@ -62,7 +62,10 @@ namespace DigitalStorage.AI
             if (!HaulAIUtility.PawnCanAutomaticallyHaulFast(pawn, t, forced)) return null;
             if (t.Map.reservationManager.IsReserved(t)) return null;
 
-            // 如果物品已有合适的储存区目标（如营养膏料斗），让原版搬运处理
+            // 跳过已在任何存储区（Stockpile/架/缓冲仓库）中的物品
+            if (t.IsInAnyStorage()) return null;
+
+            // 如果物品已有合适的储存区目标，让原版搬运处理
             if (StoreUtility.TryFindBestBetterStoreCellFor(t, pawn, t.Map,
                 StoreUtility.CurrentStoragePriorityOf(t), pawn.Faction, out _, true))
                 return null;

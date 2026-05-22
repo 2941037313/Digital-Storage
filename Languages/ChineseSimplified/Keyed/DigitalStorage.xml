@@ -111,9 +111,11 @@
   <DS_BufferSelectCore>{0} [{1}]</DS_BufferSelectCore>
   <DS_BufferCurrentCore>{0} [{1}] (当前)</DS_BufferCurrentCore>
   <DS_BufferUnbind>解绑</DS_BufferUnbind>
+  <DS_TabBufferWarehouse>缓冲库存</DS_TabBufferWarehouse>
+  <DS_Priority>搬运优先级</DS_Priority>
 
   <!-- ========== 3.0 升级信封 ========== -->
   <DigitalStorage_Letter30_Label>数字存储 3.0 更新说明</DigitalStorage_Letter30_Label>
-  <DigitalStorage_Letter30_Text>数字存储已更新至 3.0 大版本。\n\n[新] Ghost 兼容层、存储筛选、核心摧毁保护、智能取料、自动收纳研究、机械体芯片继承\n[修] 跨图建造、寻路优化、大量 bug 修复\n[性] 多项 tick 级性能优化\n\n⚠️ 重要提示：\n如果你是从 2.0 版本直接升级的旧存档，核心内存放物品将丢失。建议拆除旧核心后重建以正常使用全部功能。需要 2.0 旧版本请前往 QQ 群 693252771 获取。\n\nBug 反馈亦请加群，感谢支持！</DigitalStorage_Letter30_Text>
+  <DigitalStorage_Letter30_Text>数字存储 3.0 日常维护更新。\n\n[修复]\n· 交易搜索清空核心库存\n· 远行队部分选择差额丢失\n· 轨道交易卖 1 清空 29\n· 卸载建筑被吸入核心后取出消失\n· 野生生物 / 非进食pawn 从核心取食\n· 非手工小人做手工（工作优先级乱）\n· 食物选择优化（不再优先取人肉）\n· 搬运循环 / 自动收纳循环\n· 物品弹出立即被收纳\n· 药品不足误报\n· 资源计数 / 财富不显示\n\n[新增]\n· 缓冲仓库 —— 1x1 物理存储区，绑定核心，可设每物品保留数量自动补货。物品真实存在，作为兼容手段确保全部 mod 可正确读取库存。\n· 轨道交易信标支持\n· 核心 ITab 搬运优先级\n· 存储筛选 UI\n\n[性能]\n· tick 级优化（自动收纳节流 / 核心发现缓存 / 预订系统 O(1) / 食物评分免分配）\n\n⚠️ 如果从 2.0 直接升级旧存档，核心物品将丢失。建议拆除旧核心重建。需 2.0 旧版本请加 QQ 群 693252771。\nBug 反馈同群，感谢支持！</DigitalStorage_Letter30_Text>
 
 </LanguageData>

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using DigitalStorage.Core;
 using RimWorld;
 using Verse;
 
@@ -11,7 +12,7 @@ namespace DigitalStorage.Components
     /// 物品在 SlotGroup 上真实存在，其他 mod 可通过任何 API 发现。
     /// 绑定一个核心，双向物流（补货/收纳）在 CompBufferWarehouse 中处理。
     /// </summary>
-    public class Building_BufferWarehouse : Building_Storage
+    public partial class Building_BufferWarehouse : Building_Storage
     {
         private Building_StorageCore boundCore;
 
@@ -22,6 +23,9 @@ namespace DigitalStorage.Components
         public override void SpawnSetup(Map map, bool respawningAfterLoad)
         {
             base.SpawnSetup(map, respawningAfterLoad);
+
+            // 注册到 MapComponent
+            map.GetComponent<DigitalStorageMapComponent>()?.RegisterBufferWarehouse(this);
 
             // 自动绑定同 NetworkName 核心
             if (boundCore == null || boundCore.Destroyed)
@@ -37,6 +41,7 @@ namespace DigitalStorage.Components
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
+            Map?.GetComponent<DigitalStorageMapComponent>()?.DeregisterBufferWarehouse(this);
             if (boundCore != null && !boundCore.Destroyed)
             {
                 // TODO 7c: 库存处理（归还核心或掉落）
@@ -104,16 +109,36 @@ namespace DigitalStorage.Components
         // ========== 物品接收 ==========
 
         /// <summary>
-        /// 遮盖原版 Accepts，加入绑定核心状态检查。
+        /// 遮盖原版 Accepts，加入阈值限制防止搬运循环。
+        /// 只有物理存量低于阈值（或阈值为0未设置）时才接收。
         /// </summary>
         public new bool Accepts(Thing t)
         {
             if (boundCore == null || boundCore.Destroyed || !boundCore.Spawned)
                 return false;
-            // 核心通电检查
             if (!boundCore.Powered) return false;
-            // 委托原版储存筛选
-            return GetStoreSettings().AllowedToAccept(t);
+
+            if (!GetStoreSettings().AllowedToAccept(t)) return false;
+
+            var comp = GetComp<CompBufferWarehouse>();
+            if (comp == null) return false;
+
+            var key = ItemKey.Of(t);
+            int threshold = comp.GetThreshold(key);
+            if (threshold <= 0) return true;
+
+            long current = 0;
+            var slot = GetSlotGroup();
+            if (slot != null)
+            {
+                foreach (var ht in slot.HeldThings)
+                {
+                    if (ht.Destroyed) continue;
+                    if (ItemKey.Of(ht).Equals(key))
+                        current += ht.stackCount;
+                }
+            }
+            return current < threshold;
         }
 
         public override void Notify_ReceivedThing(Thing newItem)
@@ -153,70 +178,6 @@ namespace DigitalStorage.Components
             if (map == null) return;
             Find.TickManager.RegisterAllTickabilityFor(t);
             map.dynamicDrawManager.RegisterDrawable(t);
-        }
-
-        // ========== Gizmo + FloatMenu ==========
-
-        public override IEnumerable<Gizmo> GetGizmos()
-        {
-            foreach (var g in base.GetGizmos())
-                yield return g;
-
-            if (boundCore != null)
-            {
-                yield return new Command_Action
-                {
-                    defaultLabel = "DS_BufferBoundTo".Translate(boundCore.LabelCap),
-                    defaultDesc = "DS_BufferBoundToDesc".Translate(),
-                    icon = TexCommand.DesirePower,
-                    action = delegate
-                    {
-                        Find.WindowStack.Add(new FloatMenu(GetBindOptions().ToList()));
-                    }
-                };
-            }
-            else
-            {
-                yield return new Command_Action
-                {
-                    defaultLabel = "DS_BufferBindCore".Translate(),
-                    defaultDesc = "DS_BufferBindCoreDesc".Translate(),
-                    icon = TexCommand.DesirePower,
-                    action = delegate
-                    {
-                        Find.WindowStack.Add(new FloatMenu(GetBindOptions().ToList()));
-                    }
-                };
-            }
-        }
-
-        private IEnumerable<FloatMenuOption> GetBindOptions()
-        {
-            var mapComp = Map?.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) yield break;
-
-            // 解绑选项
-            if (boundCore != null)
-            {
-                yield return new FloatMenuOption("DS_BufferUnbind".Translate(), delegate
-                {
-                    UnbindFromCore();
-                });
-            }
-
-            // 所有可用核心
-            foreach (var core in mapComp.GetAllCores())
-            {
-                if (core == null || core.Destroyed || !core.Spawned) continue;
-                var c = core; // capture
-                string label = core == boundCore
-                    ? "DS_BufferCurrentCore".Translate(c.LabelCap, c.NetworkName)
-                    : "DS_BufferSelectCore".Translate(c.LabelCap, c.NetworkName);
-                yield return new FloatMenuOption(label, delegate
-                {
-                    BindToCore(c);
-                });
-            }
         }
 
         // ========== 序列化 ==========
