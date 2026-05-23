@@ -20,6 +20,35 @@ namespace DigitalStorage.Components
         public Building_StorageCore BoundCore => boundCore;
         public ThingDef LockedItemDef => lockedItemDef;
 
+        internal void SetLockedItemDef(ThingDef def) { lockedItemDef = def; }
+
+        /// <summary>
+        /// 手动解锁：物品吸入核心 → lockedItemDef=null → 下次补货重新锁定。
+        /// Threshold 保留。
+        /// </summary>
+        public void Unlock()
+        {
+            if (slotGroup != null && boundCore != null && !boundCore.Destroyed)
+            {
+                int capacity = boundCore.GetCapacity();
+                var toIngest = new List<Thing>();
+                foreach (var t in slotGroup.HeldThings)
+                {
+                    if (t.Destroyed) continue;
+                    toIngest.Add(t);
+                }
+                foreach (var t in toIngest)
+                {
+                    if (t.Destroyed) continue;
+                    if (boundCore.Ledger.CanAccept(t, capacity))
+                        boundCore.Ledger.Ingest(t, capacity);
+                    else
+                        t.Destroy(DestroyMode.Vanish);
+                }
+            }
+            lockedItemDef = null;
+        }
+
         // ========== 生命周期 ==========
 
         public override void SpawnSetup(Map map, bool respawningAfterLoad)
@@ -28,6 +57,9 @@ namespace DigitalStorage.Components
 
             // 注册到 MapComponent
             map.GetComponent<DigitalStorageMapComponent>()?.RegisterBufferWarehouse(this);
+
+            // 注册 draw 抑制位置
+            DigitalStorage.HarmonyPatches.Patch_BufferWarehouse_HideItems.Register(map, Position);
 
             // 自动绑定同 NetworkName 核心
             if (boundCore == null || boundCore.Destroyed)
@@ -81,6 +113,7 @@ namespace DigitalStorage.Components
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
+            DigitalStorage.HarmonyPatches.Patch_BufferWarehouse_HideItems.Deregister(Map, Position);
             Map?.GetComponent<DigitalStorageMapComponent>()?.DeregisterBufferWarehouse(this);
             if (boundCore != null && !boundCore.Destroyed)
             {
@@ -171,7 +204,7 @@ namespace DigitalStorage.Components
         /// 物品放入缓冲仓库后冻结：移除 tick 注册 + 停止动态渲染 + 重置腐烂。
         /// 保留 ListerThings / WealthWatcher / Room 统计（mod 兼容用）。
         /// </summary>
-        private void FreezeItemTick(Thing t)
+        internal void FreezeItemTick(Thing t)
         {
             var map = Map;
             if (map == null) return;
