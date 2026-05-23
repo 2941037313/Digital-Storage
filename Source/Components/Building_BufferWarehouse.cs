@@ -15,8 +15,10 @@ namespace DigitalStorage.Components
     public partial class Building_BufferWarehouse : Building_Storage
     {
         private Building_StorageCore boundCore;
+        private ThingDef lockedItemDef;
 
         public Building_StorageCore BoundCore => boundCore;
+        public ThingDef LockedItemDef => lockedItemDef;
 
         // ========== 生命周期 ==========
 
@@ -31,11 +33,49 @@ namespace DigitalStorage.Components
             if (boundCore == null || boundCore.Destroyed)
                 TryAutoBind();
 
-            // 加载后冻结已有物品
+            // 加载后冻结已有物品 + 存量迁移到单物品模式
             if (respawningAfterLoad && slotGroup != null)
             {
                 foreach (var t in slotGroup.HeldThings)
                     FreezeItemTick(t);
+
+                MigrateToSingleItem();
+            }
+        }
+
+        private void MigrateToSingleItem()
+        {
+            if (slotGroup == null || boundCore == null || boundCore.Destroyed) return;
+
+            // 锁定为首个有效物品的 def
+            if (lockedItemDef == null)
+            {
+                foreach (var t in slotGroup.HeldThings)
+                {
+                    if (t.Destroyed) continue;
+                    lockedItemDef = t.def;
+                    break;
+                }
+            }
+            if (lockedItemDef == null) return;
+
+            // 吸入不匹配 lockedItemDef 的物品
+            var toIngest = new List<Thing>();
+            foreach (var t in slotGroup.HeldThings)
+            {
+                if (t.Destroyed) continue;
+                if (t.def != lockedItemDef && LedgerPolicy.CanIngest(t))
+                    toIngest.Add(t);
+            }
+
+            int capacity = boundCore.GetCapacity();
+            foreach (var t in toIngest)
+            {
+                if (t.Destroyed) continue;
+                if (boundCore.Ledger.CanAccept(t, capacity))
+                    boundCore.Ledger.Ingest(t, capacity);
+                else
+                    t.Destroy(DestroyMode.Vanish);
             }
         }
 
@@ -108,38 +148,8 @@ namespace DigitalStorage.Components
 
         // ========== 物品接收 ==========
 
-        /// <summary>
-        /// 遮盖原版 Accepts，加入阈值限制防止搬运循环。
-        /// 只有物理存量低于阈值（或阈值为0未设置）时才接收。
-        /// </summary>
-        public new bool Accepts(Thing t)
-        {
-            if (boundCore == null || boundCore.Destroyed || !boundCore.Spawned)
-                return false;
-            if (!boundCore.Powered) return false;
-
-            if (!GetStoreSettings().AllowedToAccept(t)) return false;
-
-            var comp = GetComp<CompBufferWarehouse>();
-            if (comp == null) return false;
-
-            var key = ItemKey.Of(t);
-            int threshold = comp.GetThreshold(key);
-            if (threshold <= 0) return true;
-
-            long current = 0;
-            var slot = GetSlotGroup();
-            if (slot != null)
-            {
-                foreach (var ht in slot.HeldThings)
-                {
-                    if (ht.Destroyed) continue;
-                    if (ItemKey.Of(ht).Equals(key))
-                        current += ht.stackCount;
-                }
-            }
-            return current < threshold;
-        }
+        // Accepts 已被 Harmony patch (Patch_BufferWarehouse_Accepts) 拦截，始终返回 false。
+        // 物品只能通过 CompBufferWarehouse.CompTick 补货进入（GenSpawn.Spawn 绕过 Accepts）。
 
         public override void Notify_ReceivedThing(Thing newItem)
         {
@@ -186,6 +196,7 @@ namespace DigitalStorage.Components
         {
             base.ExposeData();
             Scribe_References.Look(ref boundCore, "boundCore");
+            Scribe_Defs.Look(ref lockedItemDef, "lockedItemDef");
         }
     }
 }
