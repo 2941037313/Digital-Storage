@@ -38,11 +38,24 @@ namespace DigitalStorage.AI
                 foreach (var t in slot.HeldThings)
                 {
                     if (t.Destroyed) continue;
-                    if (!MatchesBill(bill, ItemKey.Of(t).def)) continue;
+                    var keyDef = ItemKey.Of(t).def;
+                    if (!MatchesBill(bill, keyDef)) continue;
 
-                    int take = System.Math.Min(75, t.stackCount);
+                    int need = 0;
+                    foreach (var ing in bill.recipe.ingredients)
+                    {
+                        if (ing.filter.Allows(keyDef))
+                        {
+                            need = (int)System.Math.Ceiling(ing.GetBaseCount());
+                            break;
+                        }
+                    }
+                    int take = System.Math.Min(need > 0 ? need : 75, t.stackCount);
                     var thing = t.SplitOff(take);
                     if (thing == null) continue;
+
+                    if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                        Log.Message($"[DS-Job] BufferWarehouseHelper: {pawn.LabelShort} bill={bill.Label} take={take} {keyDef.defName} from bw={bw}");
 
                     GenPlace.TryPlaceThing(thing, pawn.Position, pawn.Map, ThingPlaceMode.Near);
                     job = JobMaker.MakeJob(JobDefOf.DoBill, workTable);
@@ -65,7 +78,11 @@ namespace DigitalStorage.AI
             foreach (var ing in bill.recipe.ingredients)
             {
                 if (ing.filter.Allows(def))
+                {
+                    if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                        Log.Message($"[DS-Job] MatchesBill: {def.defName} matches ingredient filter but does NOT verify ALL ingredients satisfied (BUG risk)");
                     return true;
+                }
             }
             return false;
         }

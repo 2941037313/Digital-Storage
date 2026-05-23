@@ -21,22 +21,45 @@ namespace DigitalStorage.AI
 
         public override bool ShouldSkip(Pawn pawn, bool forced = false)
         {
-            if (!CoreFinder.AnyUsableAccess(pawn)) return true;
-            if (pawn.workSettings.GetPriority(def.workType) == 0) return true;
-            if (pawn.WorkTagIsDisabled(def.workTags)) return true;
+            if (!CoreFinder.AnyUsableAccess(pawn))
+            {
+                if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                    Log.Message($"[DS-Job] ShouldSkip={true} ({def.workType.defName}) pawn={pawn.LabelShort}: AnyUsableAccess=false");
+                return true;
+            }
+            if (pawn.workSettings.GetPriority(def.workType) == 0)
+            {
+                if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                    Log.Message($"[DS-Job] ShouldSkip={true} ({def.workType.defName}) pawn={pawn.LabelShort}: priority=0");
+                return true;
+            }
+            if (pawn.WorkTagIsDisabled(def.workTags))
+            {
+                if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                    Log.Message($"[DS-Job] ShouldSkip={true} ({def.workType.defName}) pawn={pawn.LabelShort}: WorkTagDisabled");
+                return true;
+            }
 
             if (forced) return false;
 
             var list = pawn.Map.listerThings.ThingsInGroup(ThingRequestGroup.PotentialBillGiver);
             for (int i = 0; i < list.Count; i++)
             {
-                if (list[i] is IBillGiver bg && bg != pawn && bg.BillStack.AnyShouldDoNow) return false;
+                if (list[i] is IBillGiver bg && bg != pawn && bg.BillStack.AnyShouldDoNow)
+                {
+                    if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                        Log.Message($"[DS-Job] ShouldSkip={false} ({def.workType.defName}) pawn={pawn.LabelShort}: found billGiver={bg}");
+                    return false;
+                }
             }
+            if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                Log.Message($"[DS-Job] ShouldSkip={true} ({def.workType.defName}) pawn={pawn.LabelShort}: no active bills");
             return true;
         }
 
         public override Job JobOnThing(Pawn pawn, Thing thing, bool forced = false)
         {
+            bool dbg = DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog;
             if (!(thing is IBillGiver billGiver)) return null;
             if (!billGiver.CurrentlyUsableForBills()) return null;
             if (!billGiver.BillStack.AnyShouldDoNow) return null;
@@ -60,7 +83,11 @@ namespace DigitalStorage.AI
                     && !WorkTypeMatchesSkill(def.workType, bill.recipe.workSkill))
                     continue;
                 if (Find.TickManager.TicksGame <= bill.nextTickToSearchForIngredients
-                    && FloatMenuMakerMap.makingFor != pawn) continue;
+                    && FloatMenuMakerMap.makingFor != pawn)
+                {
+                    if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label} on {thing.LabelShort}: nextTickToSearch={bill.nextTickToSearchForIngredients} curTick={Find.TickManager.TicksGame}");
+                    continue;
+                }
                 if (!bill.ShouldDoNow()) continue;
                 if (!bill.PawnAllowedToStartAnew(pawn)) continue;
                 if (bill.recipe.FirstSkillRequirementPawnDoesntSatisfy(pawn) != null) continue;
@@ -71,9 +98,17 @@ namespace DigitalStorage.AI
                     if (uftBill.BoundUft != null)
                     {
                         if (uftBill.BoundWorker == pawn && pawn.CanReserveAndReach(uftBill.BoundUft, PathEndMode.Touch, Danger.Deadly, 1, -1, null, false) && !uftBill.BoundUft.IsForbidden(pawn))
+                        {
+                            if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label}: BoundUft continue (BoundWorker=me)");
                             continue;
+                        }
+                        if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label}: BoundUft exists but BoundWorker!=me → FALLING THROUGH (BUG)");
                     }
-                    if (FindUnfinishedForBill(pawn, uftBill) != null) continue;
+                    if (FindUnfinishedForBill(pawn, uftBill) != null)
+                    {
+                        if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label}: found unbound UFT → continue");
+                        continue;
+                    }
                 }
 
                 foreach (var access in accesses)
@@ -81,18 +116,31 @@ namespace DigitalStorage.AI
                     var plan = LedgerBillPlanner.TryPlan(bill, access.ledgerCore);
                     if (plan == null) continue;
 
-                    if (chip) return MakeJob(thing, bill, access.ledgerCore, IntVec3.Invalid);
+                    if (chip)
+                    {
+                        if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort}(chip) → bill={bill.Label} on {thing.LabelShort} SUCCESS");
+                        return MakeJob(thing, bill, access.ledgerCore, IntVec3.Invalid);
+                    }
 
                     IntVec3 proxy = CoreFinder.PickProxyCell(pawn, access.proxyCore);
-                    if (!proxy.IsValid) continue;
+                    if (!proxy.IsValid)
+                    {
+                        if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label}: TryPlan OK but PickProxyCell invalid for core={access.proxyCore}");
+                        continue;
+                    }
+                    if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort}(non-chip) → bill={bill.Label} on {thing.LabelShort} proxy={proxy} SUCCESS");
                     return MakeJob(thing, bill, access.ledgerCore, proxy);
                 }
 
                 // 核心无材料 → 芯片 pawn 从缓冲仓库传送
                 if (chip && BufferWarehouseJobHelper.TryTakeForBill(pawn, bill, thing, out var bwJob))
+                {
+                    if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort}(chip) bill={bill.Label}: BufferWarehouse fallback SUCCESS");
                     return bwJob;
+                }
             }
 
+            if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} {def.workType.defName} JobOnThing on {thing.LabelShort}: no job returned");
             return null;
         }
 

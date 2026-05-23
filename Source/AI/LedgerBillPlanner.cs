@@ -42,7 +42,12 @@ namespace DigitalStorage.AI
                     found = true;
                     break;
                 }
-                if (!found) return null;
+                if (!found)
+                {
+                    if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                        Log.Message($"[DS-Job] TryPlan FAIL bill={bill.Label}: ingredient[{i}] need={need} not found in core");
+                    return null;
+                }
 
                 if (!tempUsed.ContainsKey(picked)) tempUsed[picked] = 0;
                 tempUsed[picked] += need;
