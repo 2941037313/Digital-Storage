@@ -212,28 +212,7 @@
       <defaultStorageSettings>
         <filter>
           <disallowNotEverStorable>true</disallowNotEverStorable>
-          <categories>
-            <li>Foods</li>
-            <li>ResourcesRaw</li>
-            <li>Textiles</li>
-            <li>Medicine</li>
-            <li>Drugs</li>
-            <li>MortarShells</li>
-            <li>BodyParts</li>
-            <li>Weapons</li>
-            <li>Apparel</li>
-            <li>Artifacts</li>
-            <li>Buildings</li>
-            <li>Chunks</li>
-            <li>Manufactured</li>
-            <li>PlantMatter</li>
-            <li>StoneBlocks</li>
-            <li>Leathers</li>
-            <li>Wools</li>
-            <li>Metallic</li>
-            <li>Meals</li>
-            <li>Corpses</li>
-          </categories>
+          <categories /> <!-- 默认不允任何种类——由自动锁定物品时 check filter -->
         </filter>
       </defaultStorageSettings>
     </building>

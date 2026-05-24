@@ -13,8 +13,12 @@ namespace DigitalStorage.HarmonyPatches
         [HarmonyPrefix]
         static bool Prefix(Thing t, Building_Storage __instance, ref bool __result)
         {
-            if (__instance is Building_BufferWarehouse)
+            if (__instance is Building_BufferWarehouse bw)
             {
+                // 已在 BW 格子上的物品 → 接受（避免原版判为 Unstored → haul 循环）
+                if (t.Spawned && t.Position == bw.Position)
+                    return true;
+                // 外来物品 → 拒绝搬入
                 __result = false;
                 return false;
             }

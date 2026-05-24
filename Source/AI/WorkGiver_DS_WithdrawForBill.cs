@@ -45,10 +45,22 @@ namespace DigitalStorage.AI
             var list = pawn.Map.listerThings.ThingsInGroup(ThingRequestGroup.PotentialBillGiver);
             for (int i = 0; i < list.Count; i++)
             {
-                if (list[i] is IBillGiver bg && bg != pawn && bg.BillStack.AnyShouldDoNow)
+                if (!(list[i] is IBillGiver bg) || bg == pawn) continue;
+                var bs = bg.BillStack;
+                for (int j = 0; j < bs.Count; j++)
                 {
+                    var bill = bs[j];
+                    if (!bill.ShouldDoNow()) continue;
+                    // 只看与本 workType 匹配的 bill
+                    if (bill.recipe.requiredGiverWorkType != null
+                        && bill.recipe.requiredGiverWorkType != def.workType)
+                        continue;
+                    if (bill.recipe.requiredGiverWorkType == null && bill.recipe.workSkill != null
+                        && !WorkTypeMatchesSkill(def.workType, bill.recipe.workSkill))
+                        continue;
+
                     if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
-                        Log.Message($"[DS-Job] ShouldSkip={false} ({def.workType.defName}) pawn={pawn.LabelShort}: found billGiver={bg}");
+                        Log.Message($"[DS-Job] ShouldSkip={false} ({def.workType.defName}) pawn={pawn.LabelShort}: bill={bill.Label} on {bg}");
                     return false;
                 }
             }
@@ -82,12 +94,6 @@ namespace DigitalStorage.AI
                 if (bill.recipe.requiredGiverWorkType == null && bill.recipe.workSkill != null
                     && !WorkTypeMatchesSkill(def.workType, bill.recipe.workSkill))
                     continue;
-                if (Find.TickManager.TicksGame <= bill.nextTickToSearchForIngredients
-                    && FloatMenuMakerMap.makingFor != pawn)
-                {
-                    if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label} on {thing.LabelShort}: nextTickToSearch={bill.nextTickToSearchForIngredients} curTick={Find.TickManager.TicksGame}");
-                    continue;
-                }
                 if (!bill.ShouldDoNow()) continue;
                 if (!bill.PawnAllowedToStartAnew(pawn)) continue;
                 if (bill.recipe.FirstSkillRequirementPawnDoesntSatisfy(pawn) != null) continue;
@@ -128,7 +134,7 @@ namespace DigitalStorage.AI
                         if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label}: TryPlan OK but PickProxyCell invalid for core={access.proxyCore}");
                         continue;
                     }
-                    if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort}(non-chip) → bill={bill.Label} on {thing.LabelShort} proxy={proxy} SUCCESS");
+                    if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort}(non-chip) → bill={bill.Label} x{plan.Count}items proxy={proxy} on {thing.LabelShort} SUCCESS");
                     return MakeJob(thing, bill, access.ledgerCore, proxy);
                 }
 

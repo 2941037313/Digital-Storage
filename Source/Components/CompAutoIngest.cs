@@ -81,9 +81,6 @@ namespace DigitalStorage.Components
             var ledger = core.Ledger;
             int capacity = core.GetCapacity();
 
-            // 预加载缓冲仓库列表
-            var mapComp = map.GetComponent<DigitalStorageMapComponent>();
-            var bufferList = mapComp?.GetAllBufferWarehouses();
             int rate = ingestRateCache;
             int taken = 0;
 
@@ -112,22 +109,7 @@ namespace DigitalStorage.Components
                 var t = candidateBuffer[i];
                 if (t.Destroyed) continue;
 
-                // 优先放入缓冲仓库
-                bool routed = false;
-                if (bufferList != null && bufferList.Count > 0)
-                {
-                    foreach (var bw in bufferList)
-                    {
-                        if (bw == null || bw.Destroyed || !bw.Spawned) continue;
-                        if (!bw.Accepts(t)) continue;
-                        if (t.Spawned) t.DeSpawn();
-                        GenSpawn.Spawn(t, bw.Position, bw.Map);
-                        routed = true;
-                        taken++;
-                        break;
-                    }
-                }
-                if (!routed && ledger.Ingest(t, capacity))
+                if (ledger.Ingest(t, capacity))
                     taken++;
             }
             // 清理引用防止 GC 泄漏

@@ -176,6 +176,8 @@ namespace DigitalStorage.AI
                                     HaulAIUtility.UpdateJobWithPlacedThings(job, t, added);
                                     actor.Reserve(t, job, 1, t.stackCount, null, true);
                                 });
+                            if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                                Log.Message($"[DS-Withdraw] {actor.LabelShort} placed {key} x{taken} at worktable {placeCell} placed={placed}");
                             if (!placed)
                             {
                                 GenPlace.TryPlaceThing(spawned, actor.Position, actor.Map, ThingPlaceMode.Near,
@@ -184,6 +186,8 @@ namespace DigitalStorage.AI
                                         HaulAIUtility.UpdateJobWithPlacedThings(job, t, added);
                                         actor.Reserve(t, job, 1, t.stackCount, null, true);
                                     });
+                                if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                                    Log.Message($"[DS-Withdraw] {actor.LabelShort} fallback: placed {key} x{taken} at pawn feet (worktable place failed)");
                             }
                         }
                         else
@@ -194,6 +198,8 @@ namespace DigitalStorage.AI
                                     HaulAIUtility.UpdateJobWithPlacedThings(job, t, added);
                                     actor.Reserve(t, job, 1, t.stackCount, null, true);
                                 });
+                            if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                                Log.Message($"[DS-Withdraw] {actor.LabelShort} placed {key} x{taken} at pawn feet (no placeCell)");
                         }
 
                         need -= taken;
