@@ -29,6 +29,7 @@ namespace DigitalStorage.Services
         {
             base.ExposeData();
             Scribe_Collections.Look(ref globalCores, "globalCores", LookMode.Reference);
+            Scribe_Values.Look(ref shown30Letter, "shown30Letter");
             if (Scribe.mode == LoadSaveMode.LoadingVars && globalCores == null)
             {
                 globalCores = new List<Building_StorageCore>();

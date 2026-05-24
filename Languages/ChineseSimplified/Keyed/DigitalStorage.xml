@@ -115,7 +115,7 @@
   <DS_Priority>搬运优先级</DS_Priority>
 
   <!-- ========== 3.0 升级信封 ========== -->
-  <DigitalStorage_Letter30_Label>数字存储 3.0 更新说明</DigitalStorage_Letter30_Label>
-  <DigitalStorage_Letter30_Text>数字存储 3.0 日常维护更新。\n\n[修复]\n· 交易搜索清空核心库存\n· 远行队部分选择差额丢失\n· 轨道交易卖 1 清空 29\n· 卸载建筑被吸入核心后取出消失\n· 野生生物 / 非进食pawn 从核心取食\n· 非手工小人做手工（工作优先级乱）\n· 食物选择优化（不再优先取人肉）\n· 搬运循环 / 自动收纳循环\n· 物品弹出立即被收纳\n· 药品不足误报\n· 资源计数 / 财富不显示\n\n[新增]\n· 缓冲仓库 —— 1x1 物理存储区，绑定核心，可设每物品保留数量自动补货。物品真实存在，作为兼容手段确保全部 mod 可正确读取库存。\n· 轨道交易信标支持\n· 核心 ITab 搬运优先级\n· 存储筛选 UI\n\n[性能]\n· tick 级优化（自动收纳节流 / 核心发现缓存 / 预订系统 O(1) / 食物评分免分配）\n\n⚠️ 如果从 2.0 直接升级旧存档，核心物品将丢失。建议拆除旧核心重建。需 2.0 旧版本请加 QQ 群 693252771。\nBug 反馈同群，感谢支持！</DigitalStorage_Letter30_Text>
+  <DigitalStorage_Letter30_Label>数字存储 3.1 更新说明 2026.5.24</DigitalStorage_Letter30_Label>
+  <DigitalStorage_Letter30_Text>数字存储 3.1 日常维护更新。\n\n[修复]\n· 缓冲仓库重构：单物品模式 + 禁pawn搬运 + 物品不渲染 + ITab 极简化\n· Job 调度饥饿（删原版搜索冷却，DS 不看地图搜食材）\n· ShouldSkip 交叉污染：烹饪 bill 不再触发其他工种 WorkGiver\n· 未完成物品：换人接手工不再重复取材料\n· 缓冲仓库 Accepts 冲突→pawn 不断拿放物品循环\n· PickUpAndHaul / 原版物品合并 job 冲突\n· 狱警 / 医生给囚犯病人取食不需芯片，食物不被自动收纳抢走\n· BW 存储筛选默认全禁\n· 更新信封：一个存档只跳一次\n\n感谢支持！Bug 反馈 Q 群 693252771。</DigitalStorage_Letter30_Text>
 
 </LanguageData>
