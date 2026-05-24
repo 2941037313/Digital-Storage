@@ -99,23 +99,8 @@ namespace DigitalStorage.AI
                 if (bill.recipe.FirstSkillRequirementPawnDoesntSatisfy(pawn) != null) continue;
 
                 // 有未完成物品 → 让原版 DoBill 处理续工，不从核心取新材料
-                if (bill is Bill_ProductionWithUft uftBill)
-                {
-                    if (uftBill.BoundUft != null)
-                    {
-                        if (uftBill.BoundWorker == pawn && pawn.CanReserveAndReach(uftBill.BoundUft, PathEndMode.Touch, Danger.Deadly, 1, -1, null, false) && !uftBill.BoundUft.IsForbidden(pawn))
-                        {
-                            if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label}: BoundUft continue (BoundWorker=me)");
-                            continue;
-                        }
-                        if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label}: BoundUft exists but BoundWorker!=me → FALLING THROUGH (BUG)");
-                    }
-                    if (FindUnfinishedForBill(pawn, uftBill) != null)
-                    {
-                        if (dbg) Log.Message($"[DS-Job] {pawn.LabelShort} bill={bill.Label}: found unbound UFT → continue");
-                        continue;
-                    }
-                }
+                if (bill is Bill_ProductionWithUft uftBill && uftBill.BoundUft != null)
+                    continue;
 
                 foreach (var access in accesses)
                 {
@@ -172,29 +157,6 @@ namespace DigitalStorage.AI
             if (sn == "Medicine" && wn == "Doctor") return true;
             if (sn == "Intellectual" && wn == "Research") return true;
             return false;
-        }
-
-        private static UnfinishedThing FindUnfinishedForBill(Pawn pawn, Bill_ProductionWithUft bill)
-        {
-            if (bill.recipe?.unfinishedThingDef == null) return null;
-
-            Predicate<Thing> validator = t =>
-            {
-                if (t.IsForbidden(pawn)) return false;
-                var uft = t as UnfinishedThing;
-                if (uft == null || uft.Recipe != bill.recipe || uft.Creator != pawn) return false;
-                var ingredients = uft.ingredients;
-                for (int j = 0; j < ingredients.Count; j++)
-                    if (!bill.IsFixedOrAllowedIngredient(ingredients[j].def)) return false;
-                return pawn.CanReserve(t, 1, -1, null, false);
-            };
-
-            return (UnfinishedThing)GenClosest.ClosestThingReachable(
-                pawn.Position, pawn.Map,
-                ThingRequest.ForDef(bill.recipe.unfinishedThingDef),
-                PathEndMode.InteractionCell,
-                TraverseParms.For(pawn, pawn.NormalMaxDanger(), TraverseMode.ByPawn, false, false, false, true),
-                9999f, validator, null, 0, -1, false, RegionType.Set_Passable, false, false);
         }
 
         // helpers moved to CoreFinder

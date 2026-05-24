@@ -24,8 +24,9 @@ namespace DigitalStorage.HarmonyPatches
             if (__result || foodSource != null) return;
             if (getter?.Map == null || eater == null) return;
 
-            // 只有芯片持有者才能隔空取食；无芯片走原版路径（需要走到接口旁）
-            if (!Hediff_TerminalImplant.HasTerminalImplant(getter)) return;
+            // 芯片持有者 → 隔空取食。狱警给囚犯取食 / 医生给病人取食 → 不需芯片
+            bool isCaregiving = getter != eater && (eater.IsPrisonerOfColony || eater.IsColonist);
+            if (!Hediff_TerminalImplant.HasTerminalImplant(getter) && !isCaregiving) return;
 
             var accesses = CoreFinder.AllUsableAccesses(getter);
             if (accesses.Count == 0) return;

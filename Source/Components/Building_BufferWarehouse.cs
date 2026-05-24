@@ -210,6 +210,9 @@ namespace DigitalStorage.Components
             if (map == null) return;
             Find.TickManager.DeRegisterAllTickabilityFor(t);
             map.dynamicDrawManager.DeRegisterDrawable(t);
+            t.SetForbidden(true, false);
+            // 普通物品没有 CompForbiddable，SetForbidden 不会触发 Lister 通知
+            map.listerMergeables.Notify_Forbidden(t);
         }
 
         /// <summary>
@@ -221,6 +224,8 @@ namespace DigitalStorage.Components
             if (map == null) return;
             Find.TickManager.RegisterAllTickabilityFor(t);
             map.dynamicDrawManager.RegisterDrawable(t);
+            t.SetForbidden(false, false);
+            map.listerMergeables.Notify_Unforbidden(t);
         }
 
         // ========== 序列化 ==========
