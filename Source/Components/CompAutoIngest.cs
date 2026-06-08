@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DigitalStorage.Core;
+using DigitalStorage.Services;
 using RimWorld;
 using Verse;
 
@@ -109,7 +110,7 @@ namespace DigitalStorage.Components
                 var t = candidateBuffer[i];
                 if (t.Destroyed) continue;
 
-                if (ledger.Ingest(t, capacity))
+                if (ItemRouter.RouteGroundItem(t, map, core, capacity))
                     taken++;
             }
             // 清理引用防止 GC 泄漏

@@ -34,7 +34,11 @@
       <shaderType>CutoutComplex</shaderType>
       <drawSize>(4,4)</drawSize>
       <drawOffset>(0, 0, 0.5)</drawOffset>
+      <drawRotated>false</drawRotated>
     </graphicData>
+    <building>
+      <isEdifice>false</isEdifice>
+    </building>
     <drawerType>MapMeshAndRealTime</drawerType>
     <uiIconScale>0.9</uiIconScale>
     <fillPercent>0.5</fillPercent>

@@ -115,7 +115,7 @@
   <DS_Priority>Haul Priority</DS_Priority>
 
   <!-- ========== 3.0 Upgrade Letter ========== -->
-  <DigitalStorage_Letter30_Label>Digital Storage 3.1 Update 2026.5.24</DigitalStorage_Letter30_Label>
-  <DigitalStorage_Letter30_Text>Digital Storage 3.1 maintenance update.\n\n[Fixed]\n- Buffer Warehouse redesign: single-item mode, no pawn haul-in, hidden item render, simplified ITab\n- Job dispatch starvation: removed vanilla search cooldown, DS does not scan the map for ingredients\n- ShouldSkip cross-contamination: cooking bills no longer trigger unrelated WorkGivers\n- Unfinished items: other pawns resuming work no longer withdraw duplicate materials\n- Buffer Warehouse Accepts conflict causing pawn pick-up/drop loop\n- PickUpAndHaul / vanilla item merge job conflict\n- Wardens and doctors can now retrieve food from core without a chip implant\n- Letter now shows only once per save\n\nThank you for your support! Bug reports: QQ group 693252771.</DigitalStorage_Letter30_Text>
+  <DigitalStorage_Letter30_Label>Digital Storage 3.1 Update 2026.5.27</DigitalStorage_Letter30_Label>
+  <DigitalStorage_Letter30_Text>Digital Storage 3.1 maintenance update 2026.5.27.\n\n[Buffer Warehouse Redesign]\n- Single-item mode: one warehouse locks to one item type, auto-locked on first restock\n- No pawn haul-in: items fully visible, blocked only at haul routing layer\n- Hidden item render: items on shelf are not drawn\n- Storage filter defaults to disallow all + ITab manual unlock button\n- DSU IO-port inspired architecture: items free, only haul direction blocked\n\n[Fixed]\n- Trade quantity loss: PostClose rogue rollback from non-trade windows\n- Trade duplicate entries: Prefix injection into deal.AllTradeables\n- Auto-ingest no longer routes items to buffer warehouses\n- Core shadow removed + visual rotation disabled\n\nThank you for your support! Bug reports: QQ group 693252771.</DigitalStorage_Letter30_Text>
 
 </LanguageData>

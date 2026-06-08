@@ -181,8 +181,9 @@ namespace DigitalStorage.Components
 
         // ========== 物品接收 ==========
 
-        // Accepts 已被 Harmony patch (Patch_BufferWarehouse_Accepts) 拦截，始终返回 false。
-        // 物品只能通过 CompBufferWarehouse.CompTick 补货进入（GenSpawn.Spawn 绕过 Accepts）。
+        // Accepts 走原版 Building_Storage 基类逻辑——物品正常视为"已存储"。
+        // pawn 搬运入仓被 Patch_BW_BlockHaulDestination 拦截（TryFindBestBetterStorageFor 跳 BW）。
+        // 物品只能通过 CompBufferWarehouse.CompTick 补货进入（GenSpawn.Spawn 不经过 StoreUtility）。
 
         public override void Notify_ReceivedThing(Thing newItem)
         {
@@ -210,22 +211,14 @@ namespace DigitalStorage.Components
             if (map == null) return;
             Find.TickManager.DeRegisterAllTickabilityFor(t);
             map.dynamicDrawManager.DeRegisterDrawable(t);
-            t.SetForbidden(true, false);
-            // 普通物品没有 CompForbiddable，SetForbidden 不会触发 Lister 通知
-            map.listerMergeables.Notify_Forbidden(t);
         }
 
-        /// <summary>
-        /// 物品离开缓冲仓库时恢复 tick。
-        /// </summary>
-        private void UnfreezeItemTick(Thing t)
+        internal void UnfreezeItemTick(Thing t)
         {
             var map = Map;
             if (map == null) return;
             Find.TickManager.RegisterAllTickabilityFor(t);
             map.dynamicDrawManager.RegisterDrawable(t);
-            t.SetForbidden(false, false);
-            map.listerMergeables.Notify_Unforbidden(t);
         }
 
         // ========== 序列化 ==========

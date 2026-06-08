@@ -124,6 +124,7 @@
     <Compile Include="UI\CaravanDS_Helper.cs" />
 
     <Compile Include="Services\DigitalStorageGameComponent.cs" />
+    <Compile Include="Services\ItemRouter.cs" />
 
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />

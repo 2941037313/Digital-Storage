@@ -1,9 +1,9 @@
+using System;
 using System.Collections.Generic;
 using DigitalStorage.AI;
 using DigitalStorage.Components;
 using DigitalStorage.Core;
 using DigitalStorage.Services;
-using HarmonyLib;
 using RimWorld;
 using Verse;
 
@@ -15,24 +15,25 @@ namespace DigitalStorage.UI
     /// </summary>
     public static class TradeDS_Helper
     {
-        private struct WithdrawRecord
+        internal struct WithdrawRecord
         {
             public Thing thing;
             public CoreLedger sourceLedger;
         }
 
-        private class TradeableEntry
+        internal class TradeableEntry
         {
             public Tradeable tradeable;
             public List<WithdrawRecord> records = new List<WithdrawRecord>();
+            public bool isNew; // 新建的 Tradeable 还是合并进已有
         }
 
-        private class DialogState
+        internal class DialogState
         {
             public List<TradeableEntry> entries = new List<TradeableEntry>();
-            public int coreStartIndex = -1;
             public bool injected;
             public bool dealExecuted;
+            public bool beingReplaced; // DTI TryRemove → 跳过 PostClose 回滚+清理
         }
 
         private static readonly Dictionary<Dialog_Trade, DialogState> states
@@ -44,26 +45,41 @@ namespace DigitalStorage.UI
             return s;
         }
 
+        internal static DialogState GetStateFor(Dialog_Trade d)
+        {
+            states.TryGetValue(d, out var s);
+            return s;
+        }
+
         // ---------- injection ----------
 
         /// <summary>
-        /// CacheTradeables Postfix 调用：提款 + 创建 Tradeable + 追加到 cachedTradeables。
+        /// CacheTradeables Prefix 调用：提款 + 创建 Tradeable + 注入 deal.AllTradeables。
+        /// 原版 CacheTradeables 会从 deal.AllTradeables 重建 cachedTradeables（排序+过滤）。
         /// </summary>
-        public static void InjectCoreTradeables(Dialog_Trade dialog, List<Tradeable> cachedList)
+        public static void InjectCoreTradeables(Dialog_Trade dialog, List<Tradeable> dealList)
         {
-            var state = GetState(dialog);
+            if (dealList == null) return;
+
+var state = GetState(dialog);
+
+            if (!state.injected)
+                Log.Warning($"[DS-DTI] InjectCoreTradeables FIRST call: dealList={dealList.Count}");
 
             if (state.injected)
-                RemoveCoreTradeables(state, cachedList);
+            {
+                Log.Warning($"[DS-DTI] Re-inject: dealList={dealList.Count}");
+                RemoveCoreTradeables(state, dealList);
+            }
 
             var map = FindCurrentMap(dialog);
-            if (map == null) return;
+            if (map == null) { Log.Warning("[DS-DTI] InjectCoreTradeables: FindCurrentMap returned null"); return; }
 
             var merged = new Dictionary<ItemKey, MergedStock>();
             LedgerItemCollector.CollectCoreItems(map, merged, includeCrossMapInterfaces: false);
-            if (merged.Count == 0) return;
+            if (merged.Count == 0) { Log.Warning("[DS-DTI] InjectCoreTradeables: merged.Count=0, nothing to inject"); return; }
 
-            state.coreStartIndex = cachedList.Count;
+            Log.Warning($"[DS-DTI] InjectCoreTradeables: {merged.Count} unique items, dealList before={dealList.Count}");
 
             foreach (var kv in merged)
             {
@@ -82,44 +98,39 @@ namespace DigitalStorage.UI
 
                 var tr = new Tradeable();
                 tr.AddThing(thing, Transactor.Colony);
-                TradeSession.deal.AllTradeables.Add(tr);
-                cachedList.Add(tr);
+                dealList.Add(tr);
 
+                // 白银等货币：合并到已有 CurrencyTradeable
                 if (tr.IsCurrency)
                 {
-                    var currencyField = AccessTools.Field(typeof(Dialog_Trade), "cachedCurrencyTradeable");
-                    var existing = currencyField.GetValue(dialog) as Tradeable;
-                    if (existing != null && existing != tr)
-                        existing.AddThing(thing, Transactor.Colony);
-                    else
-                        currencyField.SetValue(dialog, tr);
+                    var existingCurrency = TradeSession.deal?.CurrencyTradeable;
+                    if (existingCurrency != null && existingCurrency != tr)
+                    {
+                        existingCurrency.AddThing(thing, Transactor.Colony);
+                        dealList.Remove(tr);
+                        tr = existingCurrency;
+                    }
                 }
+
                 entry.tradeable = tr;
+                entry.isNew = true;
                 state.entries.Add(entry);
             }
 
+            Log.Warning($"[DS-DTI] Inject done: injected={state.entries.Count} items, dealList before={dealList.Count - state.entries.Count}→after={dealList.Count}");
             state.injected = true;
         }
 
-        private static void RemoveCoreTradeables(DialogState state, List<Tradeable> cachedList)
+        private static void RemoveCoreTradeables(DialogState state, List<Tradeable> dealList)
         {
-            // 捕获旧的 deal tradeables（归还前）
-            var toRemove = new HashSet<Tradeable>();
-            foreach (var e in state.entries) toRemove.Add(e.tradeable);
-
             // 归还旧注入的物品
             RollbackInternal(state);
 
-            for (int i = cachedList.Count - 1; i >= state.coreStartIndex && i >= 0; i--)
-                cachedList.RemoveAt(i);
-            var dealTradeables = TradeSession.deal?.AllTradeables;
-            if (dealTradeables != null)
-            {
-                for (int i = dealTradeables.Count - 1; i >= 0; i--)
-                    if (toRemove.Contains(dealTradeables[i]))
-                        dealTradeables.RemoveAt(i);
-            }
-            state.coreStartIndex = -1;
+            // 从 deal.AllTradeables 中删除旧的注入条目
+            for (int i = dealList.Count - 1; i >= 0; i--)
+                foreach (var e in state.entries)
+                    if (e.isNew && e.tradeable == dealList[i])
+                        dealList.RemoveAt(i);
         }
 
         // ---------- rollback ----------
@@ -144,7 +155,6 @@ namespace DigitalStorage.UI
             }
             state.entries.Clear();
             state.injected = false;
-            state.coreStartIndex = -1;
         }
 
         public static void MarkDealExecuted(Dialog_Trade dialog)
@@ -155,6 +165,12 @@ namespace DigitalStorage.UI
         public static bool WasDealExecuted(Dialog_Trade dialog)
         {
             return states.TryGetValue(dialog, out var s) && s.dealExecuted;
+        }
+
+        /// <summary>DTI TryRemove 时标记——PostClose 不回滚不清理，留给 DTI 窗口关闭处理。</summary>
+        public static void MarkBeingReplaced(Dialog_Trade dialog)
+        {
+            GetState(dialog).beingReplaced = true;
         }
 
         /// <summary>
@@ -203,12 +219,31 @@ namespace DigitalStorage.UI
         /// </summary>
         public static void RollbackAndCleanupIfNotExecuted()
         {
+            // 只回滚已经不在窗口栈上的交易——防止 FloatMenu/通知等窗口 PostClose 误杀
             var toRollback = new List<DialogState>();
             var toRemove = new List<Dialog_Trade>();
+            var openWindows = Find.WindowStack?.Windows;
+
             foreach (var kv in states)
             {
-                if (kv.Value.injected && !kv.Value.dealExecuted && kv.Value.entries.Count > 0)
+                // beingReplaced → 原 Dialog_Trade 被 DTI 换掉了，状态应回滚（除非 deal 已执行）
+                bool shouldRollback = kv.Value.injected && kv.Value.entries.Count > 0
+                    && (kv.Value.beingReplaced || !kv.Value.dealExecuted);
+                if (shouldRollback)
                 {
+                    // 对话框仍在栈上（未替换）→ 等待用户操作，不回滚
+                    bool isNativeDialog = !kv.Value.beingReplaced && openWindows != null && openWindows.Contains(kv.Key);
+                    if (isNativeDialog)
+                        continue;
+                    // beingReplaced → 检查是否有 DTI 窗口还在栈上
+                    if (kv.Value.beingReplaced && openWindows != null)
+                    {
+                        bool dtiOpen = false;
+                        foreach (var w in openWindows)
+                            if (w.GetType().Name == "Window_DynamicTrade")
+                                { dtiOpen = true; break; }
+                        if (dtiOpen) continue;
+                    }
                     toRollback.Add(kv.Value);
                     toRemove.Add(kv.Key);
                 }

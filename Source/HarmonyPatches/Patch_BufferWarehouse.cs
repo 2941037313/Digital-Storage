@@ -2,33 +2,41 @@ using System.Collections.Generic;
 using DigitalStorage.Components;
 using HarmonyLib;
 using RimWorld;
-using UnityEngine;
 using Verse;
 
 namespace DigitalStorage.HarmonyPatches
 {
-    [HarmonyPatch(typeof(Building_Storage), "Accepts")]
-    public static class Patch_BufferWarehouse_Accepts
+    /// <summary>
+    /// 缓冲仓库的 haul 拦截：物品完全可见（不接受 Forbidden），但 pawn 不能搬入。
+    /// 借鉴 DSU 的 ForbidPawnInput 架构——物品自由，只禁搬运方向。
+    /// </summary>
+
+    // 阻止 haul 目的地选中 BW：所有 FindBestStorage 路径跳过 BW SlotGroup
+    [HarmonyPatch(typeof(StoreUtility), "TryFindBestBetterStorageFor")]
+    public static class Patch_BW_BlockHaulDestination
     {
         [HarmonyPrefix]
-        static bool Prefix(Thing t, Building_Storage __instance, ref bool __result)
+        static bool Prefix(Thing t, Map map, ref IntVec3 foundCell, ref IHaulDestination haulDestination)
         {
-            if (__instance is Building_BufferWarehouse bw)
-            {
-                // 已在 BW 格子上的物品 → 接受（避免原版判为 Unstored → haul 循环）
-                if (t.Spawned && t.Position == bw.Position)
-                    return true;
-                // 外来物品 → 拒绝搬入
-                __result = false;
-                return false;
-            }
+            // 如果当前物品已经在 BW 上，正常走原版逻辑找更好的存储
             return true;
+        }
+
+        [HarmonyPostfix]
+        static void Postfix(ref IntVec3 foundCell, ref IHaulDestination haulDestination, ref bool __result)
+        {
+            if (!__result) return;
+            if (haulDestination is Building_BufferWarehouse)
+            {
+                foundCell = IntVec3.Invalid;
+                haulDestination = null;
+                __result = false;
+            }
         }
     }
 
     /// <summary>
-    /// 5c: 阻止缓冲仓库格子上的物品被渲染。
-    /// 跟踪每个 map 上所有 BW 的 Position，Thing.Print 时检查位置并跳过。
+    /// 阻止缓冲仓库格子上的物品被渲染（运行时隐藏）。
     /// </summary>
     [HarmonyPatch(typeof(Thing), "Print")]
     public static class Patch_BufferWarehouse_HideItems

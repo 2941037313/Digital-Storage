@@ -115,7 +115,7 @@
   <DS_Priority>搬运优先级</DS_Priority>
 
   <!-- ========== 3.0 升级信封 ========== -->
-  <DigitalStorage_Letter30_Label>数字存储 3.1 更新说明 2026.5.24</DigitalStorage_Letter30_Label>
-  <DigitalStorage_Letter30_Text>数字存储 3.1 日常维护更新。\n\n[修复]\n· 缓冲仓库重构：单物品模式 + 禁pawn搬运 + 物品不渲染 + ITab 极简化\n· Job 调度饥饿（删原版搜索冷却，DS 不看地图搜食材）\n· ShouldSkip 交叉污染：烹饪 bill 不再触发其他工种 WorkGiver\n· 未完成物品：换人接手工不再重复取材料\n· 缓冲仓库 Accepts 冲突→pawn 不断拿放物品循环\n· PickUpAndHaul / 原版物品合并 job 冲突\n· 狱警 / 医生给囚犯病人取食不需芯片，食物不被自动收纳抢走\n· BW 存储筛选默认全禁\n· 更新信封：一个存档只跳一次\n\n感谢支持！Bug 反馈 Q 群 693252771。</DigitalStorage_Letter30_Text>
+  <DigitalStorage_Letter30_Label>数字存储 3.1 更新说明 2026.5.27</DigitalStorage_Letter30_Label>
+  <DigitalStorage_Letter30_Text>数字存储 3.1 维护更新 2026.5.27。\n\n[缓冲仓库重构]\n· 单物品模式——一个仓库锁定一种物品，首次补货自动选定\n· 禁 pawn 搬运入仓——物品完全可见，仅在 haul 路由层拦截\n· 物品不渲染——隐藏 Shelf 上的物品贴图\n· 存储筛选默认全禁 + ITab 手动解锁按钮\n· 借鉴 DSU IO端口架构——物品自由，只禁搬运方向\n\n[修复]\n· 交易数量丢失：窗口 PostClose 误触发回滚→面板数量清空\n· 交易重复条目：Prefix 注入 deal 替代 Postfix\n· 自动收纳不再路由物品到缓冲仓库\n· 核心去阴影 + 禁用视觉旋转\n\n感谢支持！Bug 反馈 Q 群 693252771。</DigitalStorage_Letter30_Text>
 
 </LanguageData>
