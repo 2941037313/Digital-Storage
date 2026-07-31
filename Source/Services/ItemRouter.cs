@@ -154,26 +154,30 @@ namespace DigitalStorage.Services
             if (allGroups.Count == 0) return false;
 
             StoragePriority corePrio = core.storagePriority;
-            // H3/L5: 删除 Important 一刀切——按比较逻辑，只有「严格高于核心」的 zone 才搬出；
-            // Critical 核心因不存在更高的 zone 天然囤积
+            // H3/L5: 删除 Important 一刀切——按比较逻辑，核心想要的物品只向
+            // 「严格高于核心」的 zone 升仓；Critical 核心因不存在更高的 zone 天然囤积。
 
             // 快照 key 列表：Withdraw 会修改 stock 字典，迭代中 Remove 会抛异常（L6/I10.01.19）
             routeKeyBuffer.Clear();
             foreach (var k in core.Ledger.AllKeys()) routeKeyBuffer.Add(k);
 
-            foreach (var group in allGroups)
+            for (int i = 0; i < routeKeyBuffer.Count; i++)
             {
-                StoragePriority sp = group.Settings.Priority;
-                // 用户 7.31 拍板：平级不搬出——核心是默认仓库，只有严格更高的 zone 升仓
-                if (sp <= corePrio) break; // 降序：高于核心的处理，遇到 ≤ 核心的停
+                ItemKey key = routeKeyBuffer[i];
+                long have = core.Ledger.StockOf(key);
+                if (have <= 0) continue;
 
-                for (int i = 0; i < routeKeyBuffer.Count; i++)
+                ThingDef def = key.def;
+                // 驱逐模式：核心过滤器关闭该 def（核心不想要）→ 搬去第一个接受的 zone，
+                // 任意优先级（含平级/更低）。驱逐后 StorageToCore/自动收纳因
+                // AllowsItem=false 不会吸回，无乒乓。
+                bool coreWants = core.AllowsDef(def);
+
+                foreach (var group in allGroups)
                 {
-                    ItemKey key = routeKeyBuffer[i];
-                    long have = core.Ledger.StockOf(key);
-                    if (have <= 0) continue;
-
-                    ThingDef def = key.def;
+                    StoragePriority sp = group.Settings.Priority;
+                    // 核心想要的物品：只升仓，平级/更低不搬（用户 7.31 拍板）
+                    if (coreWants && sp <= corePrio) break;
                     if (!group.Settings.AllowedToAccept(def)) continue;
 
                     // 数量上限交给 Withdraw 内部按 stackLimit 截断（X5），不再硬编码 75
@@ -189,7 +193,7 @@ namespace DigitalStorage.Services
                         continue;
                     }
 
-                    // H2: 直接放进目标 zone 的空闲格——一步到位进高优先级储存区，
+                    // H2: 直接放进目标 zone 的空闲格——一步到位进储存区，
                     // StorageToCore/HaulToCore/自动收纳都因 IsInAnyStorage 或优先级跳过他，
                     // 乒乓从结构上消失（不再依赖 recentlyWithdrawn 时间窗）
                     IntVec3 target = FindCellInGroup(group, map, spawned);

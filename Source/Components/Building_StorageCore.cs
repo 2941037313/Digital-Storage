@@ -124,6 +124,13 @@ namespace DigitalStorage.Components
             return storageFilter.Allows(t.def);
         }
 
+        /// <summary>def 级过滤器检查（搬出判定用，避免构造 Thing）。</summary>
+        public bool AllowsDef(ThingDef def)
+        {
+            if (storageFilter == null) return true;
+            return storageFilter.Allows(def);
+        }
+
         public override void SpawnSetup(Map map, bool respawningAfterLoad)
         {
             base.SpawnSetup(map, respawningAfterLoad);
