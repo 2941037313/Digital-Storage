@@ -10,3 +10,9 @@ log.txt
 .claude/settings.local.json
 AGENTS.md
 /memoria
+
+# 私人文件,不随 public 发布 (8.1)
+CLAUDE.md
+Source/bin/
+Source/obj/
+Source/.sonarqube/
