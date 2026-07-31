@@ -24,8 +24,14 @@ namespace DigitalStorage.HarmonyPatches
             if (__result || foodSource != null) return;
             if (getter?.Map == null || eater == null) return;
 
-            // 芯片持有者 → 隔空取食。狱警给囚犯取食 / 医生给病人取食 → 不需芯片
-            bool isCaregiving = getter != eater && (eater.IsPrisonerOfColony || eater.IsColonist);
+            // 芯片持有者 → 隔空取食。看护喂食 → 不需芯片。
+            // 8.1 bugfix(喂食覆盖不全):对齐原版 FeedPatientUtility.ShouldBeFed 的
+            // 范围——狱警送饭(囚犯,含站立)或 喂食无法行动者(殖民者/奴隶/访客/
+            // 囚犯/躺玩家床的动物)。旧实现只认 IsColonist/IsPrisonerOfColony,
+            // 漏了奴隶(Faction=玩家但 IsColonist=false)、殖民地动物、访客
+            // (HostFaction=玩家)——这些倒地后吃不到核心食物。
+            bool isCaregiving = getter != eater
+                && (eater.IsPrisonerOfColony || FeedPatientUtility.ShouldBeFed(eater));
             if (!Hediff_TerminalImplant.HasTerminalImplant(getter) && !isCaregiving) return;
 
             var accesses = CoreFinder.AllUsableAccesses(getter);
