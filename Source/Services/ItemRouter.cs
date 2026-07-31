@@ -54,7 +54,7 @@ namespace DigitalStorage.Services
 
         /// <summary>
         /// 为地面物品找最佳储存格（只找优先级高于 corePrio 的）。
-        /// 按 HaulDestinationManager 已排序的列表从高到低遍历。
+        /// 检查格子容量+堆叠可能，不依赖 IsGoodStoreCell（太严格，会拒绝满堆但可开新堆的情况）。
         /// </summary>
         public static IntVec3? FindBestStorageFor(Thing item, Map map,
             StoragePriority corePrio)
@@ -67,36 +67,33 @@ namespace DigitalStorage.Services
             foreach (var group in allGroups)
             {
                 StoragePriority sp = group.Settings.Priority;
-
-                // 只找比核心优先级更高的
                 if (sp <= corePrio) continue;
-
-                // 滤网检查
                 if (!group.Settings.AllowedToAccept(item)) continue;
-
-                // 找这个组里最近的可用格子
-                IntVec3? bestCell = null;
-                float bestDist = float.MaxValue;
 
                 foreach (var cell in group.CellsList)
                 {
-                    if (!StoreUtility.IsGoodStoreCell(cell, map, item, null,
-                        Faction.OfPlayer))
-                        continue;
-
-                    float dist = (cell - itemPos).LengthHorizontalSquared;
-                    if (dist < bestDist)
-                    {
-                        bestDist = dist;
-                        bestCell = cell;
-                    }
+                    if (CanCellAcceptItem(cell, map, item))
+                        return cell;
                 }
-
-                if (bestCell != null)
-                    return bestCell;
             }
-
             return null;
+        }
+
+        /// <summary>
+        /// 检查格子是否能接收该物品——可合并到已有堆 or 有空位开新堆。
+        /// </summary>
+        private static bool CanCellAcceptItem(IntVec3 cell, Map map, Thing item)
+        {
+            var things = map.thingGrid.ThingsListAt(cell);
+            foreach (var t in things)
+            {
+                if (t.CanStackWith(item) && t.stackCount < t.def.stackLimit)
+                    return true; // 可合并
+            }
+            int itemCount = 0;
+            foreach (var t in things)
+                if (t.def.category == ThingCategory.Item) itemCount++;
+            return itemCount < cell.GetMaxItemsAllowedInCell(map); // 可开新堆
         }
 
         // ===== 函数1: 核心↔储存区优先级调度 (60tick 调用) =====
@@ -146,68 +143,6 @@ namespace DigitalStorage.Services
                 }
             }
 
-            return false;
-        }
-
-        /// <summary>
-        /// 从低级储存区搬入物品到核心。创建 DS_IngestToCore Job 并尝试分配给空闲pawn。
-        /// </summary>
-        /// <returns>true=Job已分配</returns>
-        public static bool TryCreateAndDispatchHaulToCore(Map map,
-            Building_StorageCore core)
-        {
-            if (core.storagePriority <= StoragePriority.Low) return false;
-
-            var allGroups = map.haulDestinationManager.AllGroupsListInPriorityOrder;
-
-            foreach (var group in allGroups)
-            {
-                StoragePriority sp = group.Settings.Priority;
-                if (sp >= core.storagePriority) continue;
-
-                foreach (var cell in group.CellsList)
-                {
-                    var things = map.thingGrid.ThingsListAt(cell);
-                    for (int i = 0; i < things.Count; i++)
-                    {
-                        var t = things[i];
-                        if (t.def.category != ThingCategory.Item) continue;
-                        if (!LedgerPolicy.CanIngest(t)) continue;
-                        if (t.IsForbidden(Faction.OfPlayer)) continue;
-                        if (map.reservationManager.IsReserved(t)) continue;
-                        if (!core.AllowsItem(t)) continue;
-                        if (!core.Ledger.CanAccept(t, core.GetCapacity())) continue;
-
-                        return TryDispatchJobToPawn(map, t, core);
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        private static bool TryDispatchJobToPawn(Map map, Thing t,
-            Building_StorageCore core)
-        {
-            foreach (var pawn in map.mapPawns.FreeColonistsSpawned)
-            {
-                if (pawn.Downed || pawn.IsPrisoner) continue;
-                if (!pawn.workSettings.EverWork) continue;
-                if (!pawn.health.capacities.CapableOf(PawnCapacityDefOf.Manipulation))
-                    continue;
-                if (pawn.WorkTypeIsDisabled(WorkTypeDefOf.Hauling)) continue;
-                if (!pawn.CanReach(t, PathEndMode.ClosestTouch, Danger.Deadly))
-                    continue;
-
-                var job = JobMaker.MakeJob(
-                    DigitalStorage_JobDefOf.DigitalStorage_IngestToCore, t);
-                job.SetTarget(TargetIndex.C, core);
-                job.count = t.stackCount;
-
-                // 不打断当前job，排到队列最前面
-                pawn.jobs.jobQueue.EnqueueFirst(job, JobTag.MiscWork);
-                return true;
-            }
             return false;
         }
 

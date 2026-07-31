@@ -94,6 +94,7 @@
     <Compile Include="AI\WorkGiver_DS_WithdrawForBill.cs" />
     <Compile Include="AI\JobDriver_DS_Withdraw.cs" />
     <Compile Include="AI\WorkGiver_DS_WithdrawForConstruct.cs" />
+    <Compile Include="AI\WorkGiver_DS_StorageToCore.cs" />
     <Compile Include="AI\ConsumptionHelper.cs" />
     <Compile Include="AI\FoodScoring.cs" />
     <Compile Include="AI\JobDriver_DS_Consume.cs" />

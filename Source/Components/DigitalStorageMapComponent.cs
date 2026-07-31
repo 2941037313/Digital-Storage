@@ -18,6 +18,9 @@ namespace DigitalStorage.Components
 
         public DigitalStorageMapComponent(Map map) : base(map) { }
 
+        public static DigitalStorageMapComponent For(Map map)
+            => map?.GetComponent<DigitalStorageMapComponent>();
+
         public override void MapComponentTick()
         {
             base.MapComponentTick();
@@ -26,7 +29,6 @@ namespace DigitalStorage.Components
             if (tick - lastPriorityScanTick < 60) return;
             lastPriorityScanTick = tick;
 
-            // 清理死引用 + 执行优先级扫描
             var liveCores = GetAllCores();
             if (liveCores.Count == 0) return;
 
@@ -34,12 +36,9 @@ namespace DigitalStorage.Components
             {
                 if (core == null || !core.Powered) continue;
 
-                // 搬出: 核心→高级储存区
+                // 搬出: 核心→高级储存区（spawn物品→原版haul接管）
+                // 搬入已迁移到 WorkGiver_DS_StorageToCore
                 if (ItemRouter.RouteCoreToStorage(core, map))
-                    return;
-
-                // 搬入: 低级储存区→核心
-                if (ItemRouter.TryCreateAndDispatchHaulToCore(map, core))
                     return;
             }
         }
