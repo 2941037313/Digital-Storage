@@ -28,8 +28,11 @@ namespace DigitalStorage.HarmonyPatches
                     if (!CoreFinder.IsUsable(core)) continue;
                     foreach (var kv in core.Ledger.Stock)
                     {
-                        if (kv.Value > 0 && kv.Key.def != null)
-                            availableDefs.Add(kv.Key.def);
+                        if (kv.Value <= 0 || kv.Key.def == null) continue;
+                        // L8: 用可用量（扣预订）而非总库存——与 LedgerBillPlanner.Available()
+                        // 口径统一，避免「报不缺药但实际取不到」的手术卡死（I10.03 根因）
+                        if (core.Ledger.Available(kv.Key) <= 0) continue;
+                        availableDefs.Add(kv.Key.def);
                     }
                 }
             }

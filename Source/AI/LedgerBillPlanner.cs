@@ -30,28 +30,27 @@ namespace DigitalStorage.AI
                 int need = (int)System.Math.Ceiling(ing.GetBaseCount());
                 if (need <= 0) continue;
 
-                ItemKey picked = default;
-                bool found = false;
+                // M1: 跨 key 累加凑数——不同 stuff 的同 def 材料（不同 ItemKey）能凑齐
+                // （与原版 bill 取料一致：stuff 不参与 ingredient 匹配）
+                int remainingNeed = need;
                 foreach (var kv in ledger.Stock)
                 {
+                    if (remainingNeed <= 0) break;
                     if (!MatchIngredient(kv.Key.def, ing, bill)) continue;
                     long avail = ledger.Available(kv.Key);
                     if (tempUsed.TryGetValue(kv.Key, out long used)) avail -= used;
-                    if (avail < need) continue;
-                    picked = kv.Key;
-                    found = true;
-                    break;
+                    if (avail <= 0) continue;
+                    int t = (int)System.Math.Min(avail, (long)remainingNeed);
+                    tempUsed[kv.Key] = tempUsed.TryGetValue(kv.Key, out long u2) ? u2 + t : t;
+                    result.Add((kv.Key, t));
+                    remainingNeed -= t;
                 }
-                if (!found)
+                if (remainingNeed > 0)
                 {
                     if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
-                        Log.Message($"[DS-Job] TryPlan FAIL bill={bill.Label}: ingredient[{i}] need={need} not found in core");
+                        Log.Message($"[DS-Job] TryPlan FAIL bill={bill.Label}: ingredient[{i}] need={need} shortfall={remainingNeed} in core");
                     return null;
                 }
-
-                if (!tempUsed.ContainsKey(picked)) tempUsed[picked] = 0;
-                tempUsed[picked] += need;
-                result.Add((picked, need));
             }
             return result;
         }

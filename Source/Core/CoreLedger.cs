@@ -136,6 +136,20 @@ namespace DigitalStorage.Core
             NotifyStockChanged(key);
         }
 
+        /// <summary>
+        /// 直接扣数（不销毁 Thing，用于核心摧毁转移的源账本扣减，X2）。
+        /// </summary>
+        public void RemoveRaw(ItemKey key, long count)
+        {
+            if (count <= 0) return;
+            if (!stock.TryGetValue(key, out long cur) || cur <= 0) return;
+            long after = cur - count;
+            if (after <= 0) stock.Remove(key);
+            else stock[key] = after;
+            groupTotalsDirty = true;
+            NotifyStockChanged(key);
+        }
+
         // ========== 取出 ==========
 
         /// <summary>

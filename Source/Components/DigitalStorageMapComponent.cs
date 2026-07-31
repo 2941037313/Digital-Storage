@@ -15,6 +15,7 @@ namespace DigitalStorage.Components
         private List<Building_StorageCore> cachedCleanList;
         private int lastCleanTick = -1;
         private int lastPriorityScanTick = -1;
+        private int rrIndex; // M2: 轮转指针——多核心公平调度，避免第一个核心垄断搬出
 
         public DigitalStorageMapComponent(Map map) : base(map) { }
 
@@ -32,14 +33,20 @@ namespace DigitalStorage.Components
             var liveCores = GetAllCores();
             if (liveCores.Count == 0) return;
 
-            foreach (var core in liveCores)
+            // M2: 轮转调度——从 rrIndex 开始绕一圈，每 60 tick 只处理一颗核心（保持限速），
+            // 但机会均分，不再让注册序靠前的核心永久垄断搬出
+            for (int i = 0; i < liveCores.Count; i++)
             {
+                var core = liveCores[(rrIndex + i) % liveCores.Count];
                 if (core == null || !core.Powered) continue;
 
-                // 搬出: 核心→高级储存区（spawn物品→原版haul接管）
+                // 搬出: 核心→高级储存区（直接放进目标 zone 格）
                 // 搬入已迁移到 WorkGiver_DS_StorageToCore
                 if (ItemRouter.RouteCoreToStorage(core, map))
+                {
+                    rrIndex = (rrIndex + i + 1) % liveCores.Count;
                     return;
+                }
             }
         }
 

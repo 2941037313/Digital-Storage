@@ -109,8 +109,10 @@ namespace DigitalStorage.Services
         /// <summary>
         /// 检查格子是否能接收该物品——可合并到已有堆 or 有空位开新堆。
         /// L2: 目标格已被其他 pawn 的 haul 工单预留 → 不接受（避免放置冲突）。
+        /// requireMerge: 只接受可合并到已有堆的格子（平级搬出的回填场景，H3）。
         /// </summary>
-        private static bool CanCellAcceptItem(IntVec3 cell, Map map, Thing item)
+        private static bool CanCellAcceptItem(IntVec3 cell, Map map, Thing item,
+            bool requireMerge = false)
         {
             // L2: 预留检查（原版 haul 工在途目标格不塞入）
             if (map.reservationManager.IsReservedByAnyoneOf(cell, Faction.OfPlayer))
@@ -122,6 +124,7 @@ namespace DigitalStorage.Services
                 if (t.CanStackWith(item) && t.stackCount < t.def.stackLimit)
                     return true; // 可合并
             }
+            if (requireMerge) return false; // 平级搬出只合并不开新堆
             int itemCount = 0;
             foreach (var t in things)
                 if (t.def.category == ThingCategory.Item) itemCount++;
@@ -131,10 +134,11 @@ namespace DigitalStorage.Services
         /// <summary>
         /// 在 group 里找一个能接收该物品的格子（可合并已有堆或可开新堆，查预留）。
         /// </summary>
-        private static IntVec3 FindCellInGroup(SlotGroup group, Map map, Thing t)
+        private static IntVec3 FindCellInGroup(SlotGroup group, Map map, Thing t,
+            bool requireMerge = false)
         {
             foreach (var cell in group.CellsList)
-                if (CanCellAcceptItem(cell, map, t))
+                if (CanCellAcceptItem(cell, map, t, requireMerge))
                     return cell;
             return IntVec3.Invalid;
         }
@@ -152,7 +156,8 @@ namespace DigitalStorage.Services
             if (allGroups.Count == 0) return false;
 
             StoragePriority corePrio = core.storagePriority;
-            if (corePrio >= StoragePriority.Important) return false; // 核心已经足够高
+            // H3/L5: 删除 Important 一刀切——按比较逻辑,有更高的/平级可合并的去,
+            // Critical 核心因不存在更高的 zone 天然囤积
 
             // 快照 key 列表：Withdraw 会修改 stock 字典，迭代中 Remove 会抛异常（L6/I10.01.19）
             routeKeyBuffer.Clear();
@@ -161,7 +166,11 @@ namespace DigitalStorage.Services
             foreach (var group in allGroups)
             {
                 StoragePriority sp = group.Settings.Priority;
-                if (sp <= corePrio) break; // 排序降序，后面的都≤核心
+                if (sp < corePrio) break; // 降序：平级也搬出（H3），低于核心的停
+
+                // H3: 平级只在「可合并到已有堆」时搬出（料斗回填真实场景），
+                // 不为平级开新堆——避免核心库存无限倒进空 Normal 大仓库
+                bool sameLevel = (sp == corePrio);
 
                 for (int i = 0; i < routeKeyBuffer.Count; i++)
                 {
@@ -188,7 +197,7 @@ namespace DigitalStorage.Services
                     // H2: 直接放进目标 zone 的空闲格——一步到位进高优先级储存区，
                     // StorageToCore/HaulToCore/自动收纳都因 IsInAnyStorage 或优先级跳过他，
                     // 乒乓从结构上消失（不再依赖 recentlyWithdrawn 时间窗）
-                    IntVec3 target = FindCellInGroup(group, map, spawned);
+                    IntVec3 target = FindCellInGroup(group, map, spawned, sameLevel);
                     if (!target.IsValid)
                     {
                         core.Ledger.AddRaw(key, spawned.stackCount);

@@ -57,25 +57,14 @@ namespace DigitalStorage.AI
             var comp = DigitalStorageMapComponent.For(pawn.Map);
             if (comp == null) return true;
 
+            // L4: 廉价前置判断——有一个可用核心（未满仓、会参与吸货）就不跳过，
+            // 不再全图扫描 cell（真正的过滤留给 PotentialWorkThingsGlobal）
             foreach (var core in comp.GetAllCores())
             {
                 if (core == null || !core.Powered) continue;
                 if (core.storagePriority <= StoragePriority.Low) continue;
-
-                foreach (var group in pawn.Map.haulDestinationManager.AllGroupsListInPriorityOrder)
-                {
-                    // 降序列表：跳过优先级≥核心的 zone，只处理严格低于核心的
-                    if (group.Settings.Priority >= core.storagePriority) continue;
-                    foreach (var cell in group.CellsList)
-                    {
-                        var things = pawn.Map.thingGrid.ThingsListAt(cell);
-                        for (int i = 0; i < things.Count; i++)
-                        {
-                            if (things[i].def.category == ThingCategory.Item)
-                                return false;
-                        }
-                    }
-                }
+                if (core.Ledger.UsedCapacity() >= core.GetCapacity()) continue;
+                return false;
             }
             return true;
         }

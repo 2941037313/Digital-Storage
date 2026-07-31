@@ -15,6 +15,10 @@ namespace DigitalStorage.HarmonyPatches
     /// 核心物品不在格子上所以看不到。此 postfix 追加核心库存的 GhostThing。
     /// 注意：实际交易逻辑由 TradeDS_Helper 处理（注入 Tradeable），
     /// 此 patch 主要解决 HasLaunchableThings 等前置检查。
+    /// 耦合说明(L7)：此处与 TradeDS_Helper.InjectCoreTradeables 一样只遍历本地图核心
+    /// （TradeDS_Helper 传 includeCrossMapInterfaces: false 是有意的）。
+    /// 将来若放开跨图交易，两处必须同步改为 LedgerItemCollector.GetAllUsableCores，
+    /// 单侧修改会造成前置检查与实际交易列表口径不一致。
     /// </summary>
     [HarmonyPatch(typeof(TradeUtility), "AllLaunchableThingsForTrade")]
     static class Patch_AllLaunchableThingsForTrade

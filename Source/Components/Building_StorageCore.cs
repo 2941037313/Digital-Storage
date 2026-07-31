@@ -25,7 +25,22 @@ namespace DigitalStorage.Components
         private CompPowerTrader powerComp;
         private CompStorageCoreUpgrade upgradeComp;
         private CoreLedger ledger = new CoreLedger();
-        public StoragePriority storagePriority = StoragePriority.Normal;
+        private StoragePriority storagePriorityField = StoragePriority.Normal;
+
+        /// <summary>
+        /// X4: 优先级改属性——setter 触发 Ghost 刷新通知。
+        /// 旧实现直接赋值字段，在途工单/UI 缓存不知道优先级变了。
+        /// </summary>
+        public StoragePriority storagePriority
+        {
+            get => storagePriorityField;
+            set
+            {
+                if (storagePriorityField == value) return;
+                storagePriorityField = value;
+                Map?.GetComponent<Ghost.GhostLedgerIndex>()?.OnCoreStateChanged(this);
+            }
+        }
         private readonly List<Building_InputInterface> interfaces = new List<Building_InputInterface>();
         private ThingFilter storageFilter;
         private static ThingFilter parentFilter;
@@ -162,23 +177,26 @@ namespace DigitalStorage.Components
                 long amount = ledger.StockOf(key);
                 if (amount <= 0) continue;
 
-                bool transferred = false;
                 foreach (var target in targets)
                 {
                     int remaining = target.GetCapacity() - target.Ledger.UsedCapacity();
                     if (remaining <= 0) continue;
+                    // 新 key 需要 1 组容量；已存在的 key 不占新组
+                    if (target.Ledger.StockOf(key) <= 0 && remaining < 1) continue;
 
                     // 转移（AddRaw 会 fire StockChanged → Ghost 更新）
+                    // X2: 加给目标后立即从源账本扣减——修复拆核心再放回库存翻倍
                     target.Ledger.AddRaw(key, amount);
-                    transferred = true;
+                    ledger.RemoveRaw(key, amount);
+                    amount = 0;
                     break;
                 }
 
-                if (!transferred)
+                if (amount > 0)
                     overflow.Add(key);
             }
 
-            // I6b: 溢出部分加入分帧掉落队列
+            // I6b: 溢出部分加入分帧掉落队列（X2: Enqueue 时同步扣源账本，防止重复）
             if (overflow.Count > 0)
             {
                 var dropQueue = map.GetComponent<CoreDestroyDropQueue>();
@@ -188,7 +206,10 @@ namespace DigitalStorage.Components
                     {
                         long amount = ledger.StockOf(key);
                         if (amount > 0)
+                        {
                             dropQueue.Enqueue(key, amount, Position);
+                            ledger.RemoveRaw(key, amount);
+                        }
                     }
                 }
             }
@@ -294,7 +315,7 @@ namespace DigitalStorage.Components
         {
             base.ExposeData();
             Scribe_Values.Look(ref networkName, "networkName");
-            Scribe_Values.Look(ref storagePriority, "storagePriority", StoragePriority.Normal);
+            Scribe_Values.Look(ref storagePriorityField, "storagePriority", StoragePriority.Normal);
             Scribe_Deep.Look(ref ledger, "ledger");
             Scribe_Deep.Look(ref storageFilter, "storageFilter");
             if (Scribe.mode == LoadSaveMode.PostLoadInit && ledger == null)
