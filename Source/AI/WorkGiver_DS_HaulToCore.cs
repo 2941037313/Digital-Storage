@@ -76,7 +76,8 @@ namespace DigitalStorage.AI
             foreach (var access in CoreFinder.AllUsableAccesses(pawn))
             {
                 // H1: 统一判据（ItemRouter.ShouldCoreTakeItem）——
-                // 核心接受该物品 且 不存在「优先级 ≥ 核心」的储存区时才派送核心工单。
+                // 核心接受该物品 且 不存在「优先级 > 核心」的储存区时才派送核心工单
+                // （平级 zone 不抢——新物品进核心，用户 7.31 拍板）。
                 // 旧实现用 CurrentStoragePriorityOf(t)=Unstored 做让位基准，
                 // 任何储存区都让位 → 核心优先级对地面物品完全失效（I10.01.2）。
                 if (!ItemRouter.ShouldCoreTakeItem(t, t.Map, access.ledgerCore,

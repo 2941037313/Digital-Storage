@@ -18,8 +18,10 @@ namespace DigitalStorage.Services
         // ===== 函数2: 地面物品路由 (CompAutoIngest 15tick 调用) =====
 
         /// <summary>
-        /// 路由一个地面物品到最优去向。优先级不低于核心的储存区→spawn过去，
-        /// 没有储存区要但核心优先级>Unstored→吸入账本，核心优先级太低→留地上。
+        /// 路由一个地面物品到最优去向。优先级高于核心的储存区→spawn过去，
+        /// 没有更高优先级的储存区但核心优先级>Unstored→吸入账本，否则留地上。
+        /// 语义（用户 7.31 拍板）：全链路严格比较——只有 zone 优先级「严格高于」核心
+        /// 才优先 zone；平级时核心收（新物品会进核心，而不是全被平级 zone 截走）。
         /// </summary>
         /// <returns>true=物品已被处理(de/spawn/ingest)，false=留在地上</returns>
         public static bool RouteGroundItem(Thing item, Map map,
@@ -29,7 +31,7 @@ namespace DigitalStorage.Services
             // L3: DeSpawn 后 Position 失效，先缓存
             IntVec3 itemPos = item.Position;
 
-            // 找优先级不低于核心的储存区
+            // 找优先级严格高于核心的储存区（平级 zone 不抢——新物品进核心）
             var bestStorage = FindBestStorageFor(item, map, corePrio);
             if (bestStorage != null)
             {
@@ -61,7 +63,7 @@ namespace DigitalStorage.Services
 
         /// <summary>
         /// 统一判据：这个物品是否该由核心接收（而不是留给原版搬运/更高优先级储存区）。
-        /// 语义：物品去「优先级 ≥ 核心」的储存区，否则核心吃掉。
+        /// 语义：物品去「优先级 > 核心」的储存区，否则核心吃掉（平级时核心收）。
         /// 收敛点（H1/M4/M5/M3）：RouteGroundItem、HaulToCore、StorageToCore 共用，
         /// 消除「物品该去哪」判据的四处不同实现。
         /// </summary>
@@ -73,13 +75,13 @@ namespace DigitalStorage.Services
             if (!LedgerPolicy.CanIngest(t)) return false;
             if (!core.AllowsItem(t)) return false;
             if (!core.Ledger.CanAccept(t, coreCapacity)) return false;
-            // 存在优先级 ≥ 核心的储存区想要它 → 让原版 haul 处理
+            // 存在优先级严格高于核心的储存区想要它 → 让原版 haul 处理
             if (FindBestStorageFor(t, map, core.storagePriority) != null) return false;
             return true;
         }
 
         /// <summary>
-        /// 为地面物品找最佳储存格（只找优先级不低于 corePrio 的）。
+        /// 为地面物品找最佳储存格（只找优先级严格高于 corePrio 的）。
         /// 检查格子容量+堆叠可能，不依赖 IsGoodStoreCell（太严格，会拒绝满堆但可开新堆的情况）。
         /// </summary>
         public static IntVec3? FindBestStorageFor(Thing item, Map map,
@@ -93,8 +95,8 @@ namespace DigitalStorage.Services
             foreach (var group in allGroups)
             {
                 StoragePriority sp = group.Settings.Priority;
-                // 平级（sp == corePrio）也接受——料斗等平级储存区优先于核心，与原版行为一致
-                if (sp < corePrio) continue;
+                // 严格高于核心才接受——平级 zone 不抢地面物品（新物品进核心，用户 7.31 拍板）
+                if (sp <= corePrio) continue;
                 if (!group.Settings.AllowedToAccept(item)) continue;
 
                 foreach (var cell in group.CellsList)
@@ -109,10 +111,8 @@ namespace DigitalStorage.Services
         /// <summary>
         /// 检查格子是否能接收该物品——可合并到已有堆 or 有空位开新堆。
         /// L2: 目标格已被其他 pawn 的 haul 工单预留 → 不接受（避免放置冲突）。
-        /// requireMerge: 只接受可合并到已有堆的格子（平级搬出的回填场景，H3）。
         /// </summary>
-        private static bool CanCellAcceptItem(IntVec3 cell, Map map, Thing item,
-            bool requireMerge = false)
+        private static bool CanCellAcceptItem(IntVec3 cell, Map map, Thing item)
         {
             // L2: 预留检查（原版 haul 工在途目标格不塞入）
             if (map.reservationManager.IsReservedByAnyoneOf(cell, Faction.OfPlayer))
@@ -124,7 +124,6 @@ namespace DigitalStorage.Services
                 if (t.CanStackWith(item) && t.stackCount < t.def.stackLimit)
                     return true; // 可合并
             }
-            if (requireMerge) return false; // 平级搬出只合并不开新堆
             int itemCount = 0;
             foreach (var t in things)
                 if (t.def.category == ThingCategory.Item) itemCount++;
@@ -134,11 +133,10 @@ namespace DigitalStorage.Services
         /// <summary>
         /// 在 group 里找一个能接收该物品的格子（可合并已有堆或可开新堆，查预留）。
         /// </summary>
-        private static IntVec3 FindCellInGroup(SlotGroup group, Map map, Thing t,
-            bool requireMerge = false)
+        private static IntVec3 FindCellInGroup(SlotGroup group, Map map, Thing t)
         {
             foreach (var cell in group.CellsList)
-                if (CanCellAcceptItem(cell, map, t, requireMerge))
+                if (CanCellAcceptItem(cell, map, t))
                     return cell;
             return IntVec3.Invalid;
         }
@@ -156,7 +154,7 @@ namespace DigitalStorage.Services
             if (allGroups.Count == 0) return false;
 
             StoragePriority corePrio = core.storagePriority;
-            // H3/L5: 删除 Important 一刀切——按比较逻辑,有更高的/平级可合并的去,
+            // H3/L5: 删除 Important 一刀切——按比较逻辑，只有「严格高于核心」的 zone 才搬出；
             // Critical 核心因不存在更高的 zone 天然囤积
 
             // 快照 key 列表：Withdraw 会修改 stock 字典，迭代中 Remove 会抛异常（L6/I10.01.19）
@@ -166,11 +164,8 @@ namespace DigitalStorage.Services
             foreach (var group in allGroups)
             {
                 StoragePriority sp = group.Settings.Priority;
-                if (sp < corePrio) break; // 降序：平级也搬出（H3），低于核心的停
-
-                // H3: 平级只在「可合并到已有堆」时搬出（料斗回填真实场景），
-                // 不为平级开新堆——避免核心库存无限倒进空 Normal 大仓库
-                bool sameLevel = (sp == corePrio);
+                // 用户 7.31 拍板：平级不搬出——核心是默认仓库，只有严格更高的 zone 升仓
+                if (sp <= corePrio) break; // 降序：高于核心的处理，遇到 ≤ 核心的停
 
                 for (int i = 0; i < routeKeyBuffer.Count; i++)
                 {
@@ -197,7 +192,7 @@ namespace DigitalStorage.Services
                     // H2: 直接放进目标 zone 的空闲格——一步到位进高优先级储存区，
                     // StorageToCore/HaulToCore/自动收纳都因 IsInAnyStorage 或优先级跳过他，
                     // 乒乓从结构上消失（不再依赖 recentlyWithdrawn 时间窗）
-                    IntVec3 target = FindCellInGroup(group, map, spawned, sameLevel);
+                    IntVec3 target = FindCellInGroup(group, map, spawned);
                     if (!target.IsValid)
                     {
                         core.Ledger.AddRaw(key, spawned.stackCount);
