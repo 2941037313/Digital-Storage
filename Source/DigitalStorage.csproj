@@ -121,6 +121,7 @@
     <Compile Include="HarmonyPatches\Patch_OrbitalTradeBeacon.cs" />
     <Compile Include="HarmonyPatches\Patch_WealthWatcher.cs" />
     <Compile Include="HarmonyPatches\Patch_BufferWarehouse.cs" />
+    <Compile Include="HarmonyPatches\Patch_HaulAIUtility.cs" />
     <Compile Include="UI\TradeDS_Helper.cs" />
     <Compile Include="UI\CaravanDS_Helper.cs" />
 
