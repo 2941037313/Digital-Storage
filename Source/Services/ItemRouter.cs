@@ -131,14 +131,40 @@ namespace DigitalStorage.Services
         }
 
         /// <summary>
-        /// 在 group 里找一个能接收该物品的格子（可合并已有堆或可开新堆，查预留）。
+        /// 在 group 里找一个能「完整放下」该堆叠的格子（可完整合并或开新堆，查预留）。
+        /// 拒绝余量不足的格：TryPlaceThing Direct 会拆分合并 → 残余堆落核心旁地面 →
+        /// 被自动收纳吸回核心 → 反复 Withdraw/拆分（ogre 大堆叠下的 75/9925 乒乓，7.31 晚）。
         /// </summary>
         private static IntVec3 FindCellInGroup(SlotGroup group, Map map, Thing t)
         {
             foreach (var cell in group.CellsList)
-                if (CanCellAcceptItem(cell, map, t))
+                if (CanPlaceFullStack(cell, map, t))
                     return cell;
             return IntVec3.Invalid;
+        }
+
+        /// <summary>
+        /// 格子能否完整吞下整个堆叠：与已有同类堆合并（余量 ≥ 堆叠）或开新堆。
+        /// 有同类堆但余量不足 → false（拆分合并会留残余，绝不选）。
+        /// </summary>
+        private static bool CanPlaceFullStack(IntVec3 cell, Map map, Thing item)
+        {
+            bool hasMergeable = false;
+            int itemCount = 0;
+            var things = map.thingGrid.ThingsListAtFast(cell);
+            for (int i = 0; i < things.Count; i++)
+            {
+                var t = things[i];
+                if (t.def.category == ThingCategory.Item) itemCount++;
+                if (t.CanStackWith(item))
+                {
+                    hasMergeable = true;
+                    if (t.def.stackLimit - t.stackCount >= item.stackCount)
+                        return true; // 余量足够，可完整合并
+                }
+            }
+            if (hasMergeable) return false; // 有同类堆但余量不足 → 会拆分 → 不选
+            return itemCount < cell.GetMaxItemsAllowedInCell(map); // 可开新堆
         }
 
         // ===== 函数1: 核心↔储存区优先级调度 (60tick 调用) =====
@@ -175,6 +201,10 @@ namespace DigitalStorage.Services
 
                 foreach (var group in allGroups)
                 {
+                    // 7.31 晚：缓冲仓库库存由阈值补货逻辑管理（CompBufferWarehouse），
+                    // 升仓/驱逐不塞它——塞货会突破阈值且无法回收 → 乒乓。普通 zone 不变。
+                    if (group.parent is Building_BufferWarehouse) continue;
+
                     StoragePriority sp = group.Settings.Priority;
                     // 核心想要的物品：只升仓，平级/更低不搬（用户 7.31 拍板）
                     if (coreWants && sp <= corePrio) break;

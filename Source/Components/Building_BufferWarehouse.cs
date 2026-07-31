@@ -20,13 +20,27 @@ namespace DigitalStorage.Components
         public Building_StorageCore BoundCore => boundCore;
         public ThingDef LockedItemDef => lockedItemDef;
 
-        internal void SetLockedItemDef(ThingDef def) { lockedItemDef = def; }
+        /// <summary>
+        /// 8.1: 设置锁定物品，存储筛选同步跟随——缓冲仓库的设置唯一入口是新 UI
+        /// （ITab:放什么物品 + Min/Max + 清空该单元），原版筛选/优先级按钮已屏蔽。
+        /// 锁定 → 筛选只允许该物品；清空/替换 → 自动取消（全部不允许）。
+        /// </summary>
+        internal void SetLockedItemDef(ThingDef def)
+        {
+            lockedItemDef = def;
+            var settings = GetStoreSettings();
+            if (settings != null)
+            {
+                settings.filter.SetDisallowAll();
+                if (def != null) settings.filter.SetAllow(def, true);
+            }
+        }
 
         /// <summary>
-        /// 手动解锁：物品吸入核心 → lockedItemDef=null → 下次补货重新锁定。
-        /// Threshold 保留。
+        /// 清空该单元（UI「清空该单元」按钮）：物品吸入核心 → lockedItemDef=null，
+        /// Min=Max=0 由 UI 侧设置。核心满吸不回 → 留在格上（绝不销毁物品，8.1 改进）。
         /// </summary>
-        public void Unlock()
+        public void ClearUnit()
         {
             if (slotGroup != null && boundCore != null && !boundCore.Destroyed)
             {
@@ -42,11 +56,9 @@ namespace DigitalStorage.Components
                     if (t.Destroyed) continue;
                     if (boundCore.Ledger.CanAccept(t, capacity))
                         boundCore.Ledger.Ingest(t, capacity);
-                    else
-                        t.Destroy(DestroyMode.Vanish);
                 }
             }
-            lockedItemDef = null;
+            SetLockedItemDef(null); // 清空：筛选同步取消（全部不允许）
         }
 
         // ========== 生命周期 ==========
@@ -64,6 +76,14 @@ namespace DigitalStorage.Components
             // 自动绑定同 NetworkName 核心
             if (boundCore == null || boundCore.Destroyed)
                 TryAutoBind();
+
+            // 8.1: 优先级锁定最高——不存在高于缓冲仓库的存储区，原版「按优先级搬运」
+            // 永远不会把仓库物品搬去其他存储区（玩家不可改，无 UI 入口）。
+            var settings = GetStoreSettings();
+            if (settings != null)
+                settings.Priority = StoragePriority.Critical;
+            // 筛选与锁定同步（含读档后：防旧存档遗留玩家改过的筛选）
+            SetLockedItemDef(lockedItemDef);
 
             // 加载后冻结已有物品 + 存量迁移到单物品模式
             if (respawningAfterLoad && slotGroup != null)

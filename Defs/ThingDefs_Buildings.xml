@@ -221,7 +221,8 @@
       </defaultStorageSettings>
     </building>
     <inspectorTabs>
-      <li>ITab_Storage</li>
+      <!-- 8.1: 原版 ITab_Storage 已移除（那是筛选/优先级的改动入口）——
+           缓冲仓库的设置唯一入口是下方的新 UI tab -->
       <li>DigitalStorage.UI.ITab_BufferWarehouse</li>
     </inspectorTabs>
     <comps>

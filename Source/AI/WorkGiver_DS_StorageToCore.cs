@@ -81,6 +81,11 @@ namespace DigitalStorage.AI
             var sg = t.GetSlotGroup();
             if (sg == null) return false;
 
+            // 7.31 晚：缓冲仓库物品不回核心——缓冲仓库有独立阈值补货逻辑（CompBufferWarehouse
+            // 从核心吐货），吸回会与补货互相拉扯成乒乓。普通 zone 行为不变（用户拍板：
+            // 缓冲仓库的物品只被正常 job 取用，不允许前往核心和其他任何 zone）。
+            if (sg.parent is Building_BufferWarehouse) return false;
+
             return FindCoreForItem(pawn, t, sg) != null;
         }
 
