@@ -27,6 +27,11 @@ namespace DigitalStorage.HarmonyPatches
 
         private static bool CanUseCoreFood(Pawn pawn)
         {
+            // 8.1 bugfix(社区反馈:机械体吃饭):机械体没有食物需求(needs.food==null),
+            // 原版 JobGiver_GetFood 因无需求返回 null,这里不能接管派饭——
+            // 否则玩家派系机械体会不停从核心吃食物(食物凭空消耗,机械体不消化)。
+            // v3-bug1 修了派系/囚犯过滤,漏了机械体(v3-bug1 后仍会吃)。
+            if (pawn.needs?.food == null) return false;
             if (pawn.Faction == Faction.OfPlayer) return true;
             if (pawn.IsPrisonerOfColony) return true;
             if (Hediff_TerminalImplant.HasTerminalImplant(pawn)) return true;

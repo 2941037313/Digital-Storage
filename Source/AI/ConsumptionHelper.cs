@@ -29,6 +29,9 @@ namespace DigitalStorage.AI
         public static Job TryCreateJob(Pawn pawn, Func<ItemKey, bool> filter)
         {
             if (pawn?.Map == null) return null;
+            // 8.1 bugfix:机械体不消费任何 ingestible(无食物/药物/娱乐需求),
+            // 统一排除——所有消费 patch 都走这个入口,防止机械体从核心吃食物
+            if (pawn.RaceProps.IsMechanoid) return null;
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
 
             // 收集所有候选，按 FoodOptimality 评分降序
