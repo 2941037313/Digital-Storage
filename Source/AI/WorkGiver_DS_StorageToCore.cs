@@ -9,7 +9,8 @@ using Verse.AI;
 namespace DigitalStorage.AI
 {
     /// <summary>
-    /// 低级储存区物品 → 高优先级核心。由原版 ThinkTree 调度，不自己 dispatch。
+    /// 优先级 ≤ 核心 的储存区物品 → 核心（平级也吸，用户 7.31 拍板）。
+    /// 由原版 ThinkTree 调度，不自己 dispatch。
     /// 与 WorkGiver_DS_HaulToCore 互补：那个管地上物品，这个管已在储存区内的。
     /// </summary>
     public class WorkGiver_DS_StorageToCore : WorkGiver_Scanner
@@ -28,12 +29,12 @@ namespace DigitalStorage.AI
             foreach (var core in cores)
             {
                 if (core == null || !core.Powered) continue;
-                if (core.storagePriority <= StoragePriority.Low) continue;
+                if (core.storagePriority < StoragePriority.Low) continue; // 仅 Unstored 核心跳过
 
                 foreach (var group in groups)
                 {
-                    // 降序列表：跳过优先级≥核心的 zone，只处理严格低于核心的
-                    if (group.Settings.Priority >= core.storagePriority) continue;
+                    // 降序列表：跳过优先级严格高于核心的 zone；平级也吸（用户 7.31 拍板）
+                    if (group.Settings.Priority > core.storagePriority) continue;
 
                     foreach (var cell in group.CellsList)
                     {
@@ -62,7 +63,7 @@ namespace DigitalStorage.AI
             foreach (var core in comp.GetAllCores())
             {
                 if (core == null || !core.Powered) continue;
-                if (core.storagePriority <= StoragePriority.Low) continue;
+                if (core.storagePriority < StoragePriority.Low) continue; // 仅 Unstored 核心跳过
                 if (core.Ledger.UsedCapacity() >= core.GetCapacity()) continue;
                 return false;
             }
@@ -116,9 +117,10 @@ namespace DigitalStorage.AI
             foreach (var core in comp.GetAllCores())
             {
                 if (core == null || !core.Powered) continue;
-                // 核心优先级必须严格高于物品所在储存区
-                if (core.storagePriority <= itemPrio) continue;
-                // M5: 统一判据——有「优先级 ≥ 核心」的 zone 想要它 → 让 HaulGeneral 搬，
+                // 核心优先级 ≥ 物品所在储存区即可吸（平级也吸——用户 7.31 拍板，
+                // zone≤核心 的物品应流向核心）
+                if (core.storagePriority < itemPrio) continue;
+                // M5: 统一判据——有「优先级 > 核心」的 zone 想要它 → 让 HaulGeneral 搬，
                 // 物品不绕行核心一趟（I10.01.13）
                 if (!ItemRouter.ShouldCoreTakeItem(t, pawn.Map, core,
                     core.GetCapacity()))
