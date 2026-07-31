@@ -31,7 +31,8 @@ namespace DigitalStorage.AI
 
                 foreach (var group in groups)
                 {
-                    if (group.Settings.Priority >= core.storagePriority) break;
+                    // 降序列表：跳过优先级≥核心的 zone，只处理严格低于核心的
+                    if (group.Settings.Priority >= core.storagePriority) continue;
 
                     foreach (var cell in group.CellsList)
                     {
@@ -62,7 +63,8 @@ namespace DigitalStorage.AI
 
                 foreach (var group in pawn.Map.haulDestinationManager.AllGroupsListInPriorityOrder)
                 {
-                    if (group.Settings.Priority >= core.storagePriority) break;
+                    // 降序列表：跳过优先级≥核心的 zone，只处理严格低于核心的
+                    if (group.Settings.Priority >= core.storagePriority) continue;
                     foreach (var cell in group.CellsList)
                     {
                         var things = pawn.Map.thingGrid.ThingsListAt(cell);

@@ -17,7 +17,7 @@ namespace DigitalStorage.Services
         // ===== 函数2: 地面物品路由 (CompAutoIngest 15tick 调用) =====
 
         /// <summary>
-        /// 路由一个地面物品到最优去向。优先级高于核心的储存区→spawn过去，
+        /// 路由一个地面物品到最优去向。优先级不低于核心的储存区→spawn过去，
         /// 没有储存区要但核心优先级>Unstored→吸入账本，核心优先级太低→留地上。
         /// </summary>
         /// <returns>true=物品已被处理(de/spawn/ingest)，false=留在地上</returns>
@@ -53,7 +53,7 @@ namespace DigitalStorage.Services
         }
 
         /// <summary>
-        /// 为地面物品找最佳储存格（只找优先级高于 corePrio 的）。
+        /// 为地面物品找最佳储存格（只找优先级不低于 corePrio 的）。
         /// 检查格子容量+堆叠可能，不依赖 IsGoodStoreCell（太严格，会拒绝满堆但可开新堆的情况）。
         /// </summary>
         public static IntVec3? FindBestStorageFor(Thing item, Map map,
@@ -67,7 +67,8 @@ namespace DigitalStorage.Services
             foreach (var group in allGroups)
             {
                 StoragePriority sp = group.Settings.Priority;
-                if (sp <= corePrio) continue;
+                // 平级（sp == corePrio）也接受——料斗等平级储存区优先于核心，与原版行为一致
+                if (sp < corePrio) continue;
                 if (!group.Settings.AllowedToAccept(item)) continue;
 
                 foreach (var cell in group.CellsList)
