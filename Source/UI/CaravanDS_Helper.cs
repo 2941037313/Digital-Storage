@@ -205,11 +205,25 @@ namespace DigitalStorage.UI
                 {
                     if (selected < thing.stackCount)
                     {
-                        // 部分选择：SplitOff 选中部分，剩余归还账本
-                        int remain = thing.stackCount - selected;
-                        thing.stackCount = remain;
-                        LedgerItemCollector.Refund(entry.slips, remain);
-                        thing.stackCount = selected;
+                        if (!spawnOnMap)
+                        {
+                            // 8.1 bugfix(Reform 部分选择丢物品):TryReformCaravan 是原版
+                            // 同步装载——Postfix 运行时选中量已被
+                            // AddItemsFromTransferablesToRandomInventories 从 thing
+                            // SplitOff 走,thing.stackCount 已是纯剩余(未选中),
+                            // 直接按剩余退账并销毁(旧实现按「thing 还完整」假设退款错、
+                            // 残留幻影物品丢失)。
+                            LedgerItemCollector.Refund(entry.slips, thing.stackCount);
+                            thing.Destroy(DestroyMode.Vanish);
+                        }
+                        else
+                        {
+                            // 部分选择：SplitOff 选中部分，剩余归还账本
+                            int remain = thing.stackCount - selected;
+                            thing.stackCount = remain;
+                            LedgerItemCollector.Refund(entry.slips, remain);
+                            thing.stackCount = selected;
+                        }
                     }
                     if (spawnOnMap && !thing.Spawned)
                         GenPlace.TryPlaceThing(thing, avgPos, map, ThingPlaceMode.Near, null, null, default);

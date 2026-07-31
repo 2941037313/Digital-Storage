@@ -21,11 +21,13 @@ namespace DigitalStorage.UI
             public Thing thing; // 合并后的存活 Thing（成交后剩余量读取用）
             public List<WithdrawSlip> slips = new List<WithdrawSlip>(); // 各源账本提款凭证
             public bool isNew; // 新建的 Tradeable 还是合并进已有
+            public int sold; // 8.1: 成交前(Prefix)记录的实际卖出量——不能从 Thing 状态反推
         }
 
         internal class DialogState
         {
             public List<TradeableEntry> entries = new List<TradeableEntry>();
+            public List<Tradeable> dealList; // 注入目标列表——回滚时清理残留条目(8.1)
             public bool injected;
             public bool dealExecuted;
             public bool beingReplaced; // DTI TryRemove → 跳过 PostClose 回滚+清理
@@ -57,6 +59,7 @@ namespace DigitalStorage.UI
             if (dealList == null) return;
 
 var state = GetState(dialog);
+            state.dealList = dealList;
 
             if (!state.injected)
                 Log.Warning($"[DS-DTI] InjectCoreTradeables FIRST call: dealList={dealList.Count}");
@@ -119,14 +122,11 @@ var state = GetState(dialog);
 
         private static void RemoveCoreTradeables(DialogState state, List<Tradeable> dealList)
         {
-            // 归还旧注入的物品
+            // 8.1 bugfix:删除 dealList 残留条目的动作已并入 RollbackInternal——
+            // 旧实现先 RollbackInternal(清空 state.entries)再遍历 state.entries 删除,
+            // 循环永远空转 → 旧条目残留,Re-inject 累积「0 数量同名物品」,
+            // 反复注入还导致账本反复扣/还(核心物品清零,社区反馈的远古 bug)。
             RollbackInternal(state);
-
-            // 从 deal.AllTradeables 中删除旧的注入条目
-            for (int i = dealList.Count - 1; i >= 0; i--)
-                foreach (var e in state.entries)
-                    if (e.isNew && e.tradeable == dealList[i])
-                        dealList.RemoveAt(i);
         }
 
         // ---------- rollback ----------
@@ -147,6 +147,23 @@ var state = GetState(dialog);
                 {
                     if (entry.thing.Spawned) entry.thing.DeSpawn(DestroyMode.Vanish);
                     entry.thing.Destroy(DestroyMode.Vanish);
+                }
+            }
+            // 8.1: 同步从注入目标列表删除残留条目(必须在 Clear entries 之前,
+            // 且任何回滚路径都走这里——关窗/换窗/Re-inject 不留 0 数量幽灵条目)
+            if (state.dealList != null && state.entries.Count > 0)
+            {
+                for (int i = state.dealList.Count - 1; i >= 0; i--)
+                {
+                    for (int j = 0; j < state.entries.Count; j++)
+                    {
+                        var e = state.entries[j];
+                        if (e.isNew && e.tradeable == state.dealList[i])
+                        {
+                            state.dealList.RemoveAt(i);
+                            break;
+                        }
+                    }
                 }
             }
             state.entries.Clear();
@@ -190,6 +207,25 @@ var state = GetState(dialog);
                     kv.Value.dealExecuted = true;
                     return;
                 }
+            }
+        }
+
+        /// <summary>
+        /// 8.1 bugfix:成交前(Prefix)记录每条目实际卖出量。
+        /// 原版 SplitOff 在 count >= stackCount 时返回 this 本身——整堆卖出后 Thing
+        /// 不销毁、stackCount 不变,清理阶段的退账量不能从 Thing 状态反推,必须以这里
+        /// 记录的 sold 为准。也必须在 Prefix 记:成功路径末尾 deal.Reset() 会清零
+        /// CountToTransfer。
+        /// </summary>
+        public static void RecordSoldForAnyActiveDialog()
+        {
+            foreach (var kv in states)
+            {
+                if (!kv.Value.injected || kv.Value.entries.Count == 0) continue;
+                foreach (var e in kv.Value.entries)
+                    if (e.tradeable != null)
+                        e.sold = e.tradeable.CountToTransferToDestination;
+                return;
             }
         }
 
@@ -254,10 +290,16 @@ var state = GetState(dialog);
         {
             foreach (var entry in state.entries)
             {
-                // 成交后 thing.stackCount = 未卖出剩余；剩余按 slips 摊还归还各源账本。
-                // thing 被销毁 = 全部卖出 → 不归还（账本已扣）。
-                if (entry.thing != null && !entry.thing.Destroyed)
-                    LedgerItemCollector.Refund(entry.slips, entry.thing.stackCount);
+                // 8.1 bugfix(社区反馈:卖东西不扣账,无本买卖):原版 SplitOff 在
+                // count >= stackCount 时返回 this 本身(不销毁、stackCount 不变),
+                // 整堆卖出后 thing 依然存活且数量不变——旧实现按 thing.stackCount
+                // 全额退账 = 钱货双得。退账量 = 提款总量 - 实际卖出量(sold)。
+                long withdrawn = 0;
+                foreach (var slip in entry.slips) withdrawn += slip.count;
+                long remain = withdrawn - entry.sold;
+                if (remain > 0)
+                    LedgerItemCollector.Refund(entry.slips,
+                        (int)System.Math.Min(remain, (long)int.MaxValue));
                 if (entry.thing != null && !entry.thing.Destroyed)
                     entry.thing.Destroy(DestroyMode.Vanish);
             }

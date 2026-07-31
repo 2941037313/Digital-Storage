@@ -97,13 +97,17 @@ namespace DigitalStorage.HarmonyPatches
         [HarmonyPrefix]
         static void Prefix()
         {
-            TradeDS_Helper.MarkDealExecutedForAnyActiveDialog();
+            // 8.1 bugfix:Prefix 只记录实际卖出量(deal.Reset 前);「已执行」标记移到
+            // Postfix 成功路径——TryExecute 失败(银币不足等)不再标记,PostClose 仍会
+            // Rollback 归还账本(修:失败后关窗永久扣账丢物品)
+            TradeDS_Helper.RecordSoldForAnyActiveDialog();
         }
 
         [HarmonyPostfix]
         static void Postfix(bool __result)
         {
             if (!__result) return;
+            TradeDS_Helper.MarkDealExecutedForAnyActiveDialog();
             TradeDS_Helper.CleanupAfterDealForAnyActiveDialog();
         }
     }
