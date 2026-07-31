@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DigitalStorage.AI;
 using DigitalStorage.Components;
 using DigitalStorage.Core;
@@ -112,21 +113,27 @@ namespace DigitalStorage.Services
             StoragePriority corePrio = core.storagePriority;
             if (corePrio >= StoragePriority.Important) return false; // 核心已经足够高
 
+            // 快照 key 列表：Withdraw 会修改 stock 字典，迭代中 Remove 会抛异常（L6/I10.01.19）
+            routeKeyBuffer.Clear();
+            foreach (var k in core.Ledger.AllKeys()) routeKeyBuffer.Add(k);
+
             foreach (var group in allGroups)
             {
                 StoragePriority sp = group.Settings.Priority;
                 if (sp <= corePrio) break; // 排序降序，后面的都≤核心
 
-                foreach (var kv in core.Ledger.Stock)
+                for (int i = 0; i < routeKeyBuffer.Count; i++)
                 {
-                    if (kv.Value <= 0) continue;
+                    ItemKey key = routeKeyBuffer[i];
+                    long have = core.Ledger.StockOf(key);
+                    if (have <= 0) continue;
 
-                    ThingDef def = kv.Key.def;
+                    ThingDef def = key.def;
                     if (!group.Settings.AllowedToAccept(def)) continue;
                     if (!HasFreeCell(group, map)) continue;
 
-                    int amount = (int)Math.Min(kv.Value, 75L);
-                    Thing spawned = core.Ledger.Withdraw(kv.Key, amount);
+                    // 数量上限交给 Withdraw 内部按 stackLimit 截断（X5），不再硬编码 75
+                    Thing spawned = core.Ledger.Withdraw(key, int.MaxValue);
                     if (spawned == null) continue;
 
                     // Spawn 在核心交互格旁
@@ -135,11 +142,11 @@ namespace DigitalStorage.Services
                         !spawnPos.Walkable(map))
                         spawnPos = core.Position;
 
-                    // 用原版放置——自动堆叠合并 + 找就近空格
-                    GenPlace.TryPlaceThing(spawned, spawnPos, map,
-                        ThingPlaceMode.Near);
-                    CompAutoIngest.MarkWithdrawn(spawned);
+                    // 用原版放置——自动堆叠合并 + 找就近空格；失败退回账本（H5/I10.01.6）
+                    if (!PlaceOrRefund(spawned, spawnPos, map, core.Ledger, key))
+                        continue;
 
+                    CompAutoIngest.MarkWithdrawn(spawned);
                     return true; // 一次 tick 一种
                 }
             }
@@ -148,6 +155,22 @@ namespace DigitalStorage.Services
         }
 
         // ===== helpers =====
+
+        /// <summary>
+        /// 安全放置：失败时退回账本并销毁，绝不丢物品（H5/I10.01.6）。
+        /// 所有搬出/取料路径统一走这里。
+        /// </summary>
+        public static bool PlaceOrRefund(Thing t, IntVec3 pos, Map map,
+            CoreLedger ledger, ItemKey key)
+        {
+            if (GenPlace.TryPlaceThing(t, pos, map, ThingPlaceMode.Near)) return true;
+            ledger.AddRaw(key, t.stackCount);
+            if (!t.Destroyed) t.Destroy(DestroyMode.Vanish);
+            return false;
+        }
+
+        // 复用缓冲，避免每 60 tick 分配（比照 CompAutoIngest.candidateBuffer）
+        private static readonly List<ItemKey> routeKeyBuffer = new List<ItemKey>();
 
         private static bool HasFreeCell(SlotGroup group, Map map)
         {

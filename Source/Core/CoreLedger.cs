@@ -142,14 +142,20 @@ namespace DigitalStorage.Core
         /// 从账本扣除并生成 Thing（满耐久、满 HP）。
         /// 传 job 时排除该 job 自己的预订再算可用量——允许自己取自己预订的东西。
         /// 取多少就从该 job 的预订里扣多少（自动抹平），返回生成的 Thing，无货返回 null。
+        /// allowOverstack: 允许产出超过 def.stackLimit 的堆叠（仅交易/商队合并场景用，
+        /// 用一个 Thing 代表全部库存）；默认 false 保证产出堆叠合法（I10.01.6/X5）。
         /// </summary>
-        public Thing Withdraw(ItemKey key, int requestCount, Job forJob = null)
+        public Thing Withdraw(ItemKey key, int requestCount, Job forJob = null,
+            bool allowOverstack = false)
         {
             if (requestCount <= 0) return null;
             long available = AvailableExceptJob(key, forJob);
             if (available <= 0) return null;
 
             int take = requestCount > available ? (int)available : requestCount;
+            if (take <= 0) return null;
+            if (!allowOverstack)
+                take = System.Math.Min(take, key.def.stackLimit);
             if (take <= 0) return null;
 
             long cur = stock[key];

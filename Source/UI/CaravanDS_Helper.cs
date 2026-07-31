@@ -18,11 +18,21 @@ namespace DigitalStorage.UI
     {
         // ---------- per-dialog state ----------
 
+        /// <summary>
+        /// 单一条目：合并后的 Thing + 对应 Transferable + 各源账本提款凭证。
+        /// 修复 X1：旧实现用 things/sourceLedgers（按源 ledger 计）与 transferables（按合并 key 计）
+        /// 三个并行数组索引错位，导致退货退错核心、库存错乱。
+        /// </summary>
+        private class Entry
+        {
+            public Thing thing;
+            public TransferableOneWay tw;
+            public List<WithdrawSlip> slips = new List<WithdrawSlip>();
+        }
+
         private class DialogState
         {
-            public List<Thing> things = new List<Thing>();
-            public List<CoreLedger> sourceLedgers = new List<CoreLedger>();
-            public List<TransferableOneWay> transferables = new List<TransferableOneWay>();
+            public List<Entry> entries = new List<Entry>();
             public bool caravanSent;
             public bool injected;
         }
@@ -97,16 +107,19 @@ namespace DigitalStorage.UI
                 int available = (int)kv.Value.Avail;
                 if (available <= 0) continue;
 
+                var entry = new Entry();
                 var thing = LedgerItemCollector.WithdrawFromLedgers(
                     key, available, kv.Value.Ledgers,
-                    (t, l) => { state.things.Add(t); state.sourceLedgers.Add(l); },
+                    slip => { entry.slips.Add(slip); },
                     logSkipped: true);
                 if (thing == null) continue;
+                entry.thing = thing;
 
                 var tw = new TransferableOneWay();
                 tw.things.Add(thing);
+                entry.tw = tw;
                 coreTransferables.Add(tw);
-                state.transferables.Add(tw);
+                state.entries.Add(entry);
             }
 
             if (coreTransferables.Count == 0) return;
@@ -128,10 +141,17 @@ namespace DigitalStorage.UI
         private static void _Rollback(Dialog_FormCaravan dialog)
         {
             var state = GetState(dialog);
-            LedgerItemCollector.Rollback(state.things, state.sourceLedgers);
-            state.things.Clear();
-            state.sourceLedgers.Clear();
-            state.transferables.Clear();
+            foreach (var entry in state.entries)
+            {
+                // 纯账本归还（slip 不依赖 Thing 存活）
+                LedgerItemCollector.Rollback(entry.slips);
+                if (entry.thing != null && !entry.thing.Destroyed)
+                {
+                    if (entry.thing.Spawned) entry.thing.DeSpawn(DestroyMode.Vanish);
+                    entry.thing.Destroy(DestroyMode.Vanish);
+                }
+            }
+            state.entries.Clear();
             state.injected = false;
         }
 
@@ -152,7 +172,7 @@ namespace DigitalStorage.UI
         private static void _Finalize(Dialog_FormCaravan dialog, Map map, bool spawnOnMap)
         {
             var state = GetState(dialog);
-            if (state.things.Count == 0) return;
+            if (state.entries.Count == 0) return;
 
             IntVec3 avgPos = map.Center;
             if (spawnOnMap)
@@ -166,22 +186,20 @@ namespace DigitalStorage.UI
                 }
             }
 
-            for (int i = state.things.Count - 1; i >= 0; i--)
+            for (int i = state.entries.Count - 1; i >= 0; i--)
             {
-                var thing = state.things[i];
-                if (thing == null || thing.Destroyed) { RemoveAt(state, i); continue; }
+                var entry = state.entries[i];
+                var thing = entry.thing;
+                if (thing == null || thing.Destroyed) { state.entries.RemoveAt(i); continue; }
 
-                var tw = i < state.transferables.Count ? state.transferables[i] : null;
-                int selected = tw != null ? tw.CountToTransfer : 0;
+                int selected = entry.tw != null ? entry.tw.CountToTransfer : 0;
 
                 if (selected <= 0)
                 {
-                    // 未选择 → 归还账本
-                    var key = ItemKey.Of(thing);
-                    if (i < state.sourceLedgers.Count && state.sourceLedgers[i] != null)
-                        state.sourceLedgers[i].AddRaw(key, thing.stackCount);
+                    // 未选择 → 归还全部账本（按 slips 摊还到各源核心）
+                    LedgerItemCollector.Rollback(entry.slips);
                     thing.Destroy(DestroyMode.Vanish);
-                    RemoveAt(state, i);
+                    state.entries.RemoveAt(i);
                 }
                 else
                 {
@@ -190,9 +208,7 @@ namespace DigitalStorage.UI
                         // 部分选择：SplitOff 选中部分，剩余归还账本
                         int remain = thing.stackCount - selected;
                         thing.stackCount = remain;
-                        var key = ItemKey.Of(thing);
-                        if (i < state.sourceLedgers.Count && state.sourceLedgers[i] != null)
-                            state.sourceLedgers[i].AddRaw(key, remain);
+                        LedgerItemCollector.Refund(entry.slips, remain);
                         thing.stackCount = selected;
                     }
                     if (spawnOnMap && !thing.Spawned)
@@ -208,11 +224,11 @@ namespace DigitalStorage.UI
         public static void MergeToTransferables(Dialog_FormCaravan dialog)
         {
             var state = GetState(dialog);
-            if (!state.injected || state.transferables.Count == 0) return;
-            foreach (var tw in state.transferables)
+            if (!state.injected || state.entries.Count == 0) return;
+            foreach (var entry in state.entries)
             {
-                if (!dialog.transferables.Contains(tw))
-                    dialog.transferables.Add(tw);
+                if (entry.tw != null && !dialog.transferables.Contains(entry.tw))
+                    dialog.transferables.Add(entry.tw);
             }
         }
 
@@ -227,13 +243,6 @@ namespace DigitalStorage.UI
         }
 
         // ---------- helpers ----------
-
-        private static void RemoveAt(DialogState state, int i)
-        {
-            state.things.RemoveAt(i);
-            if (i < state.sourceLedgers.Count) state.sourceLedgers.RemoveAt(i);
-            if (i < state.transferables.Count) state.transferables.RemoveAt(i);
-        }
 
         private static TransferableOneWayWidget GetItemsTransfer(Dialog_FormCaravan dialog)
         {

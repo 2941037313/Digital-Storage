@@ -15,16 +15,11 @@ namespace DigitalStorage.UI
     /// </summary>
     public static class TradeDS_Helper
     {
-        internal struct WithdrawRecord
-        {
-            public Thing thing;
-            public CoreLedger sourceLedger;
-        }
-
         internal class TradeableEntry
         {
             public Tradeable tradeable;
-            public List<WithdrawRecord> records = new List<WithdrawRecord>();
+            public Thing thing; // 合并后的存活 Thing（成交后剩余量读取用）
+            public List<WithdrawSlip> slips = new List<WithdrawSlip>(); // 各源账本提款凭证
             public bool isNew; // 新建的 Tradeable 还是合并进已有
         }
 
@@ -92,9 +87,10 @@ var state = GetState(dialog);
 
                 var thing = LedgerItemCollector.WithdrawFromLedgers(
                     key, available, kv.Value.Ledgers,
-                    (t, l) => { entry.records.Add(new WithdrawRecord { thing = t, sourceLedger = l }); },
+                    slip => { entry.slips.Add(slip); },
                     logSkipped: false);
                 if (thing == null) continue;
+                entry.thing = thing;
 
                 var tr = new Tradeable();
                 tr.AddThing(thing, Transactor.Colony);
@@ -145,12 +141,12 @@ var state = GetState(dialog);
         {
             foreach (var entry in state.entries)
             {
-                foreach (var rec in entry.records)
+                // 纯账本归还（slip 不依赖 Thing 存活——修复多核心合并提款丢库存）
+                LedgerItemCollector.Rollback(entry.slips);
+                if (entry.thing != null && !entry.thing.Destroyed)
                 {
-                    if (rec.thing == null || rec.thing.Destroyed) continue;
-                    rec.sourceLedger?.AddRaw(ItemKey.Of(rec.thing), rec.thing.stackCount);
-                    if (rec.thing.Spawned) rec.thing.DeSpawn(DestroyMode.Vanish);
-                    rec.thing.Destroy(DestroyMode.Vanish);
+                    if (entry.thing.Spawned) entry.thing.DeSpawn(DestroyMode.Vanish);
+                    entry.thing.Destroy(DestroyMode.Vanish);
                 }
             }
             state.entries.Clear();
@@ -258,14 +254,12 @@ var state = GetState(dialog);
         {
             foreach (var entry in state.entries)
             {
-                foreach (var rec in entry.records)
-                {
-                    if (rec.thing == null) continue;
-                    if (rec.thing.stackCount > 0 && rec.sourceLedger != null)
-                        rec.sourceLedger.AddRaw(ItemKey.Of(rec.thing), rec.thing.stackCount);
-                    if (!rec.thing.Destroyed)
-                        rec.thing.Destroy(DestroyMode.Vanish);
-                }
+                // 成交后 thing.stackCount = 未卖出剩余；剩余按 slips 摊还归还各源账本。
+                // thing 被销毁 = 全部卖出 → 不归还（账本已扣）。
+                if (entry.thing != null && !entry.thing.Destroyed)
+                    LedgerItemCollector.Refund(entry.slips, entry.thing.stackCount);
+                if (entry.thing != null && !entry.thing.Destroyed)
+                    entry.thing.Destroy(DestroyMode.Vanish);
             }
             state.entries.Clear();
         }

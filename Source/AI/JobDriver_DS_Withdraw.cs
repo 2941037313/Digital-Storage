@@ -112,7 +112,20 @@ namespace DigitalStorage.AI
 
                 var spawned = core.Ledger.Withdraw(planKey, take, job);
                 if (spawned == null) { EndJobWith(JobCondition.Incompletable); return; }
-                actor.carryTracker.TryStartCarry(spawned, spawned.stackCount, false);
+                int taken = actor.carryTracker.TryStartCarry(spawned, spawned.stackCount, false);
+                // 失败/部分成功：剩余退回账本，避免扣账后悬空丢失
+                if (taken <= 0)
+                {
+                    core.Ledger.AddRaw(planKey, spawned.stackCount);
+                    if (!spawned.Destroyed) spawned.Destroy(DestroyMode.Vanish);
+                    EndJobWith(JobCondition.Incompletable);
+                    return;
+                }
+                if (taken < spawned.stackCount)
+                {
+                    core.Ledger.AddRaw(planKey, spawned.stackCount);
+                    if (!spawned.Destroyed) spawned.Destroy(DestroyMode.Vanish);
+                }
             };
             return toil;
         }

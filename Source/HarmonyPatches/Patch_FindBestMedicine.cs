@@ -72,13 +72,22 @@ namespace DigitalStorage.HarmonyPatches
             {
                 // 芯片 pawn：药直塞背包，跳过取药行走
                 if (!healer.inventory.innerContainer.TryAdd(thing, true))
+                {
+                    // 背包满 → 退回账本（修复 I10.01.8：扣账后早退丢药）
+                    bestCore.Ledger.AddRaw(bestKey.Value, thing.stackCount);
+                    if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
                     return;
+                }
             }
             else
             {
                 // 无芯片：药生成在脚下，就近捡起
                 if (!GenPlace.TryPlaceThing(thing, healer.Position, healer.Map, ThingPlaceMode.Near, null, null, default))
+                {
+                    bestCore.Ledger.AddRaw(bestKey.Value, thing.stackCount);
+                    if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
                     return;
+                }
                 CompAutoIngest.MarkWithdrawn(thing);
             }
 
