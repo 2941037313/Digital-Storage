@@ -46,7 +46,9 @@ namespace DigitalStorage.AI
                     {
                         if (ing.filter.Allows(keyDef))
                         {
-                            need = (int)System.Math.Ceiling(ing.GetBaseCount());
+                            // 8.1 bugfix:与原版 CountRequiredOfFor 一致——配方需求是「值」，
+                            // 按该 def 的每单位值换算成单位数（1 单位 ≠ 1 营养值）
+                            need = ing.CountRequiredOfFor(keyDef, bill.recipe, bill);
                             break;
                         }
                     }
