@@ -116,8 +116,19 @@ A RimWorld mod inspired by Applied Energistics 2 (Minecraft). Digitize your item
 
 ---
 
-## License
+## 许可协议 / License
 
-MIT License with attribution requirement. See [LICENSE](LICENSE) for details.
+**禁止商用 / Non-commercial only**
+
+- 允许自由使用、修改、分发（非商用）；制作衍生作品（非商用）；参考、借鉴代码（非商用）
+- 分发、修改、衍生、参考本模组的作品必须注明原作者与源仓库地址：
+  `https://github.com/CagierAsh123/Digital-Storage`（衍生作品同样适用）
+- 完整条款见 [LICENSE](LICENSE)
+
+本项目的部分代码由 AI 辅助开发（Claude, Gemini）。
+
+Free to use, modify and distribute (non-commercial). Any distribution, derivative
+or reference must credit the original author and link the source repository:
+`https://github.com/CagierAsh123/Digital-Storage`. See [LICENSE](LICENSE) for full terms.
 
 Portions of this project were developed with AI assistance (Claude, Gemini).
