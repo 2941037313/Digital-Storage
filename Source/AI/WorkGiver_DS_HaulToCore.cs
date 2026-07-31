@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using DigitalStorage.Components;
 using DigitalStorage.Core;
+using DigitalStorage.Services;
 using RimWorld;
 using Verse;
 using Verse.AI;
@@ -65,10 +66,8 @@ namespace DigitalStorage.AI
             // 跳过已在任何存储区（Stockpile/架/缓冲仓库）中的物品
             if (t.IsInAnyStorage()) return null;
 
-            // 如果物品已有合适的储存区目标，让原版搬运处理
-            if (StoreUtility.TryFindBestBetterStoreCellFor(t, pawn, t.Map,
-                StoreUtility.CurrentStoragePriorityOf(t), pawn.Faction, out _, true))
-                return null;
+            // L1: 刚搬出/取出的物品不立刻送回核心（保护窗口期内）
+            if (CompAutoIngest.IsRecentlyWithdrawn(t)) return null;
 
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
             CoreAccess? best = null;
@@ -76,8 +75,13 @@ namespace DigitalStorage.AI
 
             foreach (var access in CoreFinder.AllUsableAccesses(pawn))
             {
-                if (!access.ledgerCore.AllowsItem(t)) continue;
-                if (!access.ledgerCore.Ledger.CanAccept(t, access.ledgerCore.GetCapacity())) continue;
+                // H1: 统一判据（ItemRouter.ShouldCoreTakeItem）——
+                // 核心接受该物品 且 不存在「优先级 ≥ 核心」的储存区时才派送核心工单。
+                // 旧实现用 CurrentStoragePriorityOf(t)=Unstored 做让位基准，
+                // 任何储存区都让位 → 核心优先级对地面物品完全失效（I10.01.2）。
+                if (!ItemRouter.ShouldCoreTakeItem(t, t.Map, access.ledgerCore,
+                    access.ledgerCore.GetCapacity()))
+                    continue;
 
                 IntVec3 anchor = chip
                     ? pawn.Position

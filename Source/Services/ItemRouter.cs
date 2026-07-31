@@ -26,8 +26,10 @@ namespace DigitalStorage.Services
             Building_StorageCore core, int coreCapacity)
         {
             StoragePriority corePrio = core.storagePriority;
+            // L3: DeSpawn 后 Position 失效，先缓存
+            IntVec3 itemPos = item.Position;
 
-            // 找优先级高于核心的储存区
+            // 找优先级不低于核心的储存区
             var bestStorage = FindBestStorageFor(item, map, corePrio);
             if (bestStorage != null)
             {
@@ -36,14 +38,18 @@ namespace DigitalStorage.Services
                 if (!GenPlace.TryPlaceThing(item, bestStorage.Value, map,
                     ThingPlaceMode.Direct))
                 {
-                    // 兜底：格子满/无法合并 → 强行放入（被挤出也无妨，会被再次路由）
-                    GenSpawn.Spawn(item, bestStorage.Value, map);
+                    // L3: 放不进去 → 放回原位，下个周期重试；绝不 GenSpawn 强塞
+                    //（强塞会造成超出 MaxItemsInCell 的地图污染，且 IsInAnyStorage 挡住后续整理）
+                    if (!GenPlace.TryPlaceThing(item, itemPos, map, ThingPlaceMode.Near))
+                        return false; // 连原位都放不回 → 极端情况，交给调用方
+                    return false;
                 }
                 return true;
             }
 
-            // 没有储存区要 → 核心接管（如果核心优先级不是 Unstored 且有容量）
+            // 没有储存区要 → 核心接管（优先级 > Unstored + 过滤器放行(M4) + 有容量）
             if (corePrio > StoragePriority.Unstored &&
+                core.AllowsItem(item) &&
                 core.Ledger.CanAccept(item, coreCapacity))
             {
                 core.Ledger.Ingest(item, coreCapacity);
@@ -51,6 +57,25 @@ namespace DigitalStorage.Services
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 统一判据：这个物品是否该由核心接收（而不是留给原版搬运/更高优先级储存区）。
+        /// 语义：物品去「优先级 ≥ 核心」的储存区，否则核心吃掉。
+        /// 收敛点（H1/M4/M5/M3）：RouteGroundItem、HaulToCore、StorageToCore 共用，
+        /// 消除「物品该去哪」判据的四处不同实现。
+        /// </summary>
+        public static bool ShouldCoreTakeItem(Thing t, Map map,
+            Building_StorageCore core, int coreCapacity)
+        {
+            if (t == null || t.Destroyed) return false;
+            if (core == null || !core.Spawned || !core.Powered) return false;
+            if (!LedgerPolicy.CanIngest(t)) return false;
+            if (!core.AllowsItem(t)) return false;
+            if (!core.Ledger.CanAccept(t, coreCapacity)) return false;
+            // 存在优先级 ≥ 核心的储存区想要它 → 让原版 haul 处理
+            if (FindBestStorageFor(t, map, core.storagePriority) != null) return false;
+            return true;
         }
 
         /// <summary>
@@ -83,9 +108,14 @@ namespace DigitalStorage.Services
 
         /// <summary>
         /// 检查格子是否能接收该物品——可合并到已有堆 or 有空位开新堆。
+        /// L2: 目标格已被其他 pawn 的 haul 工单预留 → 不接受（避免放置冲突）。
         /// </summary>
         private static bool CanCellAcceptItem(IntVec3 cell, Map map, Thing item)
         {
+            // L2: 预留检查（原版 haul 工在途目标格不塞入）
+            if (map.reservationManager.IsReservedByAnyoneOf(cell, Faction.OfPlayer))
+                return false;
+
             var things = map.thingGrid.ThingsListAt(cell);
             foreach (var t in things)
             {
@@ -96,6 +126,17 @@ namespace DigitalStorage.Services
             foreach (var t in things)
                 if (t.def.category == ThingCategory.Item) itemCount++;
             return itemCount < cell.GetMaxItemsAllowedInCell(map); // 可开新堆
+        }
+
+        /// <summary>
+        /// 在 group 里找一个能接收该物品的格子（可合并已有堆或可开新堆，查预留）。
+        /// </summary>
+        private static IntVec3 FindCellInGroup(SlotGroup group, Map map, Thing t)
+        {
+            foreach (var cell in group.CellsList)
+                if (CanCellAcceptItem(cell, map, t))
+                    return cell;
+            return IntVec3.Invalid;
         }
 
         // ===== 函数1: 核心↔储存区优先级调度 (60tick 调用) =====
@@ -130,23 +171,39 @@ namespace DigitalStorage.Services
 
                     ThingDef def = key.def;
                     if (!group.Settings.AllowedToAccept(def)) continue;
-                    if (!HasFreeCell(group, map)) continue;
 
                     // 数量上限交给 Withdraw 内部按 stackLimit 截断（X5），不再硬编码 75
                     Thing spawned = core.Ledger.Withdraw(key, int.MaxValue);
                     if (spawned == null) continue;
 
-                    // Spawn 在核心交互格旁
-                    IntVec3 spawnPos = core.InteractionCell;
-                    if (!spawnPos.IsValid || !spawnPos.InBounds(map) ||
-                        !spawnPos.Walkable(map))
-                        spawnPos = core.Position;
-
-                    // 用原版放置——自动堆叠合并 + 找就近空格；失败退回账本（H5/I10.01.6）
-                    if (!PlaceOrRefund(spawned, spawnPos, map, core.Ledger, key))
+                    // H4: 用 Thing 重载判定（hitPoints/special filters）——失配退回账本，
+                    // 避免「搬出→原版 haul 拒收→滞留」的活锁
+                    if (!group.Settings.AllowedToAccept(spawned))
+                    {
+                        core.Ledger.AddRaw(key, spawned.stackCount);
+                        if (!spawned.Destroyed) spawned.Destroy(DestroyMode.Vanish);
                         continue;
+                    }
 
-                    CompAutoIngest.MarkWithdrawn(spawned);
+                    // H2: 直接放进目标 zone 的空闲格——一步到位进高优先级储存区，
+                    // StorageToCore/HaulToCore/自动收纳都因 IsInAnyStorage 或优先级跳过他，
+                    // 乒乓从结构上消失（不再依赖 recentlyWithdrawn 时间窗）
+                    IntVec3 target = FindCellInGroup(group, map, spawned);
+                    if (!target.IsValid)
+                    {
+                        core.Ledger.AddRaw(key, spawned.stackCount);
+                        if (!spawned.Destroyed) spawned.Destroy(DestroyMode.Vanish);
+                        continue;
+                    }
+
+                    if (!GenPlace.TryPlaceThing(spawned, target, map, ThingPlaceMode.Direct))
+                    {
+                        // 极端情况：放置仍失败 → 退回账本，绝不让物品凭空消失
+                        core.Ledger.AddRaw(key, spawned.stackCount);
+                        if (!spawned.Destroyed) spawned.Destroy(DestroyMode.Vanish);
+                        continue;
+                    }
+
                     return true; // 一次 tick 一种
                 }
             }
@@ -171,13 +228,5 @@ namespace DigitalStorage.Services
 
         // 复用缓冲，避免每 60 tick 分配（比照 CompAutoIngest.candidateBuffer）
         private static readonly List<ItemKey> routeKeyBuffer = new List<ItemKey>();
-
-        private static bool HasFreeCell(SlotGroup group, Map map)
-        {
-            foreach (var cell in group.CellsList)
-                if (cell.GetItemCount(map) < cell.GetMaxItemsAllowedInCell(map))
-                    return true;
-            return false;
-        }
     }
 }

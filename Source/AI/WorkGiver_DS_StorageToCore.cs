@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using DigitalStorage.Components;
 using DigitalStorage.Core;
+using DigitalStorage.Services;
 using RimWorld;
 using Verse;
 using Verse.AI;
@@ -84,6 +85,8 @@ namespace DigitalStorage.AI
             if (!LedgerPolicy.CanIngest(t)) return false;
             if (t.IsForbidden(pawn.Faction)) return false;
             if (pawn.Map.reservationManager.IsReserved(t)) return false;
+            // L1: 刚搬出/取出的物品（保护窗口期内）不吸回
+            if (CompAutoIngest.IsRecentlyWithdrawn(t)) return false;
 
             var sg = t.GetSlotGroup();
             if (sg == null) return false;
@@ -101,6 +104,15 @@ namespace DigitalStorage.AI
                 DigitalStorage_JobDefOf.DigitalStorage_IngestToCore, t);
             job.SetTarget(TargetIndex.C, core);
             job.count = t.stackCount;
+
+            // S1: 非芯片 pawn 必须设代理点 B——JobDriver 对 invalid B 走 GotoCell
+            // 会 PatherFailed,工单在拾取后必然失败（无限拾起掉落）。
+            if (!Hediff_TerminalImplant.HasTerminalImplant(pawn))
+            {
+                IntVec3 proxy = CoreFinder.PickProxyCell(pawn, core);
+                if (!proxy.IsValid) return null;
+                job.SetTarget(TargetIndex.B, proxy);
+            }
             return job;
         }
 
@@ -115,9 +127,13 @@ namespace DigitalStorage.AI
             foreach (var core in comp.GetAllCores())
             {
                 if (core == null || !core.Powered) continue;
+                // 核心优先级必须严格高于物品所在储存区
                 if (core.storagePriority <= itemPrio) continue;
-                if (!core.AllowsItem(t)) continue;
-                if (!core.Ledger.CanAccept(t, core.GetCapacity())) continue;
+                // M5: 统一判据——有「优先级 ≥ 核心」的 zone 想要它 → 让 HaulGeneral 搬，
+                // 物品不绕行核心一趟（I10.01.13）
+                if (!ItemRouter.ShouldCoreTakeItem(t, pawn.Map, core,
+                    core.GetCapacity()))
+                    continue;
                 if (!pawn.CanReach(t, PathEndMode.ClosestTouch, Danger.Deadly))
                     continue;
                 return core;

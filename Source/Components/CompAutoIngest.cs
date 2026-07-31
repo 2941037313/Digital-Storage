@@ -20,13 +20,57 @@ namespace DigitalStorage.Components
         private bool researchedCache;
         private int researchCheckTick = -1;
 
-        private static readonly HashSet<int> recentlyWithdrawn = new HashSet<int>();
+        /// <summary>
+        /// L1: 刚取出标记表——按 thingID 记过期 tick（固定 300 tick 完整窗口），
+        /// 不再每 120 tick 全清（旧实现窗口长度不确定，延迟拾取会被吞回）。
+        /// </summary>
+        private static readonly Dictionary<int, int> withdrawnUntil = new Dictionary<int, int>();
         private static Thing[] candidateBuffer = new Thing[30];
-        private static int lastClearTick = -1;
+        private static int lastSweepTick = -1;
 
         public static void MarkWithdrawn(Thing t)
         {
-            if (t != null) recentlyWithdrawn.Add(t.thingIDNumber);
+            if (t != null)
+                withdrawnUntil[t.thingIDNumber] = Find.TickManager.TicksGame + 300;
+        }
+
+        public static bool IsRecentlyWithdrawn(Thing t)
+        {
+            return t != null && withdrawnUntil.TryGetValue(t.thingIDNumber, out int until)
+                && Find.TickManager.TicksGame < until;
+        }
+
+        /// <summary>L1: 低频清扫过期项，防字典无界增长。</summary>
+        public static void SweepWithdrawn()
+        {
+            int tick = Find.TickManager.TicksGame;
+            if (tick - lastSweepTick < 2000) return;
+            lastSweepTick = tick;
+            var expired = new List<int>();
+            foreach (var kv in withdrawnUntil)
+                if (tick >= kv.Value) expired.Add(kv.Key);
+            for (int i = 0; i < expired.Count; i++)
+                withdrawnUntil.Remove(expired[i]);
+        }
+
+        /// <summary>
+        /// M3: 找接受该物品的「最高优先级」核心——路由决策基准。
+        /// 多核心并存时物品去向不再取决于谁先 tick（旧实现各核心用自己的优先级独立决策）。
+        /// </summary>
+        private static Building_StorageCore FindBestIngestCore(Map map, Thing t)
+        {
+            var comp = DigitalStorageMapComponent.For(map);
+            if (comp == null) return null;
+            Building_StorageCore best = null;
+            foreach (var core in comp.GetAllCores())
+            {
+                if (core == null || !core.Powered) continue;
+                if (!core.AllowsItem(t)) continue;
+                if (!core.Ledger.CanAccept(t, core.GetCapacity())) continue;
+                if (best == null || core.storagePriority > best.storagePriority)
+                    best = core;
+            }
+            return best;
         }
 
         public bool Enabled
@@ -73,19 +117,14 @@ namespace DigitalStorage.Components
             var map = core.Map;
             if (map == null) return;
 
-            if (tick - lastClearTick > 120)
-            {
-                recentlyWithdrawn.Clear();
-                lastClearTick = tick;
-            }
-
-            var ledger = core.Ledger;
-            int capacity = core.GetCapacity();
+            SweepWithdrawn(); // L1: 清扫过期标记
 
             int rate = ingestRateCache;
             int taken = 0;
 
-            // 收集候选项到静态小缓冲，避免 Ingest/Destroy 修改 haulables 列表导致迭代异常
+            // 收集候选项到静态小缓冲，避免 Ingest/Destroy 修改 haulables 列表导致迭代异常。
+            // M4: 候选收集不再按核心过滤器/容量过滤——被过滤的物品仍应路由到合格储存区，
+            // 「核心吃不吃」的判断下沉到 RouteGroundItem 吞入分支。
             var haulables = map.listerHaulables.ThingsPotentiallyNeedingHauling();
             int bufSize = rate * 3;
             if (candidateBuffer.Length < bufSize)
@@ -96,12 +135,10 @@ namespace DigitalStorage.Components
             {
                 if (bufCount >= bufSize) break;
                 if (!LedgerPolicy.CanIngest(t)) continue;
-                if (!core.AllowsItem(t)) continue;
                 if (t.IsForbidden(Faction.OfPlayer)) continue;
                 if (t.IsInAnyStorage()) continue;
                 if (map.reservationManager.IsReserved(t)) continue;
-                if (recentlyWithdrawn.Contains(t.thingIDNumber)) continue;
-                if (!ledger.CanAccept(t, capacity)) continue;
+                if (IsRecentlyWithdrawn(t)) continue;
                 candidateBuffer[bufCount++] = t;
             }
 
@@ -110,7 +147,10 @@ namespace DigitalStorage.Components
                 var t = candidateBuffer[i];
                 if (t.Destroyed) continue;
 
-                if (ItemRouter.RouteGroundItem(t, map, core, capacity))
+                // M3: 路由基准统一为「接受该物品的最高优先级核心」
+                var best = FindBestIngestCore(map, t);
+                if (best == null) continue;
+                if (ItemRouter.RouteGroundItem(t, map, best, best.GetCapacity()))
                     taken++;
             }
             // 清理引用防止 GC 泄漏

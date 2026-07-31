@@ -58,10 +58,15 @@ namespace DigitalStorage.AI
             // 2) 抬起
             yield return Toils_Haul.StartCarryThing(HaulableInd, false, false, false, true);
 
-            // 3) 走到代理点（芯片 pawn 跳过）
+            // 3) 走到代理点（芯片 pawn 跳过）。
+            // S1: B 无效（工单未设代理点时）→ 兜底直接走核心,避免 invalid 目标 PatherFailed
             if (!Hediff_TerminalImplant.HasTerminalImplant(pawn))
             {
-                yield return Toils_Goto.GotoCell(ProxyInd, PathEndMode.Touch);
+                var proxy = job.GetTarget(ProxyInd);
+                if (proxy.IsValid && proxy.Cell.IsValid)
+                    yield return Toils_Goto.GotoCell(ProxyInd, PathEndMode.Touch);
+                else
+                    yield return Toils_Goto.GotoThing(CoreInd, PathEndMode.Touch);
             }
 
             // 4) 把手上物品塞进账本
