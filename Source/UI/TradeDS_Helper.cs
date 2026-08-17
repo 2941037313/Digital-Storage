@@ -98,6 +98,8 @@ var state = GetState(dialog);
                 var tr = new Tradeable();
                 tr.AddThing(thing, Transactor.Colony);
                 dealList.Add(tr);
+                entry.tradeable = tr;
+                entry.isNew = true;
 
                 // 白银等货币：合并到已有 CurrencyTradeable
                 if (tr.IsCurrency)
@@ -108,11 +110,13 @@ var state = GetState(dialog);
                         existingCurrency.AddThing(thing, Transactor.Colony);
                         dealList.Remove(tr);
                         tr = existingCurrency;
+                        entry.tradeable = tr;
+                        // 合并进已有货币行：这不是 DS 新建的列表条目，
+                        // 回滚时不能把共享货币行（含商人白银）从 dealList 删除。
+                        entry.isNew = false;
                     }
                 }
 
-                entry.tradeable = tr;
-                entry.isNew = true;
                 state.entries.Add(entry);
             }
 
@@ -143,6 +147,9 @@ var state = GetState(dialog);
             {
                 // 纯账本归还（slip 不依赖 Thing 存活——修复多核心合并提款丢库存）
                 LedgerItemCollector.Rollback(entry.slips);
+                // 合并进已有 Tradeable（如共享货币行）时，先把它从该 Tradeable 的
+                // thing 列表摘除再销毁，避免共享行残留 Destroyed 引用导致计数错误。
+                DetachThingFromTradeable(entry);
                 if (entry.thing != null && !entry.thing.Destroyed)
                 {
                     if (entry.thing.Spawned) entry.thing.DeSpawn(DestroyMode.Vanish);
@@ -168,6 +175,13 @@ var state = GetState(dialog);
             }
             state.entries.Clear();
             state.injected = false;
+        }
+
+        private static void DetachThingFromTradeable(TradeableEntry entry)
+        {
+            if (entry.tradeable == null || entry.thing == null) return;
+            entry.tradeable.thingsColony.Remove(entry.thing);
+            entry.tradeable.thingsTrader.Remove(entry.thing);
         }
 
         public static void MarkDealExecuted(Dialog_Trade dialog)
@@ -300,6 +314,7 @@ var state = GetState(dialog);
                 if (remain > 0)
                     LedgerItemCollector.Refund(entry.slips,
                         (int)System.Math.Min(remain, (long)int.MaxValue));
+                DetachThingFromTradeable(entry);
                 if (entry.thing != null && !entry.thing.Destroyed)
                     entry.thing.Destroy(DestroyMode.Vanish);
             }

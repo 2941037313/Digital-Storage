@@ -197,6 +197,10 @@ namespace DigitalStorage.AI
     {
         public static (ItemKey key, int count)? TryPlan(IConstructible c, Building_StorageCore core)
         {
+            // 安装蓝图（搬移已建成建筑/家具）没有材料账单，原版 TotalMaterialCost()
+            // 会主动 Log.Error。必须跳过，交给原版安装流程处理。
+            if (c is Blueprint_Install) return null;
+
             var materials = c.TotalMaterialCost();
             if (materials == null || materials.Count == 0) return null;
             var ledger = core.Ledger;
