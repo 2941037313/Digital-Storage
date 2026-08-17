@@ -140,13 +140,15 @@ namespace DigitalStorage.UI
 
         private static string PriorityLabel(StoragePriority p)
         {
+            // 键名必须与 vanilla Enums.xml 一致(StoragePriorityXxx,见 StoragePriorityHelper),
+            // 错误键名(PriorityXxx)会被 Translate() 当缺失键 → 显示乱码(泰南语)
             switch (p)
             {
-                case StoragePriority.Low: return "PriorityLow".Translate();
-                case StoragePriority.Normal: return "PriorityNormal".Translate();
-                case StoragePriority.Preferred: return "PriorityPreferred".Translate();
-                case StoragePriority.Important: return "PriorityImportant".Translate();
-                case StoragePriority.Critical: return "PriorityCritical".Translate();
+                case StoragePriority.Low: return "StoragePriorityLow".Translate();
+                case StoragePriority.Normal: return "StoragePriorityNormal".Translate();
+                case StoragePriority.Preferred: return "StoragePriorityPreferred".Translate();
+                case StoragePriority.Important: return "StoragePriorityImportant".Translate();
+                case StoragePriority.Critical: return "StoragePriorityCritical".Translate();
                 default: return p.ToString();
             }
         }

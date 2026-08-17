@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DigitalStorage.Components;
 using DigitalStorage.Core;
@@ -73,7 +74,19 @@ namespace DigitalStorage.AI
             // 启动时基于当前账本+bill重算 plan（WorkGiver 到 StartJob 之间可能隔帧）
             if (planKeys.Count == 0 && TargetCore != null && job.bill != null)
             {
-                var plan = LedgerBillPlanner.TryPlan(job.bill, TargetCore);
+                List<(ItemKey key, int count)> plan;
+                try
+                {
+                    plan = LedgerBillPlanner.TryPlan(job.bill, TargetCore);
+                }
+                catch (Exception e)
+                {
+                    // 防御:未知配方类型 → 放弃本 job,原版 DoBill 接力
+                    if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                        Log.Warning($"[DS-Withdraw] Notify_Starting TryPlan 异常 bill={job.bill.Label}: {e.Message}");
+                    EndJobWith(JobCondition.Incompletable);
+                    return;
+                }
                 if (plan == null)
                 {
                     // 启动瞬间被别人抢了材料 → 放弃，让原版 DoBill 接力
@@ -165,6 +178,29 @@ namespace DigitalStorage.AI
                             return;
                         }
                         int taken = spawned.stackCount;
+
+                        // 培育器/自主工作台（机械培育器等 Building_WorkTableAutonomous）：
+                        // 原料必须进 innerContainer——原版 CollectIngredientsToils 的
+                        // placeInBillGiver=true 走 DepositHauledThingInContainer，
+                        // 培育完成时 ClearAndDestroyContents 才消耗容器里的原料。
+                        // 放地上会让原料永不消耗（凭空多料）且培育器 UI 显示 0/50。
+                        var autoTable = workTable as Building_WorkTableAutonomous;
+                        if (autoTable != null)
+                        {
+                            if (!autoTable.innerContainer.TryAdd(spawned, true))
+                            {
+                                // 容器异常（不可加）→ 退回账本，放弃 job
+                                ledger.AddRaw(key, taken);
+                                EndJobWith(JobCondition.Incompletable);
+                                return;
+                            }
+                            (billGiver as INotifyHauledTo)?.Notify_HauledTo(actor, spawned, taken);
+                            HaulAIUtility.UpdateJobWithPlacedThings(job, spawned, taken);
+                            if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                                Log.Message($"[DS-Withdraw] {actor.LabelShort} deposited {key} x{taken} into autonomous billgiver {workTable.LabelShort}");
+                            need -= taken;
+                            continue;
+                        }
 
                         IntVec3 placeCell = PickPlaceCell(billGiver, actor.Map, spawned);
                         bool placed;

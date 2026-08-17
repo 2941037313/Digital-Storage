@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
   <!-- 阶段 4.1：搬运 → 核心（优先级高于 HaulGeneral=15） -->

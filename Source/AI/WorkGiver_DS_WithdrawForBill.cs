@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using DigitalStorage.Components;
+using DigitalStorage.Core;
 using RimWorld;
 using Verse;
 using Verse.AI;
@@ -98,13 +100,36 @@ namespace DigitalStorage.AI
                 if (!bill.PawnAllowedToStartAnew(pawn)) continue;
                 if (bill.recipe.FirstSkillRequirementPawnDoesntSatisfy(pawn) != null) continue;
 
+                // 培育器/自主工作台（机械培育器）：Gathering 之外由原版 WorkOnFormedBill
+                // 接管（Preparing 继续周期 / Formed 取成品）。这里派取料 job 会重复从
+                // 账本扣料——原料已进 innerContainer 或机械体已成型。
+                if (bill is Bill_Autonomous billAuto && billAuto.State != FormingState.Gathering)
+                    continue;
+                // 机械培育器毒废料包满：对齐原版 WorkGiver_DoBill.StartOrResumeBillJob
+                // 的 WasteContainerFull 拦截，避免废料溢出时仍启动培育。
+                if (bill is Bill_Mech billMech && billMech.Gestator.WasteProducer.Waste != null
+                    && billMech.Gestator.GestatingMech == null)
+                    continue;
+
                 // 有未完成物品 → 让原版 DoBill 处理续工，不从核心取新材料
                 if (bill is Bill_ProductionWithUft uftBill && uftBill.BoundUft != null)
                     continue;
 
                 foreach (var access in accesses)
                 {
-                    var plan = LedgerBillPlanner.TryPlan(bill, access.ledgerCore);
+                    // 防御:未知配方类型/账本结构异常 → 跳过该核心交回原版 DoBill,
+                    // 不让右键菜单(GetWorkGiverOption)因本 WorkGiver 抛异常消失
+                    List<(ItemKey key, int count)> plan;
+                    try
+                    {
+                        plan = LedgerBillPlanner.TryPlan(bill, access.ledgerCore);
+                    }
+                    catch (Exception e)
+                    {
+                        if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                            Log.Warning($"[DS-Job] TryPlan 异常 bill={bill.Label} core={access.ledgerCore}: {e.Message}");
+                        continue;
+                    }
                     if (plan == null) continue;
 
                     if (chip)

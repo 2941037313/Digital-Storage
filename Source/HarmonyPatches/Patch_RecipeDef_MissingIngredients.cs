@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DigitalStorage.AI;
@@ -16,7 +17,22 @@ namespace DigitalStorage.HarmonyPatches
         {
             if (map == null || __instance?.ingredients == null || __instance.ingredients.Count == 0) return;
 
-            var resultList = __result.ToList();
+            List<ThingDef> resultList;
+            try
+            {
+                // 原方法遍历 map.listerThings(ThingsInGroup HaulableEver)。防御:
+                // 若其他 mod 把未 Spawn 物品挂进该索引(与本 mod GhostThing 同类的
+                // hack),原迭代器可能抛异常——异常会让健康卡手术列表整体消失
+                // (社区反馈:医药/植入体"不识别")。异常时按"不缺"处理,保底不崩。
+                resultList = __result.ToList();
+            }
+            catch (Exception e)
+            {
+                if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                    Log.Warning($"[DS] PotentiallyMissingIngredients 迭代异常,按不缺料处理: {e.Message}");
+                __result = new List<ThingDef>();
+                return;
+            }
             if (resultList.Count == 0) return;
 
             var availableDefs = new HashSet<ThingDef>();
