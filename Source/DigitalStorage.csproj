@@ -111,6 +111,7 @@
     <Compile Include="HarmonyPatches\Patch_ConsumeFromLedger.cs" />
     <Compile Include="HarmonyPatches\Patch_ResourceCounter.cs" />
     <Compile Include="HarmonyPatches\Patch_DesignatorBuild_ProcessInput.cs" />
+    <Compile Include="HarmonyPatches\Patch_ResourceDeliverJobFor.cs" />
     <Compile Include="HarmonyPatches\Patch_DialogFormCaravan.cs" />
     <Compile Include="HarmonyPatches\Patch_RecipeDef_MissingIngredients.cs" />
     <Compile Include="HarmonyPatches\Patch_FindBestMedicine.cs" />

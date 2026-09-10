@@ -11,8 +11,8 @@ namespace DigitalStorage.AI
     /// priorityInType=200（高于 DeliverResourcesToFrames=10 和 ToBlueprints=9）。
     /// 账本凑不齐 → 返 null，原版 ConstructDeliverResources 接力。
     ///
-    /// WorkGiver 只负责"能派工吗？能就填 targetA/B/C"。
-    /// 具体取哪种材料、取多少，由 JobDriver.Notify_Starting 基于启动时账本状态重算。
+    /// 材料判定统一委托给 DSConstructionDelivery（与 ResourceDeliverJobFor 的 Postfix 共享）：
+    /// 安装蓝图、forced 语义、第三方 IConstructible 的异常防护都在那里处理。
     /// </summary>
     public class WorkGiver_DS_WithdrawForConstruct : WorkGiver_Scanner
     {
@@ -42,46 +42,103 @@ namespace DigitalStorage.AI
             var constructible = t as IConstructible;
             if (constructible == null) return false;
             if (!(t is Frame) && !(t is Blueprint)) return false;
+            if (t is Blueprint_Install) return false; // 安装蓝图由原版安装流程处理
             if (!pawn.CanReserve(t, 1, -1, null, forced)) return false;
             if (!GenConstruct.CanConstruct(t, pawn, def.workType, forced, DigitalStorage_JobDefOf.DigitalStorage_WithdrawToConstruction))
                 return false;
 
-            return FindBestAccess(pawn, constructible) != null;
+            return DSConstructionDelivery.CanMakeJob(pawn, constructible, forced);
         }
 
         public override Job JobOnThing(Pawn pawn, Thing t, bool forced = false)
         {
             var constructible = t as IConstructible;
             if (constructible == null) return null;
-
-            var best = FindBestAccess(pawn, constructible);
-            if (best == null) return null;
-
-            var job = JobMaker.MakeJob(DigitalStorage_JobDefOf.DigitalStorage_WithdrawToConstruction, t);
-            job.SetTarget(TargetIndex.C, best.Value.ledgerCore);
-
-            if (!Hediff_TerminalImplant.HasTerminalImplant(pawn))
-            {
-                IntVec3 proxy = CoreFinder.PickProxyCell(pawn, best.Value.proxyCore);
-                if (!proxy.IsValid) return null;
-                job.SetTarget(TargetIndex.B, proxy);
-            }
+            if (!DSConstructionDelivery.TryMakeJob(pawn, constructible, forced, out var job)) return null;
             return job;
         }
+    }
 
-        // ---------- helpers ----------
-
-        private CoreAccess? FindBestAccess(Pawn pawn, IConstructible c)
+    /// <summary>
+    /// 建造取料 job 的统一构造入口。
+    /// - WorkGiver_DS_WithdrawForConstruct（Hauling priorityInType=200，账本优先的现有路径）
+    /// - Patch_ResourceDeliverJobFor（原版 ResourceDeliverJobFor 的 fallback 路径：Achtung 强制、
+    ///   Construction work、第三方 WorkGiver 子类等）
+    /// 共用同一套 install / forced / 异常防护逻辑，避免再出现"复刻原版材料判定漏分支"的 bug。
+    /// </summary>
+    public static class DSConstructionDelivery
+    {
+        /// <summary>
+        /// 轻量检查：当前 pawn 能否为 c 生成一个账本取料 job（不构建 Job 对象）。
+        /// </summary>
+        public static bool CanMakeJob(Pawn pawn, IConstructible c, bool forced)
         {
+            return FindAccess(pawn, c, forced) != null;
+        }
+
+        /// <summary>
+        /// 构造 DigitalStorage_WithdrawToConstruction：
+        /// targetA = 蓝图 / Frame，targetC = 账本核心，targetB = 代理点（无终端植入体时）。
+        /// 返回 false 时交回原版流程。
+        /// </summary>
+        public static bool TryMakeJob(Pawn pawn, IConstructible c, bool forced, out Job job)
+        {
+            job = null;
+            var accessOpt = FindAccess(pawn, c, forced);
+            if (accessOpt == null) return false;
+
+            var target = c as Thing;
+            if (target == null) return false;
+
+            var access = accessOpt.Value;
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
-            foreach (var access in CoreFinder.AllUsableAccesses(pawn))
+            IntVec3 proxy = IntVec3.Invalid;
+            if (!chip)
             {
-                var plan = ConstructLedgerPlanner.TryPlan(c, access.ledgerCore);
-                if (plan == null) continue;
-                if (chip) return access;
-                if (CoreFinder.PickProxyCell(pawn, access.proxyCore).IsValid) return access;
+                if (access.proxyCore == null) return false;
+                proxy = CoreFinder.PickProxyCell(pawn, access.proxyCore);
+                if (!proxy.IsValid) return false;
+            }
+
+            job = JobMaker.MakeJob(DigitalStorage_JobDefOf.DigitalStorage_WithdrawToConstruction, target);
+            job.SetTarget(TargetIndex.C, access.ledgerCore);
+            if (!chip) job.SetTarget(TargetIndex.B, proxy);
+            return true;
+        }
+
+        private static CoreAccess? FindAccess(Pawn pawn, IConstructible c, bool forced)
+        {
+            if (!IsValidTarget(pawn, c)) return null;
+            if (!CoreFinder.AnyUsableAccess(pawn)) return null;
+
+            bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
+            var accesses = CoreFinder.AllUsableAccesses(pawn);
+            for (int i = 0; i < accesses.Count; i++)
+            {
+                var access = accesses[i];
+                if (access.ledgerCore == null) continue;
+                if (ConstructLedgerPlanner.TryPlan(c, pawn, forced, access.ledgerCore) == null) continue;
+                if (!chip)
+                {
+                    if (access.proxyCore == null) continue;
+                    if (!CoreFinder.PickProxyCell(pawn, access.proxyCore).IsValid) continue;
+                }
+                return access;
             }
             return null;
+        }
+
+        private static bool IsValidTarget(Pawn pawn, IConstructible c)
+        {
+            if (pawn == null || pawn.Map == null || !pawn.Spawned) return false;
+            if (c == null) return false;
+            if (c is Blueprint_Install) return false; // 安装蓝图没有材料账单，原版 TotalMaterialCost() 会 Log.Error
+
+            var t = c as Thing;
+            if (t == null || t.Destroyed || !t.Spawned) return false;
+            if (t.Map != pawn.Map) return false; // 只管当前地图：跨图/载具框架路径交回原版
+            if (t.Faction != pawn.Faction) return false;
+            return true;
         }
     }
 }

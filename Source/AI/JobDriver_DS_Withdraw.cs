@@ -50,7 +50,7 @@ namespace DigitalStorage.AI
                 var constructible = job.GetTarget(TargetIndex.A).Thing as IConstructible;
                 if (constructible != null)
                 {
-                    var plan = ConstructLedgerPlanner.TryPlan(constructible, TargetCore);
+                    var plan = ConstructLedgerPlanner.TryPlan(constructible, pawn, job.playerForced, TargetCore);
                     if (plan != null)
                     {
                         planKey = plan.Value.key;
@@ -195,23 +195,47 @@ namespace DigitalStorage.AI
     /// </summary>
     public static class ConstructLedgerPlanner
     {
-        public static (ItemKey key, int count)? TryPlan(IConstructible c, Building_StorageCore core)
+        public static (ItemKey key, int count)? TryPlan(IConstructible c, Pawn pawn, bool forced, Building_StorageCore core)
         {
             // 安装蓝图（搬移已建成建筑/家具）没有材料账单，原版 TotalMaterialCost()
             // 会主动 Log.Error。必须跳过，交给原版安装流程处理。
             if (c is Blueprint_Install) return null;
+            if (core == null || core.Ledger == null) return null;
 
-            var materials = c.TotalMaterialCost();
+            List<ThingDefCountClass> materials;
+            try
+            {
+                materials = c.TotalMaterialCost();
+            }
+            catch (Exception ex)
+            {
+                // 第三方 IConstructible 的 TotalMaterialCost 可能抛异常；
+                // 原版路径由原版兜底，这里只跳过该核心，避免整个 WorkGiver 扫描崩掉。
+                Log.WarningOnce($"[DigitalStorage] TotalMaterialCost failed for {c.GetType().Name}: {ex.Message}", c.GetType().Name.GetHashCode());
+                return null;
+            }
             if (materials == null || materials.Count == 0) return null;
             var ledger = core.Ledger;
 
             for (int mi = 0; mi < materials.Count; mi++)
             {
                 var need = materials[mi];
-                if (need.count <= 0) continue;
-                int remaining = c.ThingCountNeeded(need.thingDef);
-                if (c is IHaulEnroute enroute)
-                    remaining = enroute.GetSpaceRemainingWithEnroute(need.thingDef, null);
+                if (need == null || need.thingDef == null || need.count <= 0) continue;
+
+                // 数量语义对齐原版 WorkGiver_ConstructDeliverResources.ResourceDeliverJobFor:
+                // forced → ThingCountNeeded；否则 IHaulEnroute 扣掉已送达 + enroute（排除当前 pawn）。
+                int remaining;
+                if (forced)
+                {
+                    remaining = c.ThingCountNeeded(need.thingDef);
+                }
+                else
+                {
+                    var enroute = c as IHaulEnroute;
+                    remaining = enroute != null
+                        ? enroute.GetSpaceRemainingWithEnroute(need.thingDef, pawn)
+                        : c.ThingCountNeeded(need.thingDef);
+                }
                 if (remaining <= 0) continue;
 
                 foreach (var kv in ledger.Stock)
