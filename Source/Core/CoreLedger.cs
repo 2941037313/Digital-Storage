@@ -49,6 +49,8 @@ namespace DigitalStorage.Core
         private Dictionary<ItemKey, long> stock = new Dictionary<ItemKey, long>();
         private readonly Dictionary<Job, List<ReservationEntry>> reservedByJob = new Dictionary<Job, List<ReservationEntry>>();
         private readonly Dictionary<ItemKey, long> reservedTotals = new Dictionary<ItemKey, long>();
+        // P6: stock 中「值 > 0」的 key 数量（UsedCapacity 的 O(1) 来源，由 SetStock 维护）
+        private int nonzero;
 
         // 派生值缓存
         private bool groupTotalsDirty = true;
@@ -86,16 +88,10 @@ namespace DigitalStorage.Core
 
         /// <summary>
         /// 已用容量 = 库存非零的 key 数量。
+        /// P6: O(1)（由 SetStock 维护的 running total），不再全表扫 stock——
+        /// CanAccept 在自动收纳的 (物品 × 核心) 双层循环里被高频调用。
         /// </summary>
-        public int UsedCapacity()
-        {
-            int c = 0;
-            foreach (var v in stock.Values)
-            {
-                if (v > 0) c++;
-            }
-            return c;
-        }
+        public int UsedCapacity() => nonzero;
 
         // ========== 存入 ==========
 
@@ -125,12 +121,11 @@ namespace DigitalStorage.Core
             if (n <= 0) return false;
 
             if (!stock.TryGetValue(key, out long cur)) cur = 0;
-            stock[key] = cur + n;
+            SetStock(key, cur + n);
 
             if (t.Spawned) t.DeSpawn(DestroyMode.Vanish);
             t.Destroy(DestroyMode.Vanish);
 
-            groupTotalsDirty = true;
             NotifyStockChanged(key);
             return true;
         }
@@ -151,8 +146,7 @@ namespace DigitalStorage.Core
         {
             if (count <= 0) return;
             if (!stock.TryGetValue(key, out long cur)) cur = 0;
-            stock[key] = cur + count;
-            groupTotalsDirty = true;
+            SetStock(key, cur + count);
         }
 
         /// <summary>
@@ -171,11 +165,32 @@ namespace DigitalStorage.Core
         {
             if (count <= 0) return;
             if (!stock.TryGetValue(key, out long cur) || cur <= 0) return;
-            long after = cur - count;
-            if (after <= 0) stock.Remove(key);
-            else stock[key] = after;
-            groupTotalsDirty = true;
+            SetStock(key, cur - count);
         }
+
+        /// <summary>
+        /// P6: 唯一的 stock 写入点——顺带维护「非零 key 数」running total，
+        /// 让 UsedCapacity() 变成 O(1)（旧实现每次 CanAccept 都要全表扫一遍 stock）。
+        /// </summary>
+        private void SetStock(ItemKey key, long value)
+        {
+            bool had = stock.TryGetValue(key, out long cur) && cur > 0;
+            bool has = value > 0;
+            if (has) stock[key] = value;
+            else stock.Remove(key);
+
+            if (had != has) nonzero += has ? 1 : -1;
+            groupTotalsDirty = true;
+            stockVersion++;
+        }
+
+        /// <summary>
+        /// P8: 库存版本号（每次写入自增）。UI 用它判断是否需要重算派生布局值
+        /// （ITab 的列表高度），避免每帧 6 遍全表扫描。
+        /// </summary>
+        public int StockVersion => stockVersion;
+
+        private int stockVersion;
 
         // ========== 取出 ==========
 
@@ -200,9 +215,7 @@ namespace DigitalStorage.Core
             if (take <= 0) return null;
 
             long cur = stock[key];
-            long after = cur - take;
-            if (after <= 0) stock.Remove(key);
-            else stock[key] = after;
+            SetStock(key, cur - take);
 
             // 从预订里扣掉已取走的量
             if (forJob != null && reservedByJob.TryGetValue(forJob, out var list))
@@ -237,21 +250,26 @@ namespace DigitalStorage.Core
         }
 
         /// <summary>
-        /// 可用量 = 库存 - 除自己的预订。传 null 等于 Available()。
+        /// 可用量 = 库存 - 除自己的预订。
+        /// 传 null 等于 Available()（直接查 running total）。
+        /// P5: 旧实现每次 Withdraw 都全表扫 reservedByJob（交易/商队按 key 合并提款时
+        /// 放大成 O(key × 工单)）；现在用 reservedTotals，再只扣掉该 job 自己的那一份。
         /// </summary>
         private long AvailableExceptJob(ItemKey key, Job excludeJob)
         {
             if (!stock.TryGetValue(key, out long s)) s = 0;
-            long r = 0;
-            foreach (var kv in reservedByJob)
+            long r = ReservedTotal(key);
+
+            // reservedTotals 含该 job 自己的量；把自己那一份减掉（同 ReservedTotal 口径）
+            if (excludeJob != null && reservedByJob.TryGetValue(excludeJob, out var own))
             {
-                if (kv.Key == excludeJob) continue;
-                foreach (var e in kv.Value)
+                for (int i = 0; i < own.Count; i++)
                 {
-                    if (e.key.Equals(key)) r += e.count;
+                    if (own[i].key.Equals(key)) r -= own[i].count;
                 }
             }
-            long a = s - r;
+
+            long a = s - (r > 0 ? r : 0);
             return a > 0 ? a : 0;
         }
 
@@ -360,6 +378,10 @@ namespace DigitalStorage.Core
                 reservedByJob.Clear();
                 reservedTotals.Clear();
                 groupTotalsDirty = true;
+                // P6: 重建 nonzero（否则读档后 UsedCapacity=0，容量判定会误判）
+                nonzero = 0;
+                foreach (var v in stock.Values)
+                    if (v > 0) nonzero++;
             }
             }
             finally { suppressEvents = false; }

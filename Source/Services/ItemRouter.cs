@@ -90,7 +90,22 @@ namespace DigitalStorage.Services
             var allGroups = map.haulDestinationManager.AllGroupsListInPriorityOrder;
             if (allGroups.Count == 0) return null;
 
-            IntVec3 itemPos = item.Position;
+            // P1: 同一 tick 内重复查询直接命中缓存。
+            // 调用方在同一 tick 里会对同一个物品问两遍（ShouldCoreTakeItem 一次、
+            // RouteGroundItem 再一次），旧的「物品 × 组 × 格」三重线性扫描翻倍。
+            // 命中后用 CanCellAcceptItem 复验单格（O(1)），保证不会返回已被占用的格。
+            int tick = Find.TickManager.TicksGame;
+            if (tick != cacheTick)
+            {
+                cacheTick = tick;
+                cellCache.Clear();
+            }
+            var cacheKey = (map.uniqueID, item.thingIDNumber, (int)corePrio);
+            if (cellCache.TryGetValue(cacheKey, out var cached) && cached.IsValid)
+            {
+                if (CanCellAcceptItem(cached, map, item)) return cached;
+                cellCache.Remove(cacheKey);
+            }
 
             foreach (var group in allGroups)
             {
@@ -102,11 +117,20 @@ namespace DigitalStorage.Services
                 foreach (var cell in group.CellsList)
                 {
                     if (CanCellAcceptItem(cell, map, item))
+                    {
+                        cellCache[cacheKey] = cell;
                         return cell;
+                    }
                 }
             }
             return null;
         }
+
+        // P1: tick 级缓存（静态复用，避免每 tick 分配）
+        private static int cacheTick = -1;
+        private static readonly Dictionary<(int mapId, int thingId, int prio), IntVec3> cellCache
+            = new Dictionary<(int, int, int), IntVec3>();
+
 
         /// <summary>
         /// 检查格子是否能接收该物品——可合并到已有堆 or 有空位开新堆。

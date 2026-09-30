@@ -155,6 +155,14 @@ namespace DigitalStorage.UI
 
         private float CalcListHeight(Building_StorageCore core)
         {
+            // P8: 高度只依赖「库存版本 + 搜索词 + 展开状态」，三者都没变就直接复用。
+            // 旧实现每次 FillTab（每帧）都要 6 遍全表扫描 + 每行一次 ItemKey.ToString()。
+            int version = core.Ledger.StockVersion;
+            if (cachedHeight >= 0f && cachedVersion == version
+                && string.Equals(cachedSearch, search, System.StringComparison.Ordinal)
+                && cachedExpanded != null && ExpandedMaskMatches())
+                return cachedHeight;
+
             float h = 0f;
             for (int gi = 0; gi < 6; gi++)
             {
@@ -173,7 +181,24 @@ namespace DigitalStorage.UI
                     h += 26f;
                 }
             }
+
+            cachedHeight = h;
+            cachedVersion = version;
+            cachedSearch = search;
+            cachedExpanded = (bool[])expanded.Clone();
             return h;
         }
+
+        private bool ExpandedMaskMatches()
+        {
+            for (int i = 0; i < 6; i++)
+                if (cachedExpanded[i] != expanded[i]) return false;
+            return true;
+        }
+
+        private float cachedHeight = -1f;
+        private int cachedVersion = -1;
+        private string cachedSearch;
+        private bool[] cachedExpanded;
     }
 }

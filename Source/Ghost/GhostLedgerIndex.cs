@@ -40,6 +40,40 @@ namespace DigitalStorage.Ghost
         public long AggregateAvailablePublic(ItemKey key) => AggregateAvailable(key);
 
         // ═══════════════════════════════════════════
+        // F4: 反向索引（ItemKey → 持有它的核心）
+        // 旧实现每次库存变动都对「本图全部核心 × 传入 key」求 Available，
+        // 自动收纳（每 15 tick / 每次多件）与缓冲仓库（每 15 tick）会把
+        // O(核心数) 的扫描变成纯常数倍放大。核心增删才失效重建。
+        // ═══════════════════════════════════════════
+
+        private Dictionary<ItemKey, List<Building_StorageCore>> holdersByKey;
+
+        private void InvalidateHolders() => holdersByKey = null;
+
+        private Dictionary<ItemKey, List<Building_StorageCore>> Holders()
+        {
+            if (holdersByKey != null) return holdersByKey;
+
+            var mapComp = map.GetComponent<DigitalStorageMapComponent>();
+            var index = new Dictionary<ItemKey, List<Building_StorageCore>>();
+            if (mapComp != null)
+            {
+                foreach (var core in mapComp.GetAllCores())
+                {
+                    if (core == null || !core.Spawned || !core.Powered) continue;
+                    foreach (var key in core.Ledger.AllKeys())
+                    {
+                        if (!index.TryGetValue(key, out var list))
+                            index[key] = list = new List<Building_StorageCore>(2);
+                        list.Add(core);
+                    }
+                }
+            }
+            holdersByKey = index;
+            return index;
+        }
+
+        // ═══════════════════════════════════════════
         // 生命周期
         // ═══════════════════════════════════════════
 
@@ -57,16 +91,22 @@ namespace DigitalStorage.Ghost
         {
             if (core?.Ledger == null) return;
             core.Ledger.StockChanged += OnStockChanged;
+            InvalidateHolders();
         }
 
         public void UnregisterCore(Building_StorageCore core)
         {
             if (core?.Ledger == null) return;
             core.Ledger.StockChanged -= OnStockChanged;
+            InvalidateHolders();
         }
 
+        /// <summary>
+        /// 核心电源/优先级等状态变化：该核心的可用量口径可能整体变化。
+        /// </summary>
         public void OnCoreStateChanged(Building_StorageCore core)
         {
+            InvalidateHolders();
             if (core?.Ledger == null) return;
             foreach (var key in core.Ledger.AllKeys())
                 ProcessKey(key);
@@ -113,11 +153,11 @@ namespace DigitalStorage.Ghost
         private long AggregateAvailable(ItemKey key)
         {
             long total = 0;
-            var mapComp = map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return 0;
-
-            foreach (var core in mapComp.GetAllCores())
+            // F4: 只问持有该 key 的核心（反向索引），不再遍历全图核心
+            if (!Holders().TryGetValue(key, out var list)) return 0;
+            for (int i = 0; i < list.Count; i++)
             {
+                var core = list[i];
                 if (core == null || !core.Spawned || !core.Powered) continue;
                 total += core.Ledger.Available(key);
             }
@@ -202,6 +242,7 @@ namespace DigitalStorage.Ghost
 
             // 重建
             var mapComp = map.GetComponent<DigitalStorageMapComponent>();
+            InvalidateHolders();
             if (mapComp == null) return;
 
             var allKeys = new HashSet<ItemKey>();
