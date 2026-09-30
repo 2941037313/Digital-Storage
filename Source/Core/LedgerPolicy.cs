@@ -19,6 +19,13 @@ namespace DigitalStorage.Core
             // 带品质的一律拒（武器、盔甲、手工家具等）
             if (def.HasComp(typeof(CompQuality))) return false;
 
+            // 建筑/家具本体一律拒（社区反馈：壁灯等建筑被"搬"进核心且取不出来）：
+            // 这类 ThingDef 的 category == Building，正常永远不该出现在账本里。
+            if (def.category == ThingCategory.Building) return false;
+
+            // 可拆除的建筑（同上的另一条路径：框架/零件类 def 有时不是 Building 类别）
+            if (def.building != null && def.building.IsDeconstructible) return false;
+
             // 走 thingCategories 链判根分类
             if (def.thingCategories != null)
             {

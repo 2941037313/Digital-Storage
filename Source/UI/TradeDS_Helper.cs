@@ -58,26 +58,40 @@ namespace DigitalStorage.UI
         {
             if (dealList == null) return;
 
-var state = GetState(dialog);
+            var state = GetState(dialog);
             state.dealList = dealList;
+            bool dbg = DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog;
 
-            if (!state.injected)
-                Log.Warning($"[DS-DTI] InjectCoreTradeables FIRST call: dealList={dealList.Count}");
-
-            if (state.injected)
+            // F6: 旧实现无条件 Log.Warning，每笔交易刷 5+ 条黄字（进 Player.log）。
+            // 这些是开发期诊断，统一收进 debug 开关。
+            if (dbg)
             {
-                Log.Warning($"[DS-DTI] Re-inject: dealList={dealList.Count}");
-                RemoveCoreTradeables(state, dealList);
+                if (!state.injected)
+                    Log.Message($"[DS-DTI] InjectCoreTradeables FIRST call: dealList={dealList.Count}");
+                else
+                    Log.Message($"[DS-DTI] Re-inject: dealList={dealList.Count}");
             }
 
+            if (state.injected)
+                RemoveCoreTradeables(state, dealList);
+
             var map = FindCurrentMap(dialog);
-            if (map == null) { Log.Warning("[DS-DTI] InjectCoreTradeables: FindCurrentMap returned null"); return; }
+            if (map == null)
+            {
+                if (dbg) Log.Warning("[DS-DTI] InjectCoreTradeables: FindCurrentMap returned null");
+                return;
+            }
 
             var merged = new Dictionary<ItemKey, MergedStock>();
             LedgerItemCollector.CollectCoreItems(map, merged, includeCrossMapInterfaces: false);
-            if (merged.Count == 0) { Log.Warning("[DS-DTI] InjectCoreTradeables: merged.Count=0, nothing to inject"); return; }
+            if (merged.Count == 0)
+            {
+                if (dbg) Log.Message("[DS-DTI] InjectCoreTradeables: merged.Count=0, nothing to inject");
+                return;
+            }
 
-            Log.Warning($"[DS-DTI] InjectCoreTradeables: {merged.Count} unique items, dealList before={dealList.Count}");
+            if (dbg)
+                Log.Message($"[DS-DTI] InjectCoreTradeables: {merged.Count} unique items, dealList before={dealList.Count}");
 
             foreach (var kv in merged)
             {
@@ -120,7 +134,8 @@ var state = GetState(dialog);
                 state.entries.Add(entry);
             }
 
-            Log.Warning($"[DS-DTI] Inject done: injected={state.entries.Count} items, dealList before={dealList.Count - state.entries.Count}→after={dealList.Count}");
+            if (dbg)
+                Log.Message($"[DS-DTI] Inject done: injected={state.entries.Count} items, dealList after={dealList.Count}");
             state.injected = true;
         }
 
@@ -233,13 +248,15 @@ var state = GetState(dialog);
         /// </summary>
         public static void RecordSoldForAnyActiveDialog()
         {
+            // 社区反馈「交易后核心清仓」：旧实现只处理第一个 state（return），
+            // 多个交易窗口/DTI 换窗时其余注入条目不会记录 sold，清理阶段按
+            // withdrawn 全额退账或整批遗弃 → 账本与实物对不上。这里处理全部。
             foreach (var kv in states)
             {
                 if (!kv.Value.injected || kv.Value.entries.Count == 0) continue;
                 foreach (var e in kv.Value.entries)
                     if (e.tradeable != null)
                         e.sold = e.tradeable.CountToTransferToDestination;
-                return;
             }
         }
 
@@ -254,7 +271,6 @@ var state = GetState(dialog);
                 {
                     CleanupAfterDealEntries(kv.Value);
                     kv.Value.injected = false;
-                    return;
                 }
             }
         }

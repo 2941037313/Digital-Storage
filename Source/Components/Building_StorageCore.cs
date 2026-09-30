@@ -170,56 +170,82 @@ namespace DigitalStorage.Components
             var mapComp = map.GetComponent<DigitalStorageMapComponent>();
             if (mapComp == null) return;
 
-            // 找同图其他 powered 核心，按剩余容量排序
+            // 找同图其他 powered 核心，优先给空组最多的
             var targets = mapComp.GetAllCores()
                 .Where(c => c != this && c.Spawned && c.Powered)
                 .OrderByDescending(c => c.GetCapacity() - c.Ledger.UsedCapacity())
                 .ToList();
 
-            var keysToTransfer = ledger.AllKeys().ToList();
-            var overflow = new List<Core.ItemKey>();
-
-            foreach (var key in keysToTransfer)
+            // F2: 旧实现只校验「目标还有 1 个空组」就把整个 key 的量 AddRaw 过去，
+            // 源核心有多种物品时目标会一次吃到远超容量的 key 数。
+            // 现在按「目标空组数」逐 key 转移，且全程不 fire StockChanged（抑制事件），
+            // 转移完再用 OnCoreStateChanged 做一次定向刷账。
+            var keysToTransfer = new List<KeyValuePair<ItemKey, long>>();
+            foreach (var key in ledger.AllKeys().ToList())
             {
                 long amount = ledger.StockOf(key);
-                if (amount <= 0) continue;
+                if (amount > 0) keysToTransfer.Add(new KeyValuePair<ItemKey, long>(key, amount));
+            }
+            if (keysToTransfer.Count == 0) return;
 
-                foreach (var target in targets)
+            var overflow = new List<KeyValuePair<ItemKey, long>>();
+
+            ledger.SuppressStockEvents = true;
+            try
+            {
+                foreach (var pair in keysToTransfer)
                 {
-                    int remaining = target.GetCapacity() - target.Ledger.UsedCapacity();
-                    if (remaining <= 0) continue;
-                    // 新 key 需要 1 组容量；已存在的 key 不占新组
-                    if (target.Ledger.StockOf(key) <= 0 && remaining < 1) continue;
+                    var key = pair.Key;
+                    long amount = pair.Value;
+                    if (amount <= 0) continue;
 
-                    // 转移（AddRaw 会 fire StockChanged → Ghost 更新）
-                    // X2: 加给目标后立即从源账本扣减——修复拆核心再放回库存翻倍
-                    target.Ledger.AddRaw(key, amount);
-                    ledger.RemoveRaw(key, amount);
-                    amount = 0;
-                    break;
+                    foreach (var target in targets)
+                    {
+                        bool alreadyHasKey = target.Ledger.StockOf(key) > 0;
+                        int freeGroups = target.GetCapacity() - target.Ledger.UsedCapacity();
+                        // 新 key 需要占 1 个空组；已有 key 只需要目标没满
+                        if (!alreadyHasKey && freeGroups <= 0) continue;
+                        if (alreadyHasKey && freeGroups < 0) continue;
+
+                        // 转移：先加后扣（X2：修复拆核心再放回库存翻倍）
+                        target.Ledger.AddRawNoNotify(key, amount);
+                        ledger.RemoveRawNoNotify(key, amount);
+                        amount = 0;
+                        break;
+                    }
+
+                    if (amount > 0)
+                        overflow.Add(new KeyValuePair<ItemKey, long>(key, amount));
                 }
-
-                if (amount > 0)
-                    overflow.Add(key);
+            }
+            finally
+            {
+                ledger.SuppressStockEvents = false;
             }
 
-            // I6b: 溢出部分加入分帧掉落队列（X2: Enqueue 时同步扣源账本，防止重复）
+            // I6b: 溢出部分加入分帧掉落队列（Enqueue 时同步扣源账本，防止重复）
             if (overflow.Count > 0)
             {
                 var dropQueue = map.GetComponent<CoreDestroyDropQueue>();
                 if (dropQueue != null)
                 {
-                    foreach (var key in overflow)
+                    foreach (var pair in overflow)
                     {
-                        long amount = ledger.StockOf(key);
+                        long amount = ledger.StockOf(pair.Key);
                         if (amount > 0)
                         {
-                            dropQueue.Enqueue(key, amount, Position);
-                            ledger.RemoveRaw(key, amount);
+                            dropQueue.Enqueue(pair.Key, amount, Position);
+                            ledger.RemoveRaw(pair.Key, amount);
                         }
                     }
                 }
             }
+
+            // 定向刷账：一次处理所有被移除的 key（替代逐次 AddRaw/RemoveRaw 的事件风暴）
+            var ghostIndex = map.GetComponent<Ghost.GhostLedgerIndex>();
+            if (ghostIndex != null)
+                foreach (var pair in keysToTransfer)
+                    ghostIndex.OnKeyChanged(pair.Key);
         }
 
         protected override void ReceiveCompSignal(string signal)
@@ -280,14 +306,17 @@ namespace DigitalStorage.Components
                 };
             }
 
-            // 临时 gizmo（阶段 4 派工完成后会删掉）
-            yield return new Command_Action
+            // 调试 gizmo：只在开发者模式下显示（社区反馈抱怨 UI 上挂着看不懂的按钮）
+            if (Prefs.DevMode)
             {
-                defaultLabel = "DS_DebugIngestAdjacent".Translate(),
-                defaultDesc = "DS_DebugIngestAdjacentDesc".Translate(),
-                icon = TexCommand.ForbidOff,
-                action = DebugIngestAdjacent
-            };
+                yield return new Command_Action
+                {
+                    defaultLabel = "DS_DebugIngestAdjacent".Translate(),
+                    defaultDesc = "DS_DebugIngestAdjacentDesc".Translate(),
+                    icon = TexCommand.ForbidOff,
+                    action = DebugIngestAdjacent
+                };
+            }
         }
 
         /// <summary>临时调试：把核心相邻 8 格 + 自身 9 格里所有可吃物品吞进账本。</summary>
@@ -331,8 +360,10 @@ namespace DigitalStorage.Components
             }
             if (Scribe.mode == LoadSaveMode.PostLoadInit && storageFilter == null)
             {
+                // F7: 旧实现 SetAllowAll(null) 会放开全部白名单（连尸体/衣物都放行），
+                // 与 SpawnSetup 的 GetParentFilter() 口径不一致。这里对齐。
                 storageFilter = new ThingFilter();
-                storageFilter.SetAllowAll(null);
+                storageFilter.SetAllowAll(GetParentFilter());
             }
         }
 

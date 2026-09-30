@@ -34,6 +34,17 @@ namespace DigitalStorage.AI
             if (pawn.RaceProps.IsMechanoid) return null;
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
 
+            // 设置「需要终端芯片」：没有芯片就没有任何访问入口（对齐 3.0 反馈
+            // 「科技没点、也没装部件，却能远程取物吃」）。默认关闭保持 v3 原设计。
+            if (!chip && DigitalStorage.Settings.DigitalStorageSettings.requireChipForCoreAccess)
+                return null;
+
+            // 社区反馈「食物方案禁止吃虫胶也没用」：
+            // 原版 JobGiver_GetFood → FoodUtility.TryFindBestFoodSourceFor 会对每个候选调用
+            // FoodUtility.WillEat（FoodIsSuitable + FoodPolicy.Allows + 泰特托 + 圣兽肉 + 头衔），
+            // 本 mod 直连账本绕过了这一层。这里补上同一套 gate。
+            bool allowDrug = !pawn.IsTeetotaler();
+
             // 收集所有候选，按 FoodOptimality 评分降序
             var candidates = new List<(CoreAccess access, ItemKey key, long avail)>();
 
@@ -43,15 +54,32 @@ namespace DigitalStorage.AI
                 foreach (var kv in ledger.Stock)
                 {
                     if (kv.Value <= 0) continue;
+                    if (kv.Key.def == null) continue;
                     if (!filter(kv.Key)) continue;
+
+                    var def = kv.Key.def;
+                    // 食物：营养可食 + 食物方案/可食性/圣兽肉/头衔 四重校验（与原版同口径）
+                    if (def.IsNutritionGivingIngestible)
+                    {
+                        if (!pawn.WillEat(def, pawn, careIfNotAcceptableForTitle: true)) continue;
+                    }
+                    else if (def.IsDrug)
+                    {
+                        // 成瘾品 / 娱乐性药物：不贪食者与变体限制（对齐原版 JobGiver_GetFood 的 allowDrug）
+                        if (!allowDrug) continue;
+                        if (!pawn.DrugIsSuitable(def)) continue;
+                    }
+
                     long avail = ledger.Available(kv.Key);
                     if (avail <= 0) continue;
                     candidates.Add((access, kv.Key, avail));
                 }
             }
 
-            // 按 FoodOptimality 降序排列
-            candidates.Sort((a, b) => FoodScoring.Score(pawn, b.key.def).CompareTo(FoodScoring.Score(pawn, a.key.def)));
+            // 按 FoodOptimality 降序排列（药物走 FoodScoring 会因 preferability 得低分，排到最后）
+            candidates.Sort((a, b) =>
+                FoodScoring.Score(pawn, b.key.def)
+                    .CompareTo(FoodScoring.Score(pawn, a.key.def)));
 
             foreach (var (access, key, avail) in candidates)
             {

@@ -84,21 +84,31 @@ namespace DigitalStorage.Components
         {
             base.Initialize(props);
             core = parent as Building_StorageCore;
+            // 新建核心的 gizmo 开关跟随 Mod 设置默认值
+            enabled = DigitalStorage.Settings.DigitalStorageSettings.autoIngestEnabled;
+        }
+
+        /// <summary>
+        /// F10: 显式刷新研究缓存（旧实现把 ingestRateCache 的初始化藏在 IsResearched
+        /// 的 getter 副作用里，调用顺序一变就会拿到 -1 → bufSize 为负 → 数组越界）。
+        /// </summary>
+        private void EnsureResearchCache()
+        {
+            int tick = Find.TickManager.TicksGame;
+            if (tick == researchCheckTick && ingestRateCache > 0) return;
+
+            researchCheckTick = tick;
+            researchedCache = ResearchProjectDef.Named("DigitalStorage_AutoIngest1")?.IsFinished ?? false;
+            if (ResearchProjectDef.Named("DigitalStorage_AutoIngest3")?.IsFinished ?? false) ingestRateCache = 10;
+            else if (ResearchProjectDef.Named("DigitalStorage_AutoIngest2")?.IsFinished ?? false) ingestRateCache = 5;
+            else ingestRateCache = 1;
         }
 
         public bool IsResearched
         {
             get
             {
-                int tick = Find.TickManager.TicksGame;
-                if (tick != researchCheckTick)
-                {
-                    researchCheckTick = tick;
-                    researchedCache = (ResearchProjectDef.Named("DigitalStorage_AutoIngest1")?.IsFinished ?? false);
-                    if (ResearchProjectDef.Named("DigitalStorage_AutoIngest3")?.IsFinished ?? false) ingestRateCache = 10;
-                    else if (ResearchProjectDef.Named("DigitalStorage_AutoIngest2")?.IsFinished ?? false) ingestRateCache = 5;
-                    else ingestRateCache = 1;
-                }
+                EnsureResearchCache();
                 return researchedCache;
             }
         }
@@ -108,41 +118,50 @@ namespace DigitalStorage.Components
             base.CompTick();
             if (core == null || !enabled || !core.Powered) return;
 
+            // 设置「自动收纳」总开关（社区反馈：关掉后瞬移搬运就消失）
+            if (!DigitalStorage.Settings.DigitalStorageSettings.autoIngestEnabled) return;
+
             int tick = Find.TickManager.TicksGame;
 
             // 每 15 tick 一次，用核心 ID 错开相位
             if ((tick + core.thingIDNumber) % 15 != 0) return;
 
-            if (!IsResearched) return;
+            EnsureResearchCache();
+            if (!researchedCache) return;
 
             var map = core.Map;
             if (map == null) return;
 
             SweepWithdrawn(); // L1: 清扫过期标记
 
-            int rate = ingestRateCache;
+            // M4: 候选收集不再按核心过滤器/容量过滤——被过滤的物品仍应路由到合格储存区，
+            // 「核心吃不吃」的判断下沉到 RouteGroundItem 吞入分支。
+            int rate = ingestRateCache > 0 ? ingestRateCache : 1;
             int taken = 0;
 
             // 收集候选项到静态小缓冲，避免 Ingest/Destroy 修改 haulables 列表导致迭代异常。
-            // M4: 候选收集不再按核心过滤器/容量过滤——被过滤的物品仍应路由到合格储存区，
-            // 「核心吃不吃」的判断下沉到 RouteGroundItem 吞入分支。
             int bufSize = rate * 3;
             if (candidateBuffer.Length < bufSize)
                 candidateBuffer = new Thing[bufSize];
             int bufCount = 0;
 
-            // 收集 1: 地面物品（listerHaulables）
+            bool homeAreaOnly = DigitalStorage.Settings.DigitalStorageSettings.autoIngestHomeAreaOnly;
+
+            // 收集 1: 地面散落物品（listerHaulables）
+            // 社区反馈「老远处的石块被瞬移」：这类没有玩家意图的物品默认只处理活动区内，
+            // 防止地图边缘/远矿裸地物品被隔空吸走。
             var haulables = map.listerHaulables.ThingsPotentiallyNeedingHauling();
             foreach (var t in haulables)
             {
                 if (bufCount >= bufSize) break;
-                if (!CanCollect(t, map)) continue;
+                if (!CanCollect(t, map, homeAreaOnly)) continue;
                 candidateBuffer[bufCount++] = t;
             }
 
             // 收集 2: 优先级 ≤ 全图最高核心 的 zone 内物品（用户 7.31 拍板——
             // 自动收纳也要处理 zone 物品：路由到更高 zone 或吸进核心）。
             // 60 tick 节流：zone 全扫比 listerHaulables 贵，不用 15 tick 节奏。
+            // 注意：zone 是玩家主动划定的意图，不受「仅活动区」限制（矿区营地照常工作）。
             if (bufCount < bufSize && tick - lastZoneScanTick >= 60)
             {
                 lastZoneScanTick = tick;
@@ -172,7 +191,7 @@ namespace DigitalStorage.Components
                             {
                                 if (bufCount >= bufSize) break;
                                 var t = things[i];
-                                if (!CanCollect(t, map)) continue;
+                                if (!CanCollect(t, map, false)) continue;
                                 candidateBuffer[bufCount++] = t;
                             }
                         }
@@ -197,16 +216,22 @@ namespace DigitalStorage.Components
         }
 
         /// <summary>
-        /// 自动收纳候选的统一过滤：可收纳、未禁止、未预订、保护窗口外。
+        /// 自动收纳候选的统一过滤：可收纳、未禁止、未预订、保护窗口外、可选活动区。
         /// 不含 zone 判断（地面与 zone 内物品都处理，用户 7.31 拍板）。
         /// </summary>
-        private static bool CanCollect(Thing t, Map map)
+        private static bool CanCollect(Thing t, Map map, bool homeAreaOnly)
         {
             if (t == null || t.Destroyed) return false;
             if (!LedgerPolicy.CanIngest(t)) return false;
             if (t.IsForbidden(Faction.OfPlayer)) return false;
             if (map.reservationManager.IsReserved(t)) return false;
             if (IsRecentlyWithdrawn(t)) return false;
+            // 社区反馈「老远处的石块被瞬移」：默认只处理活动区内的物品。
+            if (homeAreaOnly)
+            {
+                var home = map.areaManager?.Home;
+                if (home != null && !home[t.Position]) return false;
+            }
             return true;
         }
 

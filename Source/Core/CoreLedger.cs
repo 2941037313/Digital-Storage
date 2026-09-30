@@ -27,6 +27,17 @@ namespace DigitalStorage.Core
         public event Action<ItemKey, long> StockChanged;
         private bool suppressEvents;
 
+        /// <summary>
+        /// 批量内部操作（核心摧毁转移等）期间抑制 StockChanged，
+        /// 避免逐 key fire 事件触发 Ghost 的全图聚合风暴（F4）。
+        /// 批处理结束后调用方需自己调 GhostLedgerIndex.OnKeyChanged 定向刷账。
+        /// </summary>
+        public bool SuppressStockEvents
+        {
+            get => suppressEvents;
+            set => suppressEvents = value;
+        }
+
         private void NotifyStockChanged(ItemKey key)
         {
             if (!suppressEvents)
@@ -129,11 +140,19 @@ namespace DigitalStorage.Core
         /// </summary>
         public void AddRaw(ItemKey key, long count)
         {
+            AddRawNoNotify(key, count);
+            NotifyStockChanged(key);
+        }
+
+        /// <summary>
+        /// 加数但不 fire StockChanged（批量转移用；调用方负责批量后定向刷账）。
+        /// </summary>
+        public void AddRawNoNotify(ItemKey key, long count)
+        {
             if (count <= 0) return;
             if (!stock.TryGetValue(key, out long cur)) cur = 0;
             stock[key] = cur + count;
             groupTotalsDirty = true;
-            NotifyStockChanged(key);
         }
 
         /// <summary>
@@ -141,13 +160,21 @@ namespace DigitalStorage.Core
         /// </summary>
         public void RemoveRaw(ItemKey key, long count)
         {
+            RemoveRawNoNotify(key, count);
+            NotifyStockChanged(key);
+        }
+
+        /// <summary>
+        /// 扣数但不 fire StockChanged（批量转移用）。
+        /// </summary>
+        public void RemoveRawNoNotify(ItemKey key, long count)
+        {
             if (count <= 0) return;
             if (!stock.TryGetValue(key, out long cur) || cur <= 0) return;
             long after = cur - count;
             if (after <= 0) stock.Remove(key);
             else stock[key] = after;
             groupTotalsDirty = true;
-            NotifyStockChanged(key);
         }
 
         // ========== 取出 ==========
@@ -257,6 +284,9 @@ namespace DigitalStorage.Core
                     e.count += take;
                     list[i] = e;
                     reservedTotals[key] = reservedTotals.TryGetValue(key, out long rt) ? rt + take : take;
+                    // F3: 累加分支也必须发通知——Available 变了，GhostThing.stackCount
+                    // 是给其他 mod 读的公共量，不发通知会长期高于真实可用量。
+                    NotifyStockChanged(key);
                     return take;
                 }
             }

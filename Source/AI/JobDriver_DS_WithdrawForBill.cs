@@ -133,16 +133,52 @@ namespace DigitalStorage.AI
             toil.initAction = () =>
             {
                 var core = TargetCore;
-                if (core == null) { EndJobWith(JobCondition.Incompletable); return; }
+                if (core == null || job.bill == null) { EndJobWith(JobCondition.Incompletable); return; }
                 var ledger = core.Ledger;
-                for (int i = 0; i < planKeys.Count; i++)
+
+                // 社区反馈「核心里东西不够，小人依旧能直接在机械培育器里做」+「材料凭空出现」：
+                // WorkGiver 的 TryPlan 只算 Available 不占预订，从派单到本 toil 执行之间
+                // 材料可能已经被别的 job 吃掉。现在改为「此刻重算 plan + 预订」一次完成：
+                // plan 就是此刻能锁住的量，后面的 WithdrawAndPlaceAllToil 必然拿得到。
+                // 先清掉本 job 之前占的预订（Notify_Starting 可能已预留一批），避免重复占用。
+                ledger.ReleaseByJob(job);
+
+                List<(ItemKey key, int count)> fresh;
+                try
                 {
-                    int got = ledger.Reserve(job, planKeys[i], planCounts[i]);
-                    if (got < planCounts[i])
+                    fresh = LedgerBillPlanner.TryPlan(job.bill, core);
+                }
+                catch (Exception e)
+                {
+                    if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                        Log.Warning($"[DS-Withdraw] 执行期 TryPlan 异常 bill={job.bill.Label}: {e.Message}");
+                    EndJobWith(JobCondition.Incompletable);
+                    return;
+                }
+                if (fresh == null || fresh.Count == 0)
+                {
+                    // 材料已被抢走 → 放弃，交回原版 DoBill 接力
+                    EndJobWith(JobCondition.Incompletable);
+                    return;
+                }
+
+                for (int i = 0; i < fresh.Count; i++)
+                {
+                    int got = ledger.Reserve(job, fresh[i].key, fresh[i].count);
+                    if (got < fresh[i].count)
                     {
                         EndJobWith(JobCondition.Incompletable);
                         return;
                     }
+                }
+
+                // 用重算结果覆盖 plan（与账本预订保持一致）
+                planKeys.Clear();
+                planCounts.Clear();
+                for (int i = 0; i < fresh.Count; i++)
+                {
+                    planKeys.Add(fresh[i].key);
+                    planCounts.Add(fresh[i].count);
                 }
             };
             return toil;

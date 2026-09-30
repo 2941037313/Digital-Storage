@@ -36,6 +36,18 @@ namespace DigitalStorage.AI
                 JobDriver_DS_ReserveHelper.TryConsumePendingPlan(job, out planKey, out planCount);
             if (planCount <= 0) { EndJobWith(JobCondition.Incompletable); return; }
 
+            // 与 bill 取料同款：把要吃的这份在账本上锁住，避免 between-plan-and-execute
+            // 被别的 job 抢走（否则到 WithdrawToCarry 才发现没货，白跑一趟）。
+            var core = TargetCore;
+            if (core != null)
+            {
+                JobDriver_DS_ReserveHelper.RegisterRelease(this, core);
+                int got = core.Ledger.Reserve(job, planKey, planCount);
+                // 抢不到就改用实际锁到的量，0 则放弃（原版 JobGiver 会重试）
+                planCount = got;
+                if (planCount <= 0) { EndJobWith(JobCondition.Incompletable); return; }
+            }
+
             eatingFromInventory = Hediff_TerminalImplant.HasTerminalImplant(pawn);
         }
 

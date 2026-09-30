@@ -69,6 +69,15 @@
   <DS_EnableDebugLog>启用详细日志</DS_EnableDebugLog>
   <DS_EnableDebugLogDesc>在日志中显示详细的调试信息</DS_EnableDebugLogDesc>
 
+  <!-- ========== 访问与自动化设置 ========== -->
+  <DS_AccessSettings>访问与自动化</DS_AccessSettings>
+  <DS_RequireChip>需要终端芯片</DS_RequireChip>
+  <DS_RequireChipDesc>开启后：只有植入终端芯片的小人（或由其机械师控制的机械体）才能读取/使用存储网络。关闭（默认）：任何殖民者走到核心或输入接口即可使用，和普通储存区一样。</DS_RequireChipDesc>
+  <DS_AutoIngestToggle>自动收纳</DS_AutoIngestToggle>
+  <DS_AutoIngestToggleDesc>允许核心自动吸收附近散落物品，无需搬运工。若发现物品在地图上"瞬移"，关闭此项。</DS_AutoIngestToggleDesc>
+  <DS_HomeAreaOnly>自动收纳仅限活动区</DS_HomeAreaOnly>
+  <DS_HomeAreaOnlyDesc>自动化只处理活动区（Home）内的物品。推荐开启：防止远处物品（挖出的石块、任务战利品）被隔空吸走。</DS_HomeAreaOnlyDesc>
+
   <!-- ========== 商队 ========== -->
   <DS_CaravanTab>数字存储</DS_CaravanTab>
   <DS_NoCoreItems>数字存储中无可用物品</DS_NoCoreItems>
@@ -113,6 +122,14 @@
   <DS_BufferUnbind>解绑</DS_BufferUnbind>
   <DS_TabBufferWarehouse>缓冲库存</DS_TabBufferWarehouse>
   <DS_Priority>搬运优先级</DS_Priority>
+  <DS_BufferLockedItem>放什么物品:</DS_BufferLockedItem>
+  <DS_BufferNoItem>（无）</DS_BufferNoItem>
+  <DS_BufferSelect>选择</DS_BufferSelect>
+  <DS_BufferClearUnit>清空该单元</DS_BufferClearUnit>
+  <DS_BufferClearUnitDesc>物品吸回核心，放什么物品=无，Min/Max 归零</DS_BufferClearUnitDesc>
+  <DS_BufferCoreEmpty>（核心无库存）</DS_BufferCoreEmpty>
+  <DS_BufferMin>最少</DS_BufferMin>
+  <DS_BufferMax>最多</DS_BufferMax>
 
   <!-- ========== 3.0 升级信封 ========== -->
   <DigitalStorage_Letter30_Label>数字存储 3.1 更新说明 2026.5.27</DigitalStorage_Letter30_Label>

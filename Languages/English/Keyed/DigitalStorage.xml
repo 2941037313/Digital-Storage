@@ -69,6 +69,15 @@
   <DS_EnableDebugLog>Enable detailed log</DS_EnableDebugLog>
   <DS_EnableDebugLogDesc>Print detailed debug information to the log.</DS_EnableDebugLogDesc>
 
+  <!-- ========== Access / automation settings ========== -->
+  <DS_AccessSettings>Access &amp; automation</DS_AccessSettings>
+  <DS_RequireChip>Terminal chip required</DS_RequireChip>
+  <DS_RequireChipDesc>When enabled, only pawns with a terminal chip implant (or mechs controlled by an implanted mechanitor) can read or use the storage network. When disabled (default), any colonist can walk to a core or an input interface to use it, exactly like a stockpile.</DS_RequireChipDesc>
+  <DS_AutoIngestToggle>Auto-ingest</DS_AutoIngestToggle>
+  <DS_AutoIngestToggleDesc>Allow cores to absorb loose items automatically instead of waiting for a hauler. Turn this off if items seem to teleport around the map.</DS_AutoIngestToggleDesc>
+  <DS_HomeAreaOnly>Auto-ingest home area only</DS_HomeAreaOnly>
+  <DS_HomeAreaOnlyDesc>Automation only touches items inside your home area. Recommended: prevents items far away (mined chunks, quest loot) from being absorbed.</DS_HomeAreaOnlyDesc>
+
   <!-- ========== Caravan ========== -->
   <DS_CaravanTab>Digital storage</DS_CaravanTab>
   <DS_NoCoreItems>No items available in digital storage.</DS_NoCoreItems>
@@ -113,6 +122,14 @@
   <DS_BufferUnbind>Unbind</DS_BufferUnbind>
   <DS_TabBufferWarehouse>Buffer Stock</DS_TabBufferWarehouse>
   <DS_Priority>Haul Priority</DS_Priority>
+  <DS_BufferLockedItem>Item:</DS_BufferLockedItem>
+  <DS_BufferNoItem>(none)</DS_BufferNoItem>
+  <DS_BufferSelect>Select</DS_BufferSelect>
+  <DS_BufferClearUnit>Clear this unit</DS_BufferClearUnit>
+  <DS_BufferClearUnitDesc>Items return to the core; item = none; Min/Max reset to 0.</DS_BufferClearUnitDesc>
+  <DS_BufferCoreEmpty>(core is empty)</DS_BufferCoreEmpty>
+  <DS_BufferMin>Min</DS_BufferMin>
+  <DS_BufferMax>Max</DS_BufferMax>
 
   <!-- ========== 3.0 Upgrade Letter ========== -->
   <DigitalStorage_Letter30_Label>Digital Storage 3.1 Update 2026.5.27</DigitalStorage_Letter30_Label>

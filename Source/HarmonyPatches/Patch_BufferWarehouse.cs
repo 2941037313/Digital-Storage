@@ -37,36 +37,23 @@ namespace DigitalStorage.HarmonyPatches
 
     /// <summary>
     /// 阻止缓冲仓库格子上的物品被渲染（运行时隐藏）。
+    /// F5: 旧实现用静态 <c>Dictionary&lt;Map,HashSet&lt;IntVec3&gt;&gt;</c> 记坐标——map 条目从不清理
+    /// （每次开新图泄漏一份），而且「站在该格的任何东西」都被吞掉绘制。
+    /// 改为按 SlotGroup 的宿主判定，无静态状态、无坐标误伤。
     /// </summary>
     [HarmonyPatch(typeof(Thing), "Print")]
     public static class Patch_BufferWarehouse_HideItems
     {
-        private static readonly Dictionary<Map, HashSet<IntVec3>> bwPositions
-            = new Dictionary<Map, HashSet<IntVec3>>();
-
-        public static void Register(Map map, IntVec3 pos)
-        {
-            if (!bwPositions.TryGetValue(map, out var set))
-                bwPositions[map] = set = new HashSet<IntVec3>();
-            set.Add(pos);
-        }
-
-        public static void Deregister(Map map, IntVec3 pos)
-        {
-            if (bwPositions.TryGetValue(map, out var set))
-                set.Remove(pos);
-        }
-
         [HarmonyPrefix]
         static bool Prefix(Thing __instance)
         {
+            if (__instance is Building_BufferWarehouse) return true;
             var map = __instance.Map;
             if (map == null) return true;
-            if (__instance is Building_BufferWarehouse) return true;
-            if (bwPositions.TryGetValue(map, out var set)
-                && set.Contains(__instance.Position))
-                return false;
-            return true;
+            if (__instance.def.category != ThingCategory.Item) return true;
+
+            var group = map.haulDestinationManager.SlotGroupAt(__instance.Position);
+            return !(group?.parent is Building_BufferWarehouse);
         }
     }
 }

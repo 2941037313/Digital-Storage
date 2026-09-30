@@ -29,7 +29,10 @@ namespace DigitalStorage.Services
         {
             base.ExposeData();
             Scribe_Collections.Look(ref globalCores, "globalCores", LookMode.Reference);
-            Scribe_Values.Look(ref shown30Letter, "shown31Letter");
+            // F1: 键名必须是 shown30Letter（旧代码写 shown31Letter）。Scribe 的键一经写入
+            // 就固定了，键名/字段名不一致在后续改动里极易造成「读不到 → 信每档重弹」。
+            // 同时 FinalizeInit 只在 !shown30Letter 时置 true，保证下一档不再弹。
+            Scribe_Values.Look(ref shown30Letter, "shown30Letter", false);
             if (Scribe.mode == LoadSaveMode.LoadingVars && globalCores == null)
             {
                 globalCores = new List<Building_StorageCore>();

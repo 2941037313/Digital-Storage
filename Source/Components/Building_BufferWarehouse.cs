@@ -70,9 +70,6 @@ namespace DigitalStorage.Components
             // 注册到 MapComponent
             map.GetComponent<DigitalStorageMapComponent>()?.RegisterBufferWarehouse(this);
 
-            // 注册 draw 抑制位置
-            DigitalStorage.HarmonyPatches.Patch_BufferWarehouse_HideItems.Register(map, Position);
-
             // 自动绑定同 NetworkName 核心
             if (boundCore == null || boundCore.Destroyed)
                 TryAutoBind();
@@ -126,29 +123,26 @@ namespace DigitalStorage.Components
                 if (t.Destroyed) continue;
                 if (boundCore.Ledger.CanAccept(t, capacity))
                     boundCore.Ledger.Ingest(t, capacity);
-                else
-                    t.Destroy(DestroyMode.Vanish);
+                // F8: 旧实现在核心满/被过滤时 t.Destroy(Vanish) —— 读档瞬间静默销毁
+                // 玩家物品。改为留在格上（下轮 CompBufferWarehouse 会重试吸回）。
             }
         }
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
-            DigitalStorage.HarmonyPatches.Patch_BufferWarehouse_HideItems.Deregister(Map, Position);
             Map?.GetComponent<DigitalStorageMapComponent>()?.DeregisterBufferWarehouse(this);
-            if (boundCore != null && !boundCore.Destroyed)
-            {
-                // TODO 7c: 库存处理（归还核心或掉落）
-            }
+            // F9: 这里原本是空 TODO「7c: 库存处理（归还核心或掉落）」。
+            // 实际契约：缓冲仓库本身不持有账本，物品真实躺在 SlotGroup 上，
+            // 原版 Building_Storage 的 DeSpawn/拆除路径会把内容物掉落在原地，
+            // 触发 Notify_LostThing → UnfreezeItemTick 恢复正常 tick/渲染。
+            // 因此不需要（也不应该）在这里额外转移；保留说明是为了防止后人误以为漏实现。
             boundCore = null;
             base.DeSpawn(mode);
         }
 
         public override void Destroy(DestroyMode mode = DestroyMode.Vanish)
         {
-            if (boundCore != null && !boundCore.Destroyed)
-            {
-                // I6 模式：摧毁时转移
-            }
+            // 同 DeSpawn：内容物由原版掉落路径处理（见上）。
             base.Destroy(mode);
         }
 

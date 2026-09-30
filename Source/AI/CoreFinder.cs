@@ -20,26 +20,28 @@ namespace DigitalStorage.AI
     public static class CoreFinder
     {
         // X3: 小环形缓存（多槽）——think tree 对全 pawn 求值时单槽缓存反复 miss，
-        // 每槽存 (pawn, tick, result)，最近使用的 4 个 pawn 命中缓存
-        private static readonly List<(Pawn pawn, int tick, List<CoreAccess> result)> accessCache
-            = new List<(Pawn, int, List<CoreAccess>)>();
+        // 每槽存 (pawn, tick, chipRequired, result)，最近使用的 4 个 pawn 命中缓存
+        private static readonly List<(Pawn pawn, int tick, bool chipRequired, List<CoreAccess> result)> accessCache
+            = new List<(Pawn, int, bool, List<CoreAccess>)>();
         private const int AccessCacheSize = 4;
 
         /// <summary>
         /// 返回所有可用核心访问入口。本地优先，远程同网络兜底，跨图接口直连。
-        /// 同一 tick 同一 pawn 缓存结果（4 槽环形）。
+        /// 同一 tick 同一 pawn 缓存结果（4 槽环形）。设置项变化会自然 miss 重建。
         /// </summary>
         public static List<CoreAccess> AllUsableAccesses(Pawn pawn)
         {
             int tick = Find.TickManager.TicksGame;
+            bool chipRequired = DigitalStorage.Settings.DigitalStorageSettings.requireChipForCoreAccess;
             for (int i = 0; i < accessCache.Count; i++)
             {
-                if (accessCache[i].pawn == pawn && accessCache[i].tick == tick)
+                if (accessCache[i].pawn == pawn && accessCache[i].tick == tick
+                    && accessCache[i].chipRequired == chipRequired)
                     return accessCache[i].result;
             }
 
             var r = BuildAccessList(pawn);
-            accessCache.Insert(0, (pawn, tick, r));
+            accessCache.Insert(0, (pawn, tick, chipRequired, r));
             if (accessCache.Count > AccessCacheSize)
                 accessCache.RemoveAt(accessCache.Count - 1);
             return r;
@@ -63,6 +65,12 @@ namespace DigitalStorage.AI
             if (allCores.Count == 0) return result;
 
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
+
+            // 设置「需要终端芯片」：无芯片 = 无任何访问入口（含接口代理点）。
+            // 这是社区反馈「科技没研发、部件没装却能用全部功能」的可配置解法，
+            // 默认关闭，保持 v3「无芯片走接口」的设计。
+            if (!chip && DigitalStorage.Settings.DigitalStorageSettings.requireChipForCoreAccess)
+                return result;
 
             // 本地核心按 NetworkName 建索引（用于远程找代理）
             var localByNetwork = new Dictionary<string, Building_StorageCore>();

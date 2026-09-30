@@ -72,6 +72,11 @@ namespace DigitalStorage.Ghost
                 ProcessKey(key);
         }
 
+        /// <summary>
+        /// F4: 单 key 定向刷账（核心摧毁批量转移后调用），替代逐 key StockChanged 风暴。
+        /// </summary>
+        public void OnKeyChanged(ItemKey key) => ProcessKey(key);
+
         // ═══════════════════════════════════════════
         // 核心逻辑
         // ═══════════════════════════════════════════
@@ -249,7 +254,8 @@ namespace DigitalStorage.Ghost
                 if (remaining <= 0) break;
             }
 
-            Log.Warning($"[DS-Ghost] MaterializeFromLedger: {key} x{count}, result={result?.ThingID ?? "null"}, resultDestroyed={result?.Destroyed ?? true}");
+            if (result == null && DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                Log.Message($"[DS-Ghost] MaterializeFromLedger: {key} x{count} yielded nothing");
             return result;
         }
 

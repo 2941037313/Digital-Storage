@@ -47,14 +47,14 @@ namespace DigitalStorage.UI
             // 放什么物品：名称 + 选择按钮
             var lockedDef = wh.LockedItemDef;
             Rect itemLbl = new Rect(rect.x, rect.y + y, 90f, 24f);
-            Widgets.Label(itemLbl, "放什么物品:");
+            Widgets.Label(itemLbl, "DS_BufferLockedItem".Translate());
             Rect itemName = new Rect(rect.x + 90f, rect.y + y, rect.width - 172f, 24f);
             string itemNameStr;
             if (lockedDef != null) itemNameStr = lockedDef.LabelCap;
-            else itemNameStr = "（无）";
+            else itemNameStr = "DS_BufferNoItem".Translate();
             Widgets.Label(itemName, itemNameStr);
             Rect selectBtn = new Rect(rect.x + rect.width - 74f, rect.y + y, 74f, 24f);
-            if (Widgets.ButtonText(selectBtn, "选择"))
+            if (Widgets.ButtonText(selectBtn, "DS_BufferSelect".Translate()))
                 OpenItemPicker(wh, core);
             y += 28f;
 
@@ -82,9 +82,9 @@ namespace DigitalStorage.UI
             }
 
             // Min - Max
-            Rect minLbl = new Rect(rect.x, rect.y + y, 40f, 24f);
-            Widgets.Label(minLbl, "Min");
-            Rect minR = new Rect(rect.x + 40f, rect.y + y, 70f, 24f);
+            Rect minLbl = new Rect(rect.x, rect.y + y, 48f, 24f);
+            Widgets.Label(minLbl, "DS_BufferMin".Translate());
+            Rect minR = new Rect(rect.x + 48f, rect.y + y, 62f, 24f);
             int minVal = comp.Min;
             if (minBuf == null) minBuf = minVal.ToString();
             Widgets.TextFieldNumeric<int>(minR, ref minVal, ref minBuf, 0f, 99999f);
@@ -93,9 +93,9 @@ namespace DigitalStorage.UI
             Rect dash = new Rect(rect.x + 116f, rect.y + y, 20f, 24f);
             Widgets.Label(dash, "-");
 
-            Rect maxLbl = new Rect(rect.x + 136f, rect.y + y, 40f, 24f);
-            Widgets.Label(maxLbl, "Max");
-            Rect maxR = new Rect(rect.x + 176f, rect.y + y, 70f, 24f);
+            Rect maxLbl = new Rect(rect.x + 136f, rect.y + y, 48f, 24f);
+            Widgets.Label(maxLbl, "DS_BufferMax".Translate());
+            Rect maxR = new Rect(rect.x + 184f, rect.y + y, 62f, 24f);
             int maxVal = comp.Max;
             if (maxBuf == null) maxBuf = maxVal.ToString();
             Widgets.TextFieldNumeric<int>(maxR, ref maxVal, ref maxBuf, 0f, 99999f);
@@ -104,7 +104,7 @@ namespace DigitalStorage.UI
 
             // 清空该单元：放什么物品=null，min=max=0
             Rect clearBtn = new Rect(rect.x, rect.y + y, rect.width, 26f);
-            if (Widgets.ButtonText(clearBtn, "清空该单元（放什么物品为null，min=max=0）"))
+            if (Widgets.ButtonText(clearBtn, "DS_BufferClearUnit".Translate()))
             {
                 wh.ClearUnit();
                 comp.Min = 0;
@@ -131,7 +131,7 @@ namespace DigitalStorage.UI
                 }));
             }
             if (options.Count == 0)
-                options.Add(new FloatMenuOption("（核心无库存）", null));
+                options.Add(new FloatMenuOption("DS_BufferCoreEmpty".Translate(), null));
             Find.WindowStack.Add(new FloatMenu(options));
         }
     }
