@@ -18,6 +18,12 @@ namespace DigitalStorage.AI
     /// </summary>
     public static class ConsumptionHelper
     {
+        /// <summary>
+        /// 诊断用：上一次 <see cref="TryCreateJob(Pawn, Predicate{Thing})"/> 为什么没产出 job。
+        /// 只在 dev 模式下由调用方打日志 —— 读代码读不出来的时候，让运行时说实话。
+        /// </summary>
+        public static string LastFailReason = "not called";
+
         /// <summary>找某个特定 ThingDef（drug 等精确匹配用）。</summary>
         public static Job TryCreateJob(Pawn pawn, ThingDef desiredDef)
         {
@@ -27,17 +33,18 @@ namespace DigitalStorage.AI
         /// <summary>用自定义 predicate 找（食物用：任何可食即可）。</summary>
         public static Job TryCreateJob(Pawn pawn, Predicate<Thing> filter)
         {
-            if (pawn?.Map == null || filter == null) return null;
+            if (pawn?.Map == null) { LastFailReason = "pawn/map null"; return null; }
+            if (filter == null) { LastFailReason = "filter null"; return null; }
 
             // 8.1 bugfix: 机械体不消费任何 ingestible（无食物/药物/娱乐需求），
             // 统一排除 —— 所有消费 patch 都走这个入口，防止机械体从核心吃食物。
-            if (pawn.RaceProps.IsMechanoid) return null;
+            if (pawn.RaceProps.IsMechanoid) { LastFailReason = "mechanoid"; return null; }
 
             bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
             // 设置「需要终端芯片」：没有芯片就没有任何访问入口（对齐 3.0 反馈
             // 「科技没点、也没装部件，却能远程取物吃」）。默认关闭保持 v3 原设计。
             if (!chip && DigitalStorage.Settings.DigitalStorageSettings.requireChipForCoreAccess)
-                return null;
+            { LastFailReason = "no chip and requireChipForCoreAccess=on"; return null; }
 
             // 社区反馈「食物方案禁止吃虫胶也没用」：原版 JobGiver_GetFood →
             // FoodUtility.TryFindBestFoodSourceFor 会对每个候选调 FoodUtility.WillEat
@@ -46,36 +53,45 @@ namespace DigitalStorage.AI
             bool allowDrug = !pawn.IsTeetotaler();
             Map map = pawn.Map;
             ReservationManager resMgr = map.reservationManager;
+            int seen = 0, rejectedByFilter = 0, rejectedByGate = 0, rejectedByReserved = 0;
 
             Thing best = HaulSourceContents.FindBest(
                 map,
                 t => FoodScoring.Score(pawn, t.def),
                 t =>
                 {
-                    if (!filter(t)) return false;
+                    seen++;
+                    if (!filter(t)) { rejectedByFilter++; return false; }
                     ThingDef def = t.def;
                     if (def == null) return false;
 
                     if (def.IsNutritionGivingIngestible)
                     {
-                        if (!pawn.WillEat(def, pawn, careIfNotAcceptableForTitle: true)) return false;
+                        if (!pawn.WillEat(def, pawn, careIfNotAcceptableForTitle: true)) { rejectedByGate++; return false; }
                     }
                     else if (def.IsDrug)
                     {
                         // 成瘾品 / 娱乐性药物：不贪食者与变体限制（对齐原版 JobGiver_GetFood 的 allowDrug）
-                        if (!allowDrug) return false;
-                        if (!pawn.DrugIsSuitable(def)) return false;
+                        if (!allowDrug) { rejectedByGate++; return false; }
+                        if (!pawn.DrugIsSuitable(def)) { rejectedByGate++; return false; }
                     }
 
                     // 已被别人预订的不要选（原版 GenClosest 也会做这个检查）
-                    if (resMgr != null && resMgr.IsReserved(t)) return false;
+                    if (resMgr != null && resMgr.IsReserved(t)) { rejectedByReserved++; return false; }
                     return true;
                 });
 
-            if (best == null) return null;
+            if (best == null)
+            {
+                LastFailReason = "no match (seen=" + seen + " filtered=" + rejectedByFilter
+                    + " gate=" + rejectedByGate + " reserved=" + rejectedByReserved + ")";
+                return null;
+            }
 
             int take = GetIngestAmount(pawn, best.def, best.stackCount);
-            if (take <= 0) return null;
+            if (take <= 0) { LastFailReason = "GetIngestAmount<=0 for " + best.def.defName; return null; }
+
+            LastFailReason = "ok: " + best.def.defName + " x" + take;
 
             var job = JobMaker.MakeJob(DigitalStorage_JobDefOf.DigitalStorage_ConsumeFromLedger);
             // targetA = 要吃/要用的那件真实东西（会被 Scribe，存档读档不丢）

@@ -18,7 +18,12 @@ namespace DigitalStorage.HarmonyPatches
     {
         static void Postfix(Pawn pawn, ref Job __result)
         {
-            if (__result != null) return;
+            if (__result != null)
+            {
+                // 目标住在容器里 → 原版那条消耗链执行不了，改由我们接管（否则静默卡死）
+                if (!ConsumePatchUtil.IsUnexecutableContainerTarget(__result)) return;
+                __result = null;
+            }
             if (!ConsumePatchUtil.ShouldTry(pawn)) return;
             if (!CanUseCoreFood(pawn)) return;
             __result = ConsumptionHelper.TryCreateJob(pawn,
@@ -45,15 +50,36 @@ namespace DigitalStorage.HarmonyPatches
     {
         static void Postfix(Pawn pawn, ref Job __result)
         {
-            if (__result != null) return;
-            if (!ConsumePatchUtil.ShouldTry(pawn)) return;
+            bool debug = DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog;
+
+            // 原版可能自己返回了作业，但目标住在容器里 —— JobDriver_Ingest 那条链没有
+            // canGotoSpawnedParent，执行不了。这种「看着有作业、实际做不成」比返回 null 更坏：
+            // 它会静默卡住，而且我们因为 __result != null 而放手。所以精确识别并接管。
+            if (__result != null)
+            {
+                if (!ConsumePatchUtil.IsUnexecutableContainerTarget(__result)) return;
+                if (debug) Log.Message("[DS] TakeDrugs: 原版作业目标在容器里（Ingest 链走不通），接管。");
+                __result = null;
+            }
+
+            if (!ConsumePatchUtil.ShouldTry(pawn))
+            {
+                if (debug) Log.Message("[DS] TakeDrugs: ShouldTry=false（同 tick 刚失败 / 已有本 mod 作业）");
+                return;
+            }
+
             var policy = pawn.drugs?.CurrentPolicy;
-            if (policy == null) return;
+            if (policy == null) { if (debug) Log.Message("[DS] TakeDrugs: policy=null"); return; }
+
             for (int i = 0; i < policy.Count; i++)
             {
                 var drugDef = policy[i].drug;
-                if (!pawn.drugs.ShouldTryToTakeScheduledNow(drugDef)) continue;
+                bool want = pawn.drugs.ShouldTryToTakeScheduledNow(drugDef);
+                if (debug) Log.Message("[DS] TakeDrugs: " + drugDef.defName + " want=" + want);
+                if (!want) continue;
+
                 var job = ConsumptionHelper.TryCreateJob(pawn, t => t.def == drugDef);
+                if (debug) Log.Message("[DS] TakeDrugs: " + drugDef.defName + " -> " + ConsumptionHelper.LastFailReason);
                 if (job != null) { __result = job; return; }
             }
         }
@@ -65,7 +91,12 @@ namespace DigitalStorage.HarmonyPatches
     {
         static void Postfix(Pawn pawn, ref Job __result)
         {
-            if (__result != null) return;
+            if (__result != null)
+            {
+                // 目标住在容器里 → 原版那条消耗链执行不了，改由我们接管（否则静默卡死）
+                if (!ConsumePatchUtil.IsUnexecutableContainerTarget(__result)) return;
+                __result = null;
+            }
             if (!ConsumePatchUtil.ShouldTry(pawn)) return;
             foreach (var def in DefDatabase<JoyGiverDef>.AllDefs)
             {
@@ -83,6 +114,29 @@ namespace DigitalStorage.HarmonyPatches
     /// <summary>节流：防同 tick 内反复创同一 job 导致 10 jobs/tick 循环。</summary>
     static class ConsumePatchUtil
     {
+        /// <summary>
+        /// 这个作业的目标是不是「未 Spawned 且住在 IHaulSource 容器里」的东西。
+        ///
+        /// 这种目标原版的消耗链执行不了（<c>JobDriver_Ingest</c> 没有
+        /// <c>canGotoSpawnedParent</c>），所以一旦 <c>__result</c> 指向它，必须由我们接管，
+        /// 否则就是一个静默卡死的作业。
+        ///
+        /// 判据与 <c>HaulAIUtility.IsInHaulableInventory</c> 一致 ——
+        /// 注意 pawn 的背包是 <c>Pawn_InventoryTracker</c>，**不是** IHaulSource，
+        /// 所以原版「从别人背包拿」那条路不会被误伤。
+        /// </summary>
+        public static bool IsUnexecutableContainerTarget(Job job)
+        {
+            return IsHaulSourceContent(job?.targetA.Thing)
+                || IsHaulSourceContent(job?.targetB.Thing)
+                || IsHaulSourceContent(job?.targetC.Thing);
+        }
+
+        private static bool IsHaulSourceContent(Thing t)
+        {
+            return t != null && !t.Spawned && t.ParentHolder is IHaulSource;
+        }
+
         private static int lastFailTick = -1;
         private static int lastFailPawnID = -1;
 
