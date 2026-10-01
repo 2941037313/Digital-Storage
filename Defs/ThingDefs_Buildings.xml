@@ -26,7 +26,7 @@
   <ThingDef ParentName="DigitalStorage_BuildingBase">
     <defName>DigitalStorage_StorageCore</defName>
     <label>数字存储核心</label>
-    <description>数字存储系统的核心单元。每个核心是一个独立的虚拟存储网络，可以命名。\n\n物品通过输入接口送入后转为数字数据，不占地图空间，也不会老化或变质。\n\n装载终端芯片的殖民者可以无需走到接口直接存取。</description>
+    <description>数字存储系统的核心单元。物品直接存放在核心内部，不占地图空间，也不会老化或变质。\n\n任何位置的殖民者都可以从中取用物品，无需走到核心旁边。</description>
     <thingClass>DigitalStorage.Components.Building_StorageCore</thingClass>
     <graphicData>
       <texPath>2.0/基座</texPath>
@@ -62,76 +62,9 @@
       </li>
       <li Class="CompProperties_Breakdownable" />
       <li Class="DigitalStorage.Components.CompProperties_AutoIngest" />
-      <li Class="DigitalStorage.Components.CompProperties_StorageCoreUpgrade">
-        <upgrades>
-          <!-- 等级 1: 基础 -->
-          <li>
-            <labelKey>DS_UpgradeLevel_1</labelKey>
-            <capacity>100</capacity>
-            <powerConsumption>100</powerConsumption>
-            <upgradeDurationTicks>0</upgradeDurationTicks>
-            <cooldownTicks>0</cooldownTicks>
-          </li>
-          <!-- 等级 2: 进阶 -->
-          <li>
-            <labelKey>DS_UpgradeLevel_2</labelKey>
-            <capacity>250</capacity>
-            <powerConsumption>150</powerConsumption>
-            <upgradeDurationTicks>30000</upgradeDurationTicks>
-            <cooldownTicks>2500</cooldownTicks>
-            <upgradeCost>
-              <li>
-                <thingDef>Steel</thingDef>
-                <count>200</count>
-              </li>
-              <li>
-                <thingDef>ComponentIndustrial</thingDef>
-                <count>10</count>
-              </li>
-            </upgradeCost>
-          </li>
-          <!-- 等级 3: 高级 -->
-          <li>
-            <labelKey>DS_UpgradeLevel_3</labelKey>
-            <capacity>500</capacity>
-            <powerConsumption>200</powerConsumption>
-            <upgradeDurationTicks>60000</upgradeDurationTicks>
-            <cooldownTicks>2500</cooldownTicks>
-            <upgradeCost>
-              <li>
-                <thingDef>Plasteel</thingDef>
-                <count>100</count>
-              </li>
-              <li>
-                <thingDef>ComponentIndustrial</thingDef>
-                <count>20</count>
-              </li>
-              <li>
-                <thingDef>ComponentSpacer</thingDef>
-                <count>5</count>
-              </li>
-            </upgradeCost>
-          </li>
-          <!-- 等级 4: 量子 -->
-          <li>
-            <labelKey>DS_UpgradeLevel_4</labelKey>
-            <capacity>1000</capacity>
-            <powerConsumption>300</powerConsumption>
-            <upgradeDurationTicks>120000</upgradeDurationTicks>
-            <cooldownTicks>2500</cooldownTicks>
-            <upgradeCost>
-              <li>
-                <thingDef>Plasteel</thingDef>
-                <count>200</count>
-              </li>
-              <li>
-                <thingDef>ComponentSpacer</thingDef>
-                <count>15</count>
-              </li>
-            </upgradeCost>
-          </li>
-        </upgrades>
-      </li>
+      <!-- 4.0：升级三件套已删（CompStorageCoreUpgrade / CompProperties_StorageCoreUpgrade /
+           StorageCoreUpgrade）。用户拍板「核心一放就是完全体」，容量固定为实体上的 maxStacks。
+           原先这里的 <upgrades> 1~4 级（100/250/500/1000 组）随之作废。 -->
     </comps>
     <researchPrerequisites>
       <li>DigitalStorage_BasicStorage</li>

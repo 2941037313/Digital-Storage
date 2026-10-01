@@ -193,24 +193,28 @@ namespace DigitalStorage.Core
         }
 
         /// <summary>
-        /// 从容器里凑齐 <paramref name="count"/> 个 <paramref name="def"/>，逐个落到
-        /// <paramref name="pos"/>，返回实际取出的总数。
+        /// 从容器里凑齐 <paramref name="count"/> 个「满足 <paramref name="filter"/>」的东西，
+        /// 逐个落到 <paramref name="pos"/>，返回实际取出的总数。
         ///
         /// <para>用于 ITab 面板的"取出"按钮 —— 原版 UI 不知道我们的容器，
         /// 而 job 路径只认「一件 Thing」，凑多堆得在这里做。</para>
         ///
+        /// <para><paramref name="filter"/> 让面板能精确到"哪一批"（def + stuff + 品质 + 耐久），
+        /// 而不是只按 def 粗取 —— 「全放开」之后同一 def 可能同时有普通剑和传奇剑。</para>
+        ///
         /// <para><paramref name="forbid"/>：取出后设为禁止（3.0 语义）。防止刚取出来就被
         /// 原版搬运工或自动收纳送回去，形成"取—送"死循环。</para>
         /// </summary>
-        public static int ExtractDefTo(ThingDef def, int count, IntVec3 pos, Map map, bool forbid = true)
+        public static int ExtractMatchingTo(int count, IntVec3 pos, Map map,
+            Predicate<Thing> filter, bool forbid = true)
         {
-            if (def == null || count <= 0 || map == null) return 0;
+            if (filter == null || count <= 0 || map == null) return 0;
 
             int got = 0;
             while (got < count)
             {
                 // 每次重新找最大堆：上一轮可能已把它取空
-                Thing next = FindBest(map, t => t.stackCount, t => t.def == def);
+                Thing next = FindBest(map, t => t.stackCount, t => filter(t));
                 if (next == null) break;
 
                 int want = Math.Min(count - got, next.stackCount);
@@ -221,6 +225,13 @@ namespace DigitalStorage.Core
                 got += taken.stackCount;
             }
             return got;
+        }
+
+        /// <summary>按 def 取出（右键菜单用）。</summary>
+        public static int ExtractDefTo(ThingDef def, int count, IntVec3 pos, Map map, bool forbid = true)
+        {
+            if (def == null) return 0;
+            return ExtractMatchingTo(count, pos, map, t => t.def == def, forbid);
         }
     }
 }

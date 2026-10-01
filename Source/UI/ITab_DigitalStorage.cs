@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DigitalStorage.Components;
 using DigitalStorage.Core;
@@ -8,8 +9,17 @@ using Verse;
 namespace DigitalStorage.UI
 {
     /// <summary>
-    /// 核心的虚拟库存 ITab。
-    /// 6 组折叠展示，每组列出条目 + 数量，每行有"取出"按钮。
+    /// 存储核心的内容物面板。
+    ///
+    /// <para><b>4.0 改造</b>：3.0 这个面板读的是账本（<c>core.Ledger.Stock</c> 的
+    /// <c>ItemKey</c> → 数量）。现在读的是 <c>core.innerContainer</c> —— **真实的 Thing**，
+    /// 所以行按**真实身份**分组：<c>def + stuff + 品质</c>。</para>
+    ///
+    /// <para>这正是「全放开」的意义所在：同一 def 的普通剑和传奇剑是**两行**，
+    /// 可以分别取出（3.0 的 <c>(def,stuff)</c> 键根本区分不出来）。</para>
+    ///
+    /// <para>6 组折叠展示沿用 <see cref="ItemGrouping"/>（原 <c>ItemGroup.cs</c> 保留，
+    /// 它与账本无关，只是 def → 面板分组的映射）。</para>
     /// </summary>
     public class ITab_DigitalStorage : ITab
     {
@@ -28,19 +38,114 @@ namespace DigitalStorage.UI
 
         public override bool IsVisible => Core != null;
 
+        // ===================================================================
+        // 行快照：按 真实身份（def + stuff + 品质）聚合
+        // ===================================================================
+
+        private struct Row
+        {
+            public ThingDef def;
+            public ThingDef stuff;
+            public int qualityOrdinal; // -1 = 无品质
+            public string label;
+            public int count;
+            public ItemGroup group;
+        }
+
+        private readonly List<Row> rows = new List<Row>();
+        private int cachedTick = -1;
+        private int cachedCount = -1;
+
+        private static int QualityOrdinalOf(Thing t)
+        {
+            CompQuality q = t.TryGetComp<CompQuality>();
+            return q != null ? (int)q.Quality : -1;
+        }
+
+        /// <summary>
+        /// 重建行快照。容器内容物只在取出/放入时变，所以按 (tick, 堆数) 做一次廉价的
+        /// 变更检测即可 —— 避免每帧 6 遍全表扫描（旧实现有同样的 P8 缓存思路）。
+        /// </summary>
+        private void RebuildRowsIfNeeded(Building_StorageCore core, bool force = false)
+        {
+            int tick = Find.TickManager.TicksGame;
+            int count = core.innerContainer.Count;
+            if (!force && tick == cachedTick && count == cachedCount) return;
+            cachedTick = tick;
+            cachedCount = count;
+
+            var order = new List<(ThingDef def, ThingDef stuff, int q)>();
+            var counts = new Dictionary<(ThingDef, ThingDef, int), int>();
+            var labels = new Dictionary<(ThingDef, ThingDef, int), string>();
+
+            for (int i = 0; i < core.innerContainer.Count; i++)
+            {
+                Thing t = core.innerContainer[i];
+                if (t?.def == null || t.Destroyed) continue;
+
+                var key = (t.def, t.Stuff, QualityOrdinalOf(t));
+                int cur;
+                if (counts.TryGetValue(key, out cur))
+                {
+                    counts[key] = cur + t.stackCount;
+                }
+                else
+                {
+                    counts[key] = t.stackCount;
+                    labels[key] = BuildLabel(t);
+                    order.Add(key);
+                }
+            }
+
+            rows.Clear();
+            for (int i = 0; i < order.Count; i++)
+            {
+                var key = order[i];
+                rows.Add(new Row
+                {
+                    def = key.def,
+                    stuff = key.stuff,
+                    qualityOrdinal = key.q,
+                    label = labels[key],
+                    count = counts[key],
+                    group = ItemGrouping.GroupOf(key.def),
+                });
+            }
+            rows.Sort((a, b) => string.Compare(a.label, b.label, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// 行标签。带 <c>try/catch</c>：某些 def 的 <c>LabelNoCount</c> 会抛
+        /// （3.0 的 LedgerItemCollector 就为这个专门加了防护），UI 不能因此崩掉。
+        /// 顺带附上耐久百分比 —— 「全放开」让耐久有意义的物品（武器/护甲）能一眼区分。
+        /// </summary>
+        private static string BuildLabel(Thing t)
+        {
+            string label;
+            try { label = t.LabelNoCount; }
+            catch { label = t.def.LabelCap; }
+
+            if (t.def.useHitPoints && t.MaxHitPoints > 0)
+                label += "  " + ((float)t.HitPoints / t.MaxHitPoints).ToStringPercent();
+            return label;
+        }
+
+        // ===================================================================
+
         protected override void FillTab()
         {
-            var core = Core;
+            Building_StorageCore core = Core;
             if (core == null) return;
+            RebuildRowsIfNeeded(core);
 
             Rect rect = new Rect(0f, 0f, WinSize.x, WinSize.y).ContractedBy(10f);
             Text.Font = GameFont.Small;
             float y = 0f;
 
-            // 顶部：容量条
+            // 顶部：栈数占用条（4.0 上限是"栈数"，由 maxStacks 决定，不再有升级扩容）
             Rect barRect = new Rect(rect.x, rect.y + y, rect.width, 22f);
-            int used = core.Ledger.UsedCapacity();
-            int cap = core.GetCapacity();
+            int used = core.innerContainer.Count;
+            int cap = core.maxStacks;
             Widgets.FillableBar(barRect, cap > 0 ? (float)used / cap : 0f);
             Text.Anchor = TextAnchor.MiddleCenter;
             Widgets.Label(barRect, "DS_CapacityBar".Translate(used, cap));
@@ -48,15 +153,14 @@ namespace DigitalStorage.UI
             y += 26f;
 
             // 搬运优先级
-            Rect prioLabel = new Rect(rect.x, rect.y + y, 60f, 22f);
-            Widgets.Label(prioLabel, "DS_Priority".Translate() + ":");
+            Widgets.Label(new Rect(rect.x, rect.y + y, 60f, 22f), "DS_Priority".Translate() + ":");
             Rect prioRect = new Rect(rect.x + 62f, rect.y + y, 140f, 22f);
             if (Widgets.ButtonText(prioRect, PriorityLabel(core.storagePriority)))
             {
                 var options = new List<FloatMenuOption>();
-                foreach (StoragePriority p in System.Enum.GetValues(typeof(StoragePriority)))
+                foreach (StoragePriority p in Enum.GetValues(typeof(StoragePriority)))
                 {
-                    var priority = p;
+                    StoragePriority priority = p;
                     if (priority == StoragePriority.Unstored) continue;
                     options.Add(new FloatMenuOption(PriorityLabel(priority), delegate
                     {
@@ -68,70 +172,57 @@ namespace DigitalStorage.UI
             y += 26f;
 
             // 搜索框
-            Rect searchRect = new Rect(rect.x, rect.y + y, rect.width, 24f);
-            search = Widgets.TextField(searchRect, search);
+            search = Widgets.TextField(new Rect(rect.x, rect.y + y, rect.width, 24f), search);
             y += 30f;
 
             // 列表区
             Rect listOuter = new Rect(rect.x, rect.y + y, rect.width, rect.height - y);
-            float listHeight = CalcListHeight(core);
-            Rect listInner = new Rect(0, 0, listOuter.width - 16f, listHeight);
+            Rect listInner = new Rect(0, 0, listOuter.width - 16f, CalcListHeight());
             Widgets.BeginScrollView(listOuter, ref scroll, listInner);
 
             float ly = 0f;
             for (int gi = 0; gi < 6; gi++)
             {
-                var group = (ItemGroup)gi;
-                long gcount = core.Ledger.GroupCount(group);
-                int gkinds = core.Ledger.GroupKinds(group);
-                if (gkinds == 0 && string.IsNullOrEmpty(search)) continue; // 空组不显示（无搜索时）
+                ItemGroup group = (ItemGroup)gi;
 
-                // 分组头
+                int gkinds = 0;
+                long gcount = 0;
+                for (int ri = 0; ri < rows.Count; ri++)
+                {
+                    if (rows[ri].group != group) continue;
+                    if (!RowMatchesSearch(rows[ri])) continue;
+                    gkinds++;
+                    gcount += rows[ri].count;
+                }
+                if (gkinds == 0) continue;
+
                 Rect header = new Rect(0, ly, listInner.width, 26f);
                 if (Mouse.IsOver(header)) Widgets.DrawHighlight(header);
                 string arrow = expanded[gi] ? "▼" : "▶";
-                string label = $"{arrow} {ItemGrouping.LabelKeyOf(group).Translate()}   x{gcount}   ({gkinds} {"DS_Kinds".Translate()})";
-                Widgets.Label(header, label);
+                Widgets.Label(header, arrow + " " + ItemGrouping.LabelKeyOf(group).Translate()
+                    + "   x" + gcount + "   (" + gkinds + " " + "DS_Kinds".Translate() + ")");
                 if (Widgets.ButtonInvisible(header)) expanded[gi] = !expanded[gi];
                 ly += 28f;
 
                 if (!expanded[gi]) continue;
 
-                // 组内条目
-                foreach (var kv in core.Ledger.Stock)
+                for (int ri = 0; ri < rows.Count; ri++)
                 {
-                    if (kv.Value <= 0) continue;
-                    if (ItemGrouping.GroupOf(kv.Key.def) != group) continue;
+                    Row row = rows[ri];
+                    if (row.group != group || !RowMatchesSearch(row)) continue;
 
-                    string itemLabel = kv.Key.ToString();
-                    if (!string.IsNullOrEmpty(search) &&
-                        itemLabel.IndexOf(search, System.StringComparison.OrdinalIgnoreCase) < 0)
-                        continue;
+                    Rect line = new Rect(12f, ly, listInner.width - 12f, 24f);
+                    if (Mouse.IsOver(line)) Widgets.DrawHighlight(line);
 
-                    Rect row = new Rect(12f, ly, listInner.width - 12f, 24f);
-                    if (Mouse.IsOver(row)) Widgets.DrawHighlight(row);
+                    Widgets.ThingIcon(new Rect(line.x, line.y, 22f, 22f), row.def, row.stuff);
+                    Widgets.Label(new Rect(line.x + 26f, line.y, line.width - 130f, 24f),
+                        row.label + "   x" + row.count);
 
-                    // 图标
-                    Rect iconR = new Rect(row.x, row.y, 22f, 22f);
-                    Widgets.ThingIcon(iconR, kv.Key.def, kv.Key.stuff);
-
-                    // 标签
-                    Rect labelR = new Rect(row.x + 26f, row.y, row.width - 130f, 24f);
-                    long avail = core.Ledger.Available(kv.Key);
-                    long reserved = kv.Value - avail;
-                    string text = reserved > 0
-                        ? $"{itemLabel}   x{kv.Value}  ({"DS_Reserved".Translate(reserved)})"
-                        : $"{itemLabel}   x{kv.Value}";
-                    Widgets.Label(labelR, text);
-
-                    // 取出按钮
-                    Rect btnR = new Rect(row.xMax - 100f, row.y, 100f, 22f);
-                    if (Widgets.ButtonText(btnR, "DS_WithdrawBtn".Translate()))
+                    if (Widgets.ButtonText(new Rect(line.xMax - 100f, line.y, 100f, 22f), "DS_WithdrawBtn".Translate()))
                     {
-                        // 4.0：Dialog_WithdrawAmount 已改为 def 口径（见其类注释）。
-                        // 本 ITab 仍是账本口径，等批 3 换成"容器内容物面板"时一并重写。
-                        Find.WindowStack.Add(new Dialog_WithdrawAmount(core, kv.Key.def,
-                            (int)System.Math.Min(avail, int.MaxValue)));
+                        Row captured = row;
+                        Find.WindowStack.Add(new Dialog_WithdrawAmount(captured.label, captured.count, 0,
+                            amount => ExtractRow(core, captured, amount)));
                     }
 
                     ly += 26f;
@@ -141,9 +232,43 @@ namespace DigitalStorage.UI
             Widgets.EndScrollView();
         }
 
+        private bool RowMatchesSearch(Row row)
+        {
+            if (string.IsNullOrEmpty(search)) return true;
+            return row.label.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary>把某一行（def + stuff + 品质）取出 amount 个，落到核心旁边。</summary>
+        private static void ExtractRow(Building_StorageCore core, Row row, int amount)
+        {
+            Map map = core.Map;
+            if (map == null) return;
+
+            int got = HaulSourceContents.ExtractMatchingTo(amount, core.Position, map,
+                t => t.def == row.def && t.Stuff == row.stuff && QualityOrdinalOf(t) == row.qualityOrdinal);
+
+            if (got <= 0)
+                Messages.Message("DS_NoSpaceNearCore".Translate(), core, MessageTypeDefOf.RejectInput);
+        }
+
+        private float CalcListHeight()
+        {
+            float h = 0f;
+            for (int gi = 0; gi < 6; gi++)
+            {
+                int gkinds = 0;
+                for (int ri = 0; ri < rows.Count; ri++)
+                    if (rows[ri].group == (ItemGroup)gi && RowMatchesSearch(rows[ri])) gkinds++;
+                if (gkinds == 0) continue;
+                h += 28f;
+                if (expanded[gi]) h += gkinds * 26f;
+            }
+            return h;
+        }
+
         private static string PriorityLabel(StoragePriority p)
         {
-            // 键名必须与 vanilla Enums.xml 一致(StoragePriorityXxx,见 StoragePriorityHelper),
+            // 键名必须与 vanilla Enums.xml 一致(StoragePriorityXxx,见 StoragePriorityHelper)，
             // 错误键名(PriorityXxx)会被 Translate() 当缺失键 → 显示乱码(泰南语)
             switch (p)
             {
@@ -155,53 +280,5 @@ namespace DigitalStorage.UI
                 default: return p.ToString();
             }
         }
-
-        private float CalcListHeight(Building_StorageCore core)
-        {
-            // P8: 高度只依赖「库存版本 + 搜索词 + 展开状态」，三者都没变就直接复用。
-            // 旧实现每次 FillTab（每帧）都要 6 遍全表扫描 + 每行一次 ItemKey.ToString()。
-            int version = core.Ledger.StockVersion;
-            if (cachedHeight >= 0f && cachedVersion == version
-                && string.Equals(cachedSearch, search, System.StringComparison.Ordinal)
-                && cachedExpanded != null && ExpandedMaskMatches())
-                return cachedHeight;
-
-            float h = 0f;
-            for (int gi = 0; gi < 6; gi++)
-            {
-                var group = (ItemGroup)gi;
-                int gkinds = core.Ledger.GroupKinds(group);
-                if (gkinds == 0 && string.IsNullOrEmpty(search)) continue;
-                h += 28f;
-                if (!expanded[gi]) continue;
-                foreach (var kv in core.Ledger.Stock)
-                {
-                    if (kv.Value <= 0) continue;
-                    if (ItemGrouping.GroupOf(kv.Key.def) != group) continue;
-                    if (!string.IsNullOrEmpty(search) &&
-                        kv.Key.ToString().IndexOf(search, System.StringComparison.OrdinalIgnoreCase) < 0)
-                        continue;
-                    h += 26f;
-                }
-            }
-
-            cachedHeight = h;
-            cachedVersion = version;
-            cachedSearch = search;
-            cachedExpanded = (bool[])expanded.Clone();
-            return h;
-        }
-
-        private bool ExpandedMaskMatches()
-        {
-            for (int i = 0; i < 6; i++)
-                if (cachedExpanded[i] != expanded[i]) return false;
-            return true;
-        }
-
-        private float cachedHeight = -1f;
-        private int cachedVersion = -1;
-        private string cachedSearch;
-        private bool[] cachedExpanded;
     }
 }

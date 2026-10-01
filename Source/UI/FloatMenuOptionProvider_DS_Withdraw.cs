@@ -61,7 +61,7 @@ namespace DigitalStorage.UI
                     subOptions.Add(new FloatMenuOption(label, () =>
                     {
                         int maxCarry = pawn.carryTracker?.AvailableStackSpace(def) ?? 0;
-                        Find.WindowStack.Add(new Dialog_WithdrawAmount(def, total, maxCarry, amount =>
+                        Find.WindowStack.Add(new Dialog_WithdrawAmount(def.LabelCap, total, maxCarry, amount =>
                         {
                             // 取同 def 里最大的一堆（job 只认一件 Thing；凑不齐由后续 job 接力）
                             Thing src = HaulSourceContents.FindBest(map, t => t.stackCount, t => t.def == def);
