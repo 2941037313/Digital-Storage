@@ -90,8 +90,14 @@ namespace DigitalStorage.Backpack
                     if (!(t.ParentHolder is Building_StorageCore)) continue; // 只管核心内容物
                     if (giverInner != null && giverInner.Contains(t)) continue;
 
-                    int want = (counts != null && i < counts.Count) ? counts[i] : t.stackCount;
-                    bag.TryAbsorb(t, want);
+                    // 数量未知就**不动**（宁可不取，也不能超量）：countQueue 由原版
+                    // TryStartNewDoBillJob:338 与 targetQueueB 平行填充，正常永远对得上。
+                    // 若某个第三方建的 DoBill 作业缺 countQueue，回退成"整堆"会搬出比
+                    // curJob.count 更多的东西，之后 StartCarryThing 的
+                    // failIfStackCountLessThanJobCount 判定就失去意义。
+                    if (counts == null || i >= counts.Count) continue;
+
+                    bag.TryAbsorb(t, counts[i]);
                 }
             };
             return toil;
