@@ -75,11 +75,23 @@ namespace DigitalStorage.Backpack
                 // 【临时诊断】用户报"还是走到核心"时靠这几行定位是哪道门（定位完删）
                 BackpackDiag.Say("取料 toil 执行：pawn=" + actor.LabelShortCap
                     + " 有背包=" + (bag != null)
+                    + " 背包件数=" + (bag == null ? -1 : bag.Count)
+                    + " 上限=" + (bag == null ? -1 : bag.CapacityStacks)
                     + " job=" + (job == null ? "null" : job.def.defName)
                     + " queue=" + (queue == null ? "null" : queue.Count.ToString())
                     + " counts=" + (counts == null ? "null" : counts.Count.ToString()));
 
                 if (bag == null || job == null || queue.NullOrEmpty()) return;
+
+                // 作业开始时先清掉上一次的残留（「默认清空」+ 保证有空间）。
+                // **必须有这一步**：背包满了 CanFit 会让每一件料都被静默拒掉（实测症状：
+                // 同一作业里两个不同 def 都"取到 0"，小人照样走到核心）。而背包内容物
+                // 对原版搜索是不可见的（不是 Thing），所以满背包里的东西不会自己回核心。
+                if (bag.Count > 0)
+                {
+                    int returned = bag.ReturnContentsToCore();
+                    BackpackDiag.Say("  作业开始清残留：退回核心 " + returned + " 件，背包剩 " + bag.Count);
+                }
 
                 // 已经在工作台内胆里的料，原版有 JumpIfTargetInsideBillGiver 直接跳过取料
                 // （JobDriver_DoBill.cs:145）—— 别把它拽出来，反而打乱原版路径。

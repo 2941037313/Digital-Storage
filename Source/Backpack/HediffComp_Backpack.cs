@@ -80,6 +80,9 @@ namespace DigitalStorage.Backpack
 
         public int Count => GetDirectlyHeldThings().Count;
 
+        /// <summary>软上限（堆数），见 <see cref="CanFit"/>。</summary>
+        public int CapacityStacks => Props.capacityStacks;
+
         // ===================================================================
         // 查找
         // ===================================================================
@@ -121,15 +124,38 @@ namespace DigitalStorage.Backpack
             if (pawn == null) return 0;
 
             ThingOwner held = GetDirectlyHeldThings();
-            if (ReferenceEquals(source.ParentHolder, this)) return 0; // 已经在背包里
+            if (ReferenceEquals(source.ParentHolder, this))
+            {
+                BackpackDiag.Say("TryAbsorb 返回 0：已经在背包里");
+                return 0;
+            }
 
-            IThingHolder holder = source.ParentHolder as IThingHolder;
-            ThingOwner owner = (holder == null) ? null : holder.GetDirectlyHeldThings();
-            if (owner == null || !owner.Contains(source)) return 0;   // 不在可识别的容器里
+            // 直接问"装着它的那个 ThingOwner 实例"。Thing.holdingOwner 是 public 字段
+            // （Thing.cs:39），而 ThingOwner.Contains 的实现就是 `item.holdingOwner == this`
+            // （ThingOwner.cs:609）—— 所以从 ParentHolder 反推 owner 是绕路，还可能推错实例。
+            ThingOwner owner = source.holdingOwner;
+            if (owner == null || owner.Owner is Map)
+            {
+                // 地上的东西：holdingOwner 是 Map 自己的容器 ⇒ 不能用（也不该用）
+                IThingHolder holder = source.ParentHolder as IThingHolder;
+                owner = (holder == null) ? null : holder.GetDirectlyHeldThings();
+            }
+            if (owner == null || owner.Owner is Map || !owner.Contains(source))
+            {
+                BackpackDiag.Say("TryAbsorb 返回 0：容器对不上（holdingOwner="
+                    + (source.holdingOwner == null ? "null" : source.holdingOwner.Owner.GetType().Name)
+                    + " 反推=" + (owner == null ? "null" : owner.Owner.GetType().Name) + "）");
+                return 0;
+            }
 
             int want = (count < source.stackCount) ? count : source.stackCount;
             if (want <= 0) return 0;
-            if (!CanFit(source)) return 0;
+            if (!CanFit(source))
+            {
+                BackpackDiag.Say("TryAbsorb 返回 0：装不下（背包件数=" + held.Count
+                    + " 上限=" + Props.capacityStacks + "）");
+                return 0;
+            }
 
             Thing taken;
             if (want >= source.stackCount)
@@ -142,10 +168,18 @@ namespace DigitalStorage.Backpack
                 // SplitOff 只动这一堆，不触碰 owner 的其它条目
                 taken = source.SplitOff(want);
             }
-            if (taken == null) return 0;
+            if (taken == null)
+            {
+                BackpackDiag.Say("TryAbsorb 返回 0：取出的东西是 null（want=" + want
+                    + " stack=" + source.stackCount + "）");
+                return 0;
+            }
 
             if (held.TryAdd(taken, true)) return taken.stackCount;
 
+            BackpackDiag.Say("TryAbsorb 返回 0：TryAdd 失败（背包件数=" + held.Count
+                + " 上限=" + Props.capacityStacks + " 取出件 holdingOwner="
+                + (taken.holdingOwner == null ? "null" : taken.holdingOwner.Owner.GetType().Name) + "）");
             Return(owner, taken);
             return 0;
         }
