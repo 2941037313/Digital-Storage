@@ -238,6 +238,8 @@ namespace DigitalStorage.Components
             NotOnMap,
             /// <summary>在关押区里（牢房 / 有囚犯的房间）—— 见 <see cref="IsInPrisonArea"/>。</summary>
             InPrisonArea,
+            /// <summary>在工作台的**材料区**（= 工作台自己占的格子）—— 见 <see cref="IsOnBillGiver"/>。</summary>
+            OnBillGiver,
             Reserved,
             RecentlyWithdrawn
         }
@@ -263,10 +265,31 @@ namespace DigitalStorage.Components
             // （实测：待搬表 98 件全灭、自动收纳归零，而"通过=0"看起来还像"没东西可收"）。
             // 容器内 / 背包里的东西 Spawned == false，一条判断就够。
             if (!t.Spawned) return Reject.NotOnMap;
+            if (IsOnBillGiver(t, map)) return Reject.OnBillGiver;
             if (IsInPrisonArea(t, map)) return Reject.InPrisonArea;
             if (map.reservationManager.IsReserved(t)) return Reject.Reserved;
             if (IsRecentlyWithdrawn(t)) return Reject.RecentlyWithdrawn;
             return Reject.None;
+        }
+
+        /// <summary>
+        /// 这件东西是不是躺在**工作台的材料区**上。材料区 = 工作台**自己占用的格子**
+        /// （<c>Building_WorkTable.cs:40</c>：<c>IngredientStackCells =&gt; GenAdj.CellsOccupiedBy(this)</c>）。
+        ///
+        /// <para><b>为什么必须排除</b>（用户实测：材料放在工作台材料区被自动收纳取走）：
+        /// 原版把 bill 的原料就丢在这里，而本类的判据对它是成立的（在原版待搬表里 +
+        /// 原版确实会把它搬进核心：核心是更优的容器）⇒ 料刚上台就被吸回核心。</para>
+        ///
+        /// <para>更糟的连锁：<c>WorkGiverUtility.HaulStuffOffBillGiverJob</c>（<c>WorkGiverUtility.cs:8-19</c>）
+        /// 只要在材料区看到任何物品，就<b>不建 DoBill 作业</b>，改派"把台子上的东西搬走"的作业
+        /// ⇒ 小人一趟趟把台子上的料搬去储存区，bill 永远开不了工。</para>
+        ///
+        /// <para>判据直接蹭原版自己的"材料区"定义，成本一次 <c>GetEdifice</c>。</para>
+        /// </summary>
+        private static bool IsOnBillGiver(Thing t, Map map)
+        {
+            Building edifice = t.PositionHeld.GetEdifice(map);
+            return edifice is IBillGiver;
         }
 
         /// <summary>

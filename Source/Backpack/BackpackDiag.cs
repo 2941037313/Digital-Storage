@@ -69,6 +69,27 @@ namespace DigitalStorage.Backpack
     }
 
     /// <summary>
+    /// 诊断：原版"台子上有东西 ⇒ 先搬走再开工"这条链（<c>WorkGiverUtility.HaulStuffOffBillGiverJob</c>）。
+    /// 它一响，DoBill 作业根本不会建 —— 用户看到的"殖民者拿着料往核心走"多半就是它。
+    /// 只读，不改行为。
+    /// </summary>
+    [HarmonyPatch(typeof(WorkGiverUtility), "HaulStuffOffBillGiverJob")]
+    internal static class Patch_Diag_HaulStuffOffBillGiver
+    {
+        [HarmonyPostfix]
+        private static void Postfix(Pawn pawn, IBillGiver giver, ref Job __result)
+        {
+            if (!BackpackDiag.On || __result == null) return;
+
+            Thing bench = giver as Thing;
+            BackpackDiag.Say("【搬空工作台】pawn=" + (pawn == null ? "?" : pawn.LabelShortCap)
+                + " 工作台=" + (bench == null ? "?" : bench.LabelShort)
+                + " → 派了作业 " + __result.def.defName
+                + "（DoBill 本次不会建）");
+        }
+    }
+
+    /// <summary>
     /// 诊断：任何"把东西搬进我们核心"的搬运作业都报一行。
     /// 这条覆盖"取料 toil 之外"的走位 —— 用户看到的"前往核心"可能是它。
     /// 只读，不改行为。
