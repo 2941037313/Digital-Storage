@@ -66,9 +66,6 @@
     <Compile Include="Core\HaulSourceContents.cs" />
     <Compile Include="Core\ItemGroup.cs" />
 
-    <Compile Include="Diagnostics\TradeDiagnostics.cs" />
-    <Compile Include="Diagnostics\IngestDiagnostics.cs" />
-
     <Compile Include="AI\DigitalStorage_JobDefOf.cs" />
     <Compile Include="AI\JobDriver_DS_Withdraw.cs" />
     <Compile Include="AI\WorkGiver_DS_WithdrawForConstruct.cs" />
@@ -99,7 +96,6 @@
     <Compile Include="HarmonyPatches\Patch_TradeDeal_InSellablePosition.cs" />
     <Compile Include="HarmonyPatches\Patch_HaulAIUtility.cs" />
     <Compile Include="HarmonyPatches\Patch_JobDriver_Equip.cs" />
-    <Compile Include="HarmonyPatches\Patch_TradeDiagnostics.cs" />
 
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />

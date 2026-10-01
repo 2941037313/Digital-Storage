@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using DigitalStorage.Core;
-using DigitalStorage.Diagnostics;
 using HarmonyLib;
 using RimWorld;
 using Verse;
@@ -50,14 +49,11 @@ namespace DigitalStorage.HarmonyPatches
     {
         static IEnumerable<Thing> Postfix(IEnumerable<Thing> __result, Map map, ITrader trader)
         {
-            // 1) 原版结果原样转发。不把它包进 try/catch —— 原版自己的异常应当照原样暴露。
-            //    【诊断】只加一个计数器，转发逻辑一字不变。
-            int vanillaCount = 0;
+            // 原版结果原样转发。不把它包进 try/catch —— 原版自己的异常应当照原样暴露。
             if (__result != null)
             {
                 foreach (Thing thing in __result)
                 {
-                    vanillaCount++;
                     yield return thing;
                 }
             }
@@ -97,17 +93,6 @@ namespace DigitalStorage.HarmonyPatches
             {
                 for (int i = 0; i < additions.Count; i++)
                     yield return additions[i];
-            }
-
-            // 【诊断】一次交易只报一行：原版产出多少 / 我们追加多少 / 核心登记状态如何。
-            // 这一行是"补丁到底有没有跑、跑了之后看见了什么"的唯一直接证据。
-            if (TradeDiagnostics.FirstTime("diag.trade.orbital"))
-            {
-                Log.Warning("[DS-DIAG] 轨道交易 AllLaunchableThingsForTrade 枚举完成：原版产出="
-                    + vanillaCount + " 追加=" + (additions != null ? additions.Count : -1)
-                    + " trader=" + (trader == null ? "null" : trader.GetType().Name)
-                    + " map=" + map);
-                TradeDiagnostics.DumpCoreState("轨道交易 AllLaunchableThingsForTrade", trader);
             }
         }
     }

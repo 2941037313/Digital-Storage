@@ -19,30 +19,16 @@ namespace DigitalStorage.HarmonyPatches
     {
         static void Postfix(Pawn pawn, ref Job __result)
         {
-            bool debug = DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog
-                         && ConsumePatchUtil.ShouldLog("GetFood");
-            if (debug)
-                Log.Warning("[DS] GetFood: entered, vanilla __result=" + (__result != null ? "non-null" : "null"));
             if (__result != null)
             {
                 // 目标住在容器里 → 原版那条消耗链执行不了，改由我们接管（否则静默卡死）
                 if (!ConsumePatchUtil.IsUnexecutableContainerTarget(__result)) return;
                 __result = null;
             }
-            if (!ConsumePatchUtil.ShouldTry(pawn))
-            {
-                if (debug) Log.Warning("[DS] GetFood: ShouldTry=false（同 tick 刚失败 / 已有本 mod 作业）");
-                return;
-            }
-            if (!CanUseCoreFood(pawn))
-            {
-                if (debug) Log.Warning("[DS] GetFood: CanUseCoreFood=false（食物需求为空 / 派系与囚犯判定没过）");
-                return;
-            }
+            if (!ConsumePatchUtil.ShouldTry(pawn)) return;
+            if (!CanUseCoreFood(pawn)) return;
             __result = ConsumptionHelper.TryCreateJob(pawn,
                 t => t.def.IsNutritionGivingIngestible);
-            if (debug) Log.Warning("[DS] GetFood: "
-                + (__result != null ? "job created" : "null") + " (" + ConsumptionHelper.LastFailReason + ")");
         }
 
         private static bool CanUseCoreFood(Pawn pawn)
@@ -60,88 +46,32 @@ namespace DigitalStorage.HarmonyPatches
         }
     }
 
-    /// <summary>
-    /// 诊断：为什么 <see cref="Patch_TakeDrugs"/> 的 postfix 从来没被调用过？
-    ///
-    /// 因为 <c>ThinkNode_PrioritySorter</c> 按 <c>GetPriority</c> 决定要不要请这个节点出作业 ——
-    /// 原版 <c>GetPriority</c> 里有 <c>if (pawn.drugs.ShouldTryToTakeScheduledNow(...)) return 7.5f;</c>，
-    /// 一个都不想服就返回 0 ⇒ 节点被跳过 ⇒ <c>TryGiveJob</c> 不被调用 ⇒ 我们的 postfix 跑不到
-    /// ⇒ 一条日志都没有。这正是「postfix entered」在 GetFood 有、在 TakeDrugs 没有的原因。
-    ///
-    /// 所以必须在优先级这一层看：到底是 pawn 不想服（游戏状态问题），还是别的。
-    /// </summary>
-    [HarmonyPatch(typeof(JobGiver_TakeDrugsForDrugPolicy), "GetPriority")]
-    internal static class Patch_TakeDrugs_Priority
-    {
-        [HarmonyPostfix]
-        internal static void Postfix(Pawn pawn, ref float __result)
-        {
-            if (!DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog) return;
-            if (!ConsumePatchUtil.ShouldLog("TakeDrugsPriority")) return;
-
-            DrugPolicy policy = pawn.drugs?.CurrentPolicy;
-            if (policy == null)
-            {
-                Log.Warning("[DS] TakeDrugs: GetPriority=" + __result + " policy=null");
-                return;
-            }
-
-            int wantCount = 0;
-            string wants = "";
-            for (int i = 0; i < policy.Count; i++)
-            {
-                ThingDef d = policy[i].drug;
-                if (d == null) continue;
-                if (pawn.drugs.ShouldTryToTakeScheduledNow(d))
-                {
-                    wantCount++;
-                    if (wantCount <= 5) wants += d.defName + " ";
-                }
-            }
-            Log.Warning("[DS] TakeDrugs: GetPriority=" + __result
-                + " policyCount=" + policy.Count + " wantCount=" + wantCount + " wants=" + wants);
-        }
-    }
-
     // ---- 4.6.3：成瘾品 ----
     [HarmonyPatch(typeof(JobGiver_TakeDrugsForDrugPolicy), "TryGiveJob")]
     static class Patch_TakeDrugs
     {
         static void Postfix(Pawn pawn, ref Job __result)
         {
-            bool debug = DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog;
-
-            if (debug && ConsumePatchUtil.ShouldLog("TakeDrugs"))
-                Log.Warning("[DS] TakeDrugs: postfix entered, vanilla __result=" + (__result != null ? "non-null" : "null"));
-
             // 原版可能自己返回了作业，但目标住在容器里 —— JobDriver_Ingest 那条链没有
             // canGotoSpawnedParent，执行不了。这种「看着有作业、实际做不成」比返回 null 更坏：
             // 它会静默卡住，而且我们因为 __result != null 而放手。所以精确识别并接管。
             if (__result != null)
             {
                 if (!ConsumePatchUtil.IsUnexecutableContainerTarget(__result)) return;
-                if (debug) Log.Warning("[DS] TakeDrugs: 原版作业目标在容器里（Ingest 链走不通），接管。");
                 __result = null;
             }
 
-            if (!ConsumePatchUtil.ShouldTry(pawn))
-            {
-                if (debug) Log.Warning("[DS] TakeDrugs: ShouldTry=false（同 tick 刚失败 / 已有本 mod 作业）");
-                return;
-            }
+            if (!ConsumePatchUtil.ShouldTry(pawn)) return;
 
             var policy = pawn.drugs?.CurrentPolicy;
-            if (policy == null) { if (debug) Log.Warning("[DS] TakeDrugs: policy=null"); return; }
+            if (policy == null) return;
 
             for (int i = 0; i < policy.Count; i++)
             {
                 var drugDef = policy[i].drug;
-                bool want = pawn.drugs.ShouldTryToTakeScheduledNow(drugDef);
-                if (debug) Log.Warning("[DS] TakeDrugs: " + drugDef.defName + " want=" + want);
-                if (!want) continue;
+                if (!pawn.drugs.ShouldTryToTakeScheduledNow(drugDef)) continue;
 
                 var job = ConsumptionHelper.TryCreateJob(pawn, t => t.def == drugDef);
-                if (debug) Log.Warning("[DS] TakeDrugs: " + drugDef.defName + " -> " + ConsumptionHelper.LastFailReason);
                 if (job != null) { __result = job; return; }
             }
         }
@@ -177,11 +107,13 @@ namespace DigitalStorage.HarmonyPatches
     static class ConsumePatchUtil
     {
         /// <summary>
-        /// 诊断日志节流：**按 key 分别记**（同 tick 最多一条、两条之间 >= 60 tick）。
-        /// 早先版本是全局共用一个名额，结果 GetFood 先占了，TakeDrugs 就被压掉了 —— 那正是
+        /// 诊断日志节流：**按 key 分别记**（同 key 最多 60 tick 一条）。
+        /// 早先版本是全局共用一个名额，结果 GetFood 先占了、TakeDrugs 就被压掉 —— 那正是
         /// 「只有一条日志」的原因。每个 patch 有独立名额才不会互相掩盖。
+        /// 仅供 <c>enableDebugLog</c> 打开时的调试输出使用（默认关闭）。
         /// </summary>
         private static readonly Dictionary<string, int> lastLogTickByKey = new Dictionary<string, int>();
+
         public static bool ShouldLog(string key)
         {
             int tick = Find.TickManager.TicksGame;

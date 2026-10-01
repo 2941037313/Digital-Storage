@@ -297,35 +297,10 @@ namespace DigitalStorage.Components
             // 「开发者 → 生成 → 建筑」是裸 GenSpawn 不设阵营 → 会被静默跳过。补上。
             if (Faction == null && def != null && def.CanHaveFaction)
                 SetFaction(Faction.OfPlayer);
-
-            // 【诊断】登记结果 —— 交易"我方空白"故障的核心待证命题：
-            // 两条原版交易路径用的**不是同一个注册表**，这里把两者都验一遍。
-            if (Prefs.DevMode)
-            {
-                bool inSourceList = map != null && map.haulDestinationManager != null
-                    && map.haulDestinationManager.AllHaulSourcesListForReading.Contains(this);
-                bool inColonist = false;
-                if (map != null)
-                {
-                    foreach (IHaulSource s in map.listerBuildings.AllColonistBuildingsOfType<IHaulSource>())
-                    {
-                        if (ReferenceEquals(s, this)) { inColonist = true; break; }
-                    }
-                }
-                Log.Warning("[DS-DIAG] 存储核心 SpawnSetup(respawn=" + respawningAfterLoad + ") faction="
-                    + (Faction == null ? "null" : Faction.Name)
-                    + " ∈haulSourceList=" + inSourceList
-                    + " ∈colonistIHaulSources=" + inColonist);
-            }
         }
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
-            // 【诊断】这是**唯一**会把自己从 haul source 注册表摘掉的地方
-            //（Thing.cs:1017，全代码库只有这一个 RemoveHaulSource 调用点）。
-            if (Prefs.DevMode)
-                Log.Warning("[DS-DIAG] 存储核心 DeSpawn(mode=" + mode + ") —— 此后它不再是 haul source");
-
             // 拆/毁时把内容物全部落地，避免随建筑一起消失（物品丢失）。
             if (mode == DestroyMode.Deconstruct || mode == DestroyMode.KillFinalize)
                 DropAllContents();
@@ -433,82 +408,6 @@ namespace DigitalStorage.Components
                     toggleAction = () => autoIngest.Enabled = !autoIngest.Enabled
                 };
             }
-
-            // 【临时诊断脚手架】一键把登记状态 / 可卖计数打进日志（游戏内日志窗口可见）。
-            if (Prefs.DevMode)
-            {
-                yield return new Command_Action
-                {
-                    defaultLabel = "[DS-DIAG] 打印交易诊断",
-                    defaultDesc = "开发模式专用（临时脚手架，发布前移除）：把本核心在三个注册表里的登记状态、"
-                        + "内容物可卖计数（真实 trader / null 两种），以及交易补丁的挂载状态打进日志。",
-                    icon = ContentFinder<Texture2D>.Get("UI/Commands/SetTargetFuelLevel", true),
-                    action = () => Diagnostics.TradeDiagnostics.DumpCoreState("手动诊断(gizmo)", null)
-                };
-            }
-
-            // 开发模式专用的小工具：把相邻物品直接塞进容器。
-            // （4.0 起原版入库路径已经是原生的，这只是省去搬运的测试捷径；
-            //   正式发布前可考虑移除。）
-            if (Prefs.DevMode)
-            {
-                yield return new Command_Action
-                {
-                    defaultLabel = "[DEV] 把相邻物品塞进容器",
-                    defaultDesc = "开发模式专用：把自身格 + 相邻 8 格上的所有物品 DeSpawn 后 TryAdd 进 innerContainer。\n"
-                        + "用于批 1 验证 —— 此时原版入库路径还被 WorkGiver_DS_HaulToCore 抢着。",
-                    icon = TexCommand.ForbidOff,
-                    action = DevIngestAdjacent
-                };
-                yield return new Command_Action
-                {
-                    defaultLabel = "[DEV] 打印自动收纳诊断",
-                    defaultDesc = "统计全图 HaulableEver 每一项被哪一道闸门拦下"
-                        + "（调用与运行时**同一份**判定，不会漂移），并打印本核心的开关/研究/过滤器/容量判定。\n"
-                        + "输出走 Log.Warning，日志窗口与 Player.log 都能看到。",
-                    icon = TexCommand.ForbidOff,
-                    action = () => Diagnostics.IngestDiagnostics.DumpFor(this)
-                };
-            }
-        }
-
-        /// <summary>开发模式专用：把相邻物品直接塞进容器（省去搬运的测试捷径）。</summary>
-        private void DevIngestAdjacent()
-        {
-            if (Map == null) return;
-            int added = 0;
-            int rejected = 0;
-
-            var cells = new List<IntVec3>();
-            cells.AddRange(GenAdj.CellsOccupiedBy(this));
-            foreach (IntVec3 c in GenAdj.CellsAdjacent8Way(this)) cells.Add(c);
-
-            Map map = Map;
-            for (int ci = 0; ci < cells.Count; ci++)
-            {
-                IntVec3 cell = cells[ci];
-                if (!cell.InBounds(map)) continue;
-                List<Thing> things = map.thingGrid.ThingsListAtFast(cell);
-                for (int i = things.Count - 1; i >= 0; i--)
-                {
-                    Thing t = things[i];
-                    if (t.def == null || t.def.category != ThingCategory.Item) continue;
-                    if (!Accepts(t)) { rejected++; continue; }
-
-                    // 入库瞬移：DeSpawn + TryAdd（与 3.0 的产品决策一致）。
-                    // 失败必须放回地面，否则物品凭空消失。
-                    t.DeSpawn();
-                    if (innerContainer.TryAdd(t, true)) added++;
-                    else
-                    {
-                        rejected++;
-                        GenPlace.TryPlaceThing(t, Position, map, ThingPlaceMode.Near);
-                    }
-                }
-            }
-
-            Messages.Message("已塞入 " + added + " 件，拒收 " + rejected + " 件。",
-                this, MessageTypeDefOf.NeutralEvent);
         }
     }
 }

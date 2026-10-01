@@ -49,12 +49,6 @@ namespace DigitalStorage.HarmonyPatches
     [HarmonyPatch(typeof(TradeDeal), "InSellablePosition")]
     internal static class Patch_TradeDeal_InSellablePosition
     {
-        // 【诊断】本补丁对"我方容器内容物"的放行/拒绝计数。
-        // 由 TradeDiagnostics.DumpCoreState 读取后清零（步 6 清诊断时一并删除）。
-        internal static int PassedContainerItems;
-        internal static int RejectedContainerItems;
-        internal static string LastRejectReason;
-
         private static bool Prefix(Thing t, out string reason, ref bool __result)
         {
             // 非我方容器 / 已在场上：原样交给原版。
@@ -73,7 +67,6 @@ namespace DigitalStorage.HarmonyPatches
             {
                 reason = null;
                 __result = false;
-                Record(passed: false, reason: null);
                 return false;
             }
 
@@ -93,7 +86,6 @@ namespace DigitalStorage.HarmonyPatches
                         if (thingList[j].PreventPlayerSellingThingsNearby(out reason))
                         {
                             __result = false;
-                            Record(passed: false, reason: reason);
                             return false;
                         }
                     }
@@ -102,29 +94,7 @@ namespace DigitalStorage.HarmonyPatches
 
             reason = null;
             __result = true;
-            Record(passed: true, reason: null);
             return false;
-        }
-
-        private static void Record(bool passed, string reason)
-        {
-            if (passed)
-            {
-                PassedContainerItems++;
-            }
-            else
-            {
-                RejectedContainerItems++;
-                LastRejectReason = reason;
-            }
-        }
-
-        /// <summary>诊断读取后清零，保证每次交易窗口的数字只反映本次交易。</summary>
-        internal static void ResetDiagnosticCounters()
-        {
-            PassedContainerItems = 0;
-            RejectedContainerItems = 0;
-            LastRejectReason = null;
         }
     }
 }

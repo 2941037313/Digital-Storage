@@ -12,7 +12,6 @@ namespace DigitalStorage.HarmonyPatches
             harmony.PatchAll();
             // Log.Message 在游戏内日志窗口不显示（只有 Player.log 有），诊断一律用 Warning。
             Log.Warning("[DigitalStorage 4.0] Harmony ready.");
-            Diagnostics.TradeDiagnostics.LogVersionOnce();
         }
     }
 }
