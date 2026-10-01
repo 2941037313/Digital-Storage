@@ -122,12 +122,29 @@ namespace DigitalStorage.Backpack
                         continue;
                     }
 
-                    int got = bag.TryAbsorb(t, counts[i]);
-                    // 装完立刻验证"走到这料"那一跳会解析成谁 —— 这才是"会不会走向核心"的判据
-                    // （Toils_Goto.cs:20 在 initAction 里取 SpawnedParentOrMe）
-                    Thing dest = t.SpawnedParentOrMe;
-                    BackpackDiag.Say("  #" + i + " " + t.LabelShort + " 需要 " + counts[i]
-                        + " → 实际取到 " + got
+                    Thing absorbed = bag.TryAbsorb(t, counts[i]);
+                    if (absorbed == null) continue;
+
+                    // ★★ 决定性的一步：把作业队列那一项**改指到背包里那件**。
+                    //
+                    // 拆堆时（要 15、原摞 75）进背包的是 SplitOff **新建的 Thing**，
+                    // 而 targetQueueB 还指着核心里原来那一摞 ⇒ 不改指的话，
+                    // 原版 GotoThing(..., canGotoSpawnedParent: true) 解析出来**还是核心**
+                    // ⇒ 小人照样走向核心。2026-10-02 实测就是这么走的：
+                    //   "#0 钢铁 需要 15 → 实际取到 15；SpawnedParentOrMe=数字存储核心"
+                    // （早期实验版没测出这个，是因为它检查的是**背包里那件**，
+                    //   而不是**作业队列指着的那件** —— 测错了对象。）
+                    if (!ReferenceEquals(absorbed, t))
+                    {
+                        queue[i] = new LocalTargetInfo(absorbed);            // GetTargetQueue 返回的就是 job 的列表本体
+                        actor.Reserve(new LocalTargetInfo(absorbed), job, 1, -1, null, false);
+                        if (actor.Map != null) actor.Map.reservationManager.Release(t, actor, job);
+                    }
+
+                    Thing dest = absorbed.SpawnedParentOrMe;
+                    BackpackDiag.Say("  #" + i + " " + absorbed.LabelShort + " 需要 " + counts[i]
+                        + " → 背包内 " + absorbed.stackCount
+                        + (ReferenceEquals(absorbed, t) ? "（整摞，队列目标未变）" : "（拆堆，队列目标已改指）")
                         + "；SpawnedParentOrMe=" + (dest == null ? "null" : dest.LabelShortCap)
                         + "（应为小人 " + actor.LabelShortCap + "）");
                 }

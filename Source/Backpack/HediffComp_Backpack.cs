@@ -112,23 +112,26 @@ namespace DigitalStorage.Backpack
         // ===================================================================
 
         /// <summary>
-        /// 把 <paramref name="source"/> 现在所在的容器里的 <paramref name="count"/> 个挪进背包，
-        /// 返回实际取到的数量。0 = 什么都没动（数量不足 / 已在背包 / 背包满 / 放不下）。
+        /// 把 <paramref name="source"/> 现在所在的容器里的 <paramref name="count"/> 个挪进背包。
+        /// 返回**实际进入背包的那件 Thing**（失败返回 null）。
+        ///
+        /// <para><b>返回值必须是 Thing、不能只是数量</b>：拆堆时进入背包的是
+        /// <c>SplitOff</c> **新建的 Thing**，与 <paramref name="source"/> 不是同一个对象。
+        /// 调用方（bill 取料 toil）必须拿它去改写作业的队列目标 —— 否则
+        /// <c>job.targetQueueB</c> 仍指着核心里原来那一摞，
+        /// 原版 <c>GotoThing(..., canGotoSpawnedParent: true)</c> 解析出来还是核心
+        /// ⇒ 小人照样走向核心（2026-10-02 实测就是这么走的）。</para>
         ///
         /// <para><b>绝不丢物</b>：每一步失败都原路退回；退回顺序 = 原容器 → 脚下 → 背包（兜底）。</para>
         /// </summary>
-        public int TryAbsorb(Thing source, int count)
+        public Thing TryAbsorb(Thing source, int count)
         {
-            if (source == null || source.Destroyed || count <= 0) return 0;
+            if (source == null || source.Destroyed || count <= 0) return null;
             Pawn pawn = Pawn;
-            if (pawn == null) return 0;
+            if (pawn == null) return null;
 
             ThingOwner held = GetDirectlyHeldThings();
-            if (ReferenceEquals(source.ParentHolder, this))
-            {
-                BackpackDiag.Say("TryAbsorb 返回 0：已经在背包里");
-                return 0;
-            }
+            if (ReferenceEquals(source.ParentHolder, this)) return source; // 已经在背包里，就是它自己
 
             // 直接问"装着它的那个 ThingOwner 实例"。Thing.holdingOwner 是 public 字段
             // （Thing.cs:39），而 ThingOwner.Contains 的实现就是 `item.holdingOwner == this`
@@ -142,19 +145,19 @@ namespace DigitalStorage.Backpack
             }
             if (owner == null || owner.Owner is Map || !owner.Contains(source))
             {
-                BackpackDiag.Say("TryAbsorb 返回 0：容器对不上（holdingOwner="
+                BackpackDiag.Say("TryAbsorb 失败：容器对不上（holdingOwner="
                     + (source.holdingOwner == null ? "null" : source.holdingOwner.Owner.GetType().Name)
                     + " 反推=" + (owner == null ? "null" : owner.Owner.GetType().Name) + "）");
-                return 0;
+                return null;
             }
 
             int want = (count < source.stackCount) ? count : source.stackCount;
-            if (want <= 0) return 0;
+            if (want <= 0) return null;
             if (!CanFit(source))
             {
-                BackpackDiag.Say("TryAbsorb 返回 0：装不下（背包件数=" + held.Count
+                BackpackDiag.Say("TryAbsorb 失败：装不下（背包件数=" + held.Count
                     + " 上限=" + Props.capacityStacks + "）");
-                return 0;
+                return null;
             }
 
             Thing taken;
@@ -165,23 +168,24 @@ namespace DigitalStorage.Backpack
             }
             else
             {
-                // SplitOff 只动这一堆，不触碰 owner 的其它条目
+                // SplitOff 只动这一堆，不触碰 owner 的其它条目。
+                // ⚠️ 这里返回的是**新建的 Thing**：调用方必须把它写回作业队列目标。
                 taken = source.SplitOff(want);
             }
             if (taken == null)
             {
-                BackpackDiag.Say("TryAbsorb 返回 0：取出的东西是 null（want=" + want
+                BackpackDiag.Say("TryAbsorb 失败：取出的东西是 null（want=" + want
                     + " stack=" + source.stackCount + "）");
-                return 0;
+                return null;
             }
 
-            if (held.TryAdd(taken, true)) return taken.stackCount;
+            if (held.TryAdd(taken, true)) return taken;
 
-            BackpackDiag.Say("TryAbsorb 返回 0：TryAdd 失败（背包件数=" + held.Count
+            BackpackDiag.Say("TryAbsorb 失败：TryAdd 失败（背包件数=" + held.Count
                 + " 上限=" + Props.capacityStacks + " 取出件 holdingOwner="
                 + (taken.holdingOwner == null ? "null" : taken.holdingOwner.Owner.GetType().Name) + "）");
             Return(owner, taken);
-            return 0;
+            return null;
         }
 
         /// <summary>
