@@ -1,8 +1,6 @@
 using System.Collections.Generic;
-using System.Text;
 using DigitalStorage.AI;
 using DigitalStorage.Components;
-using HarmonyLib;
 using RimWorld;
 using Verse;
 using Verse.AI;
@@ -11,7 +9,11 @@ namespace DigitalStorage.Backpack
 {
     public class HediffCompProperties_Backpack : HediffCompProperties
     {
-        public int capacityStacks = 4;
+        /// <summary>
+        /// 背包最多容纳的堆数。**只挡"从核心取料"这一条路**：装不下时该件原料留在核心不动，
+        /// 原版 bill 退回"小人走到核心去拿"的老路 —— 退化，但不丢物、不报错。
+        /// </summary>
+        public int capacityStacks = 8;
 
         public HediffCompProperties_Backpack()
         {
@@ -20,34 +22,50 @@ namespace DigitalStorage.Backpack
     }
 
     /// <summary>
-    /// 「背包」：挂在 pawn 身上的 ThingOwner（实验版）。
+    /// 「背包」：挂在 pawn 身上的**私有** ThingOwner。
     ///
-    /// <para><b>核心机制</b>：链条 <c>物品 → 本 comp → Pawn</c>，而
-    /// <c>Thing.SpawnedParentOrMe</c>（<c>Thing.cs:223</c>）委托
-    /// <c>ThingOwnerUtility.SpawnedParentOrMe(ParentHolder)</c> **沿持有者链上爬、不要求链上是 Thing**
-    /// ⇒ 背包内容物的 <c>SpawnedParentOrMe</c> = **小人本人**
-    /// ⇒ 原版 <c>JobDriver_DoBill:121</c> 的 <c>canGotoSpawnedParent</c> 寻路目标就是小人自己
-    /// ⇒ **0 距离取料**。</para>
+    /// <para><b>它解决什么</b>：原版 bill 取料时，<c>JobDriver_DoBill.cs:121</c> 会先
+    /// <c>GotoThing(ingredientInd, ClosestTouch, canGotoSpawnedParent: true)</c>；
+    /// 目标取 <c>SpawnedParentOrMe</c>，而核心内容物的它是**核心建筑**（<c>Building_StorageCore</c>）
+    /// ⇒ 小人必须先走到核心门口。原料挪进背包后，
+    /// <c>SpawnedParentOrMe</c> = <b>小人自己</b>（链条 物品 → 本 comp → Pawn）
+    /// ⇒ 这一跳变成 0 距离，原版后续 toil 一字不改。</para>
     ///
-    /// <para><b>接口真相（编译器确认）</b>：<c>IHaulSource</c> 本身继承
-    /// <c>IThingHolder + IStoreSettingsParent</c>，并额外要求 <c>Map</c>。
-    /// 所以「背包」天然就是一个储存节点 —— 这让 <c>Accepts</c> 可以**只认自己的内容物**：
-    /// 内容物算"在储存中"（不被原版搬走），而任何外部物品都不被接受（不会变成卸货点）。</para>
+    /// <para><b>为什么不做成 haul source</b>（实验版曾注册，现已撤掉）：原版 bill 的容器扫描
+    /// <c>WorkGiver_DoBill.cs:483</c> 硬要求
+    /// <c>item is Thing { Spawned: not false, Position: var position }</c> —— 本 comp 不是 Thing，
+    /// <b>永远进不了原版的取料视野</b>（实测：注册与否对原版行为毫无差别）。
+    /// 而注册反而会被本 mod 自己的 <c>HaulSourceContents</c> 收集到 ——
+    /// 交易列表 / 资源统计 / 建造选材都会看见背包里的东西。
+    /// 现在改由 <c>Patch_JobDriver_DoBill_LoadIngredients</c> 在作业开始时把原料挪进来，
+    /// 所以背包不需要、也不应该是 haul source。</para>
     ///
-    /// <para><b>本实验要测的三件事</b>（开发者菜单 → DigitalStorage）：① 原版搜索能否看见背包里的料；
-    /// ② <c>ListerHaulables.ShouldBeHaulable</c>（反射原版私有）会不会判它可搬；③ 会不会被当卸货点。</para>
+    /// <para><b>为什么不 tick 内容物</b>：没有任何东西调用它的 <c>ThingOwner.DoTick()</c>
+    /// （不是 Spawned，也不是 IThingHolderTickable）⇒ 内容物不腐烂、不耗性能。
+    /// 背包只是"从核心到工作台"的短途载体，生命周期以秒计。</para>
+    ///
+    /// <para><b>生命周期</b>：默认空 —— 取料 toil 只在作业开始时按需放入（<see cref="TryAbsorb"/>）；
+    /// 每 ~250 tick 检查一次，不在做 bill 就把残留<b>退回核心</b>；
+    /// 倒地 / 死亡 / hediff 被移除 ⇒ 先退核心，退不掉才落地，<b>绝不销毁物品</b>。</para>
     /// </summary>
-    public class HediffComp_Backpack : HediffComp, IThingHolder, IHaulSource, IHaulDestination
+    public class HediffComp_Backpack : HediffComp, IThingHolder
     {
         private ThingOwner backpack;
-        private StorageSettings settings;
-        private bool sourceEnabled = true;
-        private bool registered;
 
         public HediffCompProperties_Backpack Props => (HediffCompProperties_Backpack)props;
 
-        // ---- IThingHolder ----
-        public IThingHolder ParentHolder => Pawn;   // ← 实验核心：链条终点是小人自己
+        // ===================================================================
+        // IThingHolder
+        // ===================================================================
+
+        /// <summary>
+        /// 【地层】链条 <c>物品 → 本 comp → Pawn</c>。
+        /// <c>Thing.SpawnedParentOrMe</c> 沿持有者链上爬、**不要求链上是 Thing**
+        /// ⇒ 背包内容物的 <c>SpawnedParentOrMe</c> = 小人本人。
+        /// 这也是 <c>ErrorCheckForCarry</c>（<c>Toils_Haul.cs:14</c> 要 <c>SpawnedOrAnyParentSpawned</c>）
+        /// 与 <c>GotoThing</c>（<c>Toils_Goto.cs:20</c> 运行期取 <c>SpawnedParentOrMe</c>）两处的共同地基。
+        /// </summary>
+        public IThingHolder ParentHolder => Pawn;
 
         public ThingOwner GetDirectlyHeldThings()
         {
@@ -60,61 +78,236 @@ namespace DigitalStorage.Backpack
             ThingOwnerUtility.AppendThingHoldersFromThings(outChildren, GetDirectlyHeldThings());
         }
 
-        // ---- IHaulSource ----
-        public bool HaulSourceEnabled => sourceEnabled;
+        public int Count => GetDirectlyHeldThings().Count;
 
-        public Map Map => Pawn?.Map;
+        // ===================================================================
+        // 查找
+        // ===================================================================
 
-        // ---- IStoreSettingsParent（IHaulSource 的基接口）----
-        public StorageSettings GetStoreSettings()
+        /// <summary>pawn 身上的背包；没有返回 null（非玩家阵营 / 未植入 ⇒ 原版流程照走）。</summary>
+        public static HediffComp_Backpack For(Pawn pawn)
         {
-            if (settings == null) settings = new StorageSettings(this);
-            return settings;
+            if (pawn == null || pawn.health == null || pawn.health.hediffSet == null) return null;
+
+            List<Hediff> hediffs = pawn.health.hediffSet.hediffs;
+            for (int i = 0; i < hediffs.Count; i++)
+            {
+                HediffWithComps withComps = hediffs[i] as HediffWithComps;
+                if (withComps == null || withComps.comps == null) continue;
+
+                for (int j = 0; j < withComps.comps.Count; j++)
+                {
+                    HediffComp_Backpack bag = withComps.comps[j] as HediffComp_Backpack;
+                    if (bag != null) return bag;
+                }
+            }
+            return null;
         }
 
-        public StorageSettings GetParentStoreSettings() => null;
+        // ===================================================================
+        // 取入 / 退回
+        // ===================================================================
 
-        public void Notify_SettingsChanged() { }
-
-        public bool StorageTabVisible => false;
-
-        // ---- IHaulDestination：只认自己的内容物 ----
-        // 「已在自己肚子里」⇒ 算在储存中（原版不会把它搬走）；
-        // 其余一律 false ⇒ 原版永远不会把外面的东西卸进背包。
-        public bool HaulDestinationEnabled => false;
-
-        /// <summary>IHaulDestination 要的位置 —— 背包的位置就是小人自己（这也是"0 距离"的来源）。</summary>
-        public IntVec3 Position => Pawn != null ? Pawn.PositionHeld : IntVec3.Invalid;
-
-        public bool Accepts(Thing t)
+        /// <summary>
+        /// 把 <paramref name="source"/> 现在所在的容器里的 <paramref name="count"/> 个挪进背包，
+        /// 返回实际取到的数量。0 = 什么都没动（数量不足 / 已在背包 / 背包满 / 放不下）。
+        ///
+        /// <para><b>绝不丢物</b>：每一步失败都原路退回；退回顺序 = 原容器 → 脚下 → 背包（兜底）。</para>
+        /// </summary>
+        public int TryAbsorb(Thing source, int count)
         {
-            return t != null && ReferenceEquals(t.ParentHolder, this);
+            if (source == null || source.Destroyed || count <= 0) return 0;
+            Pawn pawn = Pawn;
+            if (pawn == null) return 0;
+
+            ThingOwner held = GetDirectlyHeldThings();
+            if (ReferenceEquals(source.ParentHolder, this)) return 0; // 已经在背包里
+
+            IThingHolder holder = source.ParentHolder as IThingHolder;
+            ThingOwner owner = (holder == null) ? null : holder.GetDirectlyHeldThings();
+            if (owner == null || !owner.Contains(source)) return 0;   // 不在可识别的容器里
+
+            int want = (count < source.stackCount) ? count : source.stackCount;
+            if (want <= 0) return 0;
+            if (!CanFit(source)) return 0;
+
+            Thing taken;
+            if (want >= source.stackCount)
+            {
+                owner.Remove(source);
+                taken = source;
+            }
+            else
+            {
+                // SplitOff 只动这一堆，不触碰 owner 的其它条目
+                taken = source.SplitOff(want);
+            }
+            if (taken == null) return 0;
+
+            if (held.TryAdd(taken, true)) return taken.stackCount;
+
+            Return(owner, taken);
+            return 0;
         }
 
-        // ---- 注册 ----
-        public void EnsureRegistered()
+        /// <summary>
+        /// 背包还装不装得下这件东西：能并进已有堆，或者还有空位。
+        /// <c>props.capacityStacks</c> 是**软上限** —— 满了就这一件不取，交给原版老路。
+        /// </summary>
+        private bool CanFit(Thing t)
         {
-            Map map = Pawn?.Map;
-            if (map == null || registered) return;
-            GetStoreSettings().Priority = StoragePriority.Critical; // 高于任何格子型储存 ⇒ IsInValidBestStorage=true
-            map.haulDestinationManager.AddHaulSource(this);
-            registered = true;
+            ThingOwner held = GetDirectlyHeldThings();
+            for (int i = 0; i < held.Count; i++)
+            {
+                Thing existing = held[i];
+                if (existing == null || existing.def == null) continue;
+                if (existing.CanStackWith(t) && existing.stackCount < existing.def.stackLimit) return true;
+            }
+            return held.Count < Props.capacityStacks;
         }
 
-        public void SetSourceEnabled(bool value)
+        /// <summary>退回：原容器 → 脚下 → 背包兜底。三条都失败才报错（正常永不发生）。</summary>
+        private void Return(ThingOwner owner, Thing taken)
         {
-            sourceEnabled = value;
-            Map map = Pawn?.Map;
-            if (map == null) return;
-            if (value && !registered) { map.haulDestinationManager.AddHaulSource(this); registered = true; }
-            else if (!value && registered) { map.haulDestinationManager.RemoveHaulSource(this); registered = false; }
+            if (taken == null || taken.Destroyed) return;
+            if (owner != null && owner.TryAdd(taken, true)) return;
+
+            Pawn pawn = Pawn;
+            Map map = (pawn == null) ? null : pawn.MapHeld;
+            if (map != null && pawn.PositionHeld.IsValid
+                && GenPlace.TryPlaceThing(taken, pawn.PositionHeld, map, ThingPlaceMode.Near))
+            {
+                return;
+            }
+
+            if (!GetDirectlyHeldThings().TryAdd(taken, true))
+                Log.Error("[DigitalStorage] 背包：物品退不回原容器也放不下：" + taken);
         }
+
+        /// <summary>
+        /// 把背包内容退回**最近的可用核心**，返回退回的数量。
+        /// 没有可用核心（没造 / 断电 / 不在图上）时原样留在背包里，等下一个检查周期 —— 不丢物。
+        /// </summary>
+        public int ReturnContentsToCore()
+        {
+            ThingOwner held = GetDirectlyHeldThings();
+            if (held.Count == 0) return 0;
+
+            Pawn pawn = Pawn;
+            Map map = (pawn == null) ? null : pawn.MapHeld;
+            if (map == null) return 0; // 远行队 / 载具里：跟着小人走，落地时再处理
+
+            Building_StorageCore core = FindNearestCore(map, pawn.PositionHeld);
+            if (core == null) return 0;
+            ThingOwner target = core.GetDirectlyHeldThings();
+            if (target == null) return 0;
+
+            int moved = 0;
+            for (int i = held.Count - 1; i >= 0; i--)
+            {
+                Thing t = held[i];
+                if (t == null) continue;
+
+                Thing taken = held.Take(t, t.stackCount);
+                if (taken == null) continue;
+
+                if (target.TryAdd(taken, true)) moved += taken.stackCount;
+                else Return(held, taken);
+            }
+            return moved;
+        }
+
+        private static Building_StorageCore FindNearestCore(Map map, IntVec3 from)
+        {
+            List<Building_StorageCore> cores = CoreFinder.AllUsableCores(map);
+            Building_StorageCore best = null;
+            int bestDist = int.MaxValue;
+
+            for (int i = 0; i < cores.Count; i++)
+            {
+                Building_StorageCore core = cores[i];
+                if (core == null) continue;
+
+                int dist = (core.Position - from).LengthHorizontalSquared;
+                if (best == null || dist < bestDist)
+                {
+                    best = core;
+                    bestDist = dist;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// 清空到背包之外（落地优先，落不下塞原版背包）。**只在倒地/死亡/hediff 移除时用**，
+        /// 正常路径是 <see cref="ReturnContentsToCore"/>。
+        /// </summary>
+        public void EjectAll()
+        {
+            ThingOwner held = GetDirectlyHeldThings();
+            if (held.Count == 0) return;
+
+            Pawn pawn = Pawn;
+            Map map = (pawn == null) ? null : pawn.MapHeld;
+            if (map != null && pawn.PositionHeld.IsValid)
+                held.TryDropAll(pawn.PositionHeld, map, ThingPlaceMode.Near);
+
+            // 还剩下的 = 地上放不下，或人不在图上（远行队）：交给原版背包，随小人走
+            if (held.Count == 0 || pawn == null || pawn.inventory == null || pawn.inventory.innerContainer == null)
+                return;
+
+            for (int i = held.Count - 1; i >= 0; i--)
+            {
+                Thing t = held[i];
+                if (t == null) continue;
+
+                Thing taken = held.Take(t, t.stackCount);
+                if (taken == null) continue;
+
+                if (!pawn.inventory.innerContainer.TryAdd(taken, true)) Return(held, taken);
+            }
+        }
+
+        // ===================================================================
+        // 默认清空（用户决策 2）
+        // ===================================================================
+
+        /// <summary>
+        /// 「背包默认是空的」。~250 tick 一次（<c>Pawn.HealthTickInterval</c> → <c>Hediff.TickInterval</c>），
+        /// 成本 = 一次字段判空。注意 <c>HealthTickInterval</c> 对**已死亡**的 pawn 直接 return，
+        /// 所以死亡那条路走 <c>Patch_BackpackEjectOnDeath</c>。
+        /// </summary>
+        public override void CompPostTickInterval(ref float severityAdjustment, int delta)
+        {
+            base.CompPostTickInterval(ref severityAdjustment, delta);
+            if (backpack == null || backpack.Count == 0) return;
+
+            Pawn pawn = Pawn;
+            if (pawn == null) return;
+
+            // 倒地 / 死亡：先退核心（干净），退不掉才落地
+            if (pawn.Dead || pawn.Downed)
+            {
+                ReturnContentsToCore();
+                if (Count > 0) EjectAll();
+                return;
+            }
+
+            // 正在做 bill：料还在用（取料 toil 之后、原版把料放到工作台之前的那几 tick）
+            Job cur = (pawn.jobs == null) ? null : pawn.jobs.curJob;
+            if (cur != null && cur.def == JobDefOf.DoBill) return;
+
+            ReturnContentsToCore();
+        }
+
+        // ===================================================================
+        // 存档 / 生成
+        // ===================================================================
 
         public override void CompExposeData()
         {
             base.CompExposeData();
             Scribe_Deep.Look(ref backpack, "dsBackpack", this);
-            Scribe_Values.Look(ref sourceEnabled, "dsBackpackSourceEnabled", true);
         }
 
         public override void CompPostMake()
@@ -127,109 +320,13 @@ namespace DigitalStorage.Backpack
         {
             base.CompPostPostAdd(dinfo);
             if (backpack == null) backpack = new ThingOwner<Thing>(this);
-            EnsureRegistered();
         }
 
         public override void CompPostPostRemoved()
         {
             base.CompPostPostRemoved();
-            // 防止丢物：hediff 移除（含死亡）时把背包清空落地。
-            DropEverything();
-            Map map = Pawn?.Map;
-            if (map != null && registered) { map.haulDestinationManager.RemoveHaulSource(this); registered = false; }
-        }
-
-        public void DropEverything()
-        {
-            ThingOwner held = GetDirectlyHeldThings();
-            if (held.Count == 0) return;
-            Map map = Pawn?.MapHeld;
-            IntVec3 cell = Pawn != null ? Pawn.PositionHeld : IntVec3.Invalid;
-            if (map == null || !cell.IsValid)
-            {
-                held.ClearAndDestroyContents();
-                return;
-            }
-            held.TryDropAll(cell, map, ThingPlaceMode.Near);
-        }
-
-        // ---- 实验动作（由 BackpackDebugActions 的开发者菜单调用）----
-        public void TakeOneFromCore()
-        {
-            Map map = Pawn?.Map;
-            if (map == null) return;
-            foreach (Building_StorageCore core in CoreFinder.AllUsableCores(map))
-            {
-                ThingOwner held = core.GetDirectlyHeldThings();
-                for (int i = 0; i < held.Count; i++)
-                {
-                    Thing src = held[i];
-                    if (src == null || src.Destroyed) continue;
-                    Thing one = src.SplitOff(1);
-                    if (one == null) continue;
-                    if (GetDirectlyHeldThings().TryAdd(one, true))
-                    {
-                        Messages.Message("已放入背包：" + one.LabelShort, Pawn, MessageTypeDefOf.NeutralEvent);
-                        return;
-                    }
-                    GenPlace.TryPlaceThing(one, Pawn.PositionHeld, map, ThingPlaceMode.Near);
-                }
-            }
-            Messages.Message("核心里没有可取的东西。", Pawn, MessageTypeDefOf.RejectInput);
-        }
-
-        private static readonly System.Reflection.MethodInfo ShouldBeHaulableMethod =
-            AccessTools.Method(typeof(ListerHaulables), "ShouldBeHaulable");
-
-        public void Dump()
-        {
-            Map map = Pawn?.Map;
-            var sb = new StringBuilder();
-            sb.AppendLine("[DS-BAG] ==== 背包实验 :: " + (Pawn == null ? "null" : Pawn.LabelShortCap) + " ====");
-            sb.AppendLine("  sourceEnabled=" + sourceEnabled + " registered=" + registered
-                + " 背包件数=" + GetDirectlyHeldThings().Count
-                + " 优先级=" + (settings == null ? "?" : settings.Priority.ToString()));
-            if (map != null)
-            {
-                sb.AppendLine("  ∈AllHaulSourcesListForReading=" + map.haulDestinationManager.AllHaulSourcesListForReading.Contains(this));
-                sb.AppendLine("  ∈AllHaulDestinationsListInPriorityOrder=" + map.haulDestinationManager.AllHaulDestinationsListInPriorityOrder.Contains(this));
-            }
-
-            ThingOwner held = GetDirectlyHeldThings();
-            Thing item = held.Count > 0 ? held[0] : null;
-            if (item == null)
-            {
-                sb.AppendLine("  ⚠ 背包是空的 —— 先用开发者菜单「背包：取 1 件料到背包」。");
-                Log.Warning(sb.ToString());
-                return;
-            }
-
-            Thing parentOrMe = item.SpawnedParentOrMe;
-            sb.AppendLine("  物品=" + item.LabelShort + " spawned=" + item.Spawned
-                + " ParentHolder=" + (item.ParentHolder == null ? "null" : item.ParentHolder.GetType().Name)
-                + " **SpawnedParentOrMe=" + (parentOrMe == null ? "null" : parentOrMe.LabelShortCap) + "**（应为小人自己）");
-            try
-            {
-                sb.AppendLine("  CanReach(物品,ClosestTouch)=" + Pawn.CanReach(item, PathEndMode.ClosestTouch, Danger.Deadly)
-                    + "  CanReserve(物品)=" + Pawn.CanReserve(item));
-            }
-            catch (System.Exception e) { sb.AppendLine("  CanReach/CanReserve 抛异常: " + e.GetType().Name); }
-
-            sb.AppendLine("  ∈listerHaulables=" + (map != null && map.listerHaulables.ThingsPotentiallyNeedingHauling().Contains(item)));
-            if (ShouldBeHaulableMethod != null && map != null)
-            {
-                try
-                {
-                    object r = ShouldBeHaulableMethod.Invoke(map.listerHaulables, new object[] { item });
-                    sb.AppendLine("  原版 ShouldBeHaulable=" + r + "（true ⇒ 搬运工会来掏背包）");
-                }
-                catch (System.Exception e) { sb.AppendLine("  ShouldBeHaulable 反射失败: " + e.GetType().Name); }
-            }
-            sb.AppendLine("  分支值[在任意储存=" + StoreUtility.IsInAnyStorage(item)
-                + " 在有效最优储存=" + StoreUtility.IsInValidBestStorage(item)
-                + " 我的Accepts=" + Accepts(item) + "]");
-
-            Log.Warning(sb.ToString());
+            // hediff 被移除（含死亡后清理）⇒ owner 即将消失，内容物必须先交出去
+            EjectAll();
         }
     }
 }
