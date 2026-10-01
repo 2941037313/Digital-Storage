@@ -426,6 +426,17 @@ namespace DigitalStorage.Components
         {
             foreach (var g in base.GetGizmos()) yield return g;
 
+            // 【临时诊断】兼容层自检（定位 mod 兼容问题用，查完删）
+            if (Prefs.DevMode)
+            {
+                yield return new Command_Action
+                {
+                    defaultLabel = "[DEV] 兼容层自检",
+                    defaultDesc = "打印：核心是否在 AllGroups / SlotGroup.HeldThings 能枚举出什么 / 补丁挂点上没有 / Phinix 的 AllItemsTradable 开关",
+                    action = Compatibility.CompatSelfTest.Run
+                };
+            }
+
             yield return new Command_Action
             {
                 defaultLabel = "DS_StorageFilter".Translate(),
