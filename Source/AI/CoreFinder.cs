@@ -32,7 +32,8 @@ namespace DigitalStorage.AI
         public static List<CoreAccess> AllUsableAccesses(Pawn pawn)
         {
             int tick = Find.TickManager.TicksGame;
-            bool chipRequired = DigitalStorage.Settings.DigitalStorageSettings.requireChipForCoreAccess;
+            // 缓存键里的 chipRequired 已无意义（4.0 不再分芯片），保留字段恒为 false 以稳定缓存。
+            bool chipRequired = false;
             for (int i = 0; i < accessCache.Count; i++)
             {
                 if (accessCache[i].pawn == pawn && accessCache[i].tick == tick
@@ -60,55 +61,28 @@ namespace DigitalStorage.AI
             var result = new List<CoreAccess>();
             if (pawn?.Map == null) return result;
 
-            // 核心发现委托给 LedgerItemCollector（消除重复的逻辑）
             var allCores = Core.LedgerItemCollector.GetAllUsableCores(pawn.Map);
             if (allCores.Count == 0) return result;
 
-            bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
-
-            // 设置「需要终端芯片」：无芯片 = 无任何访问入口（含接口代理点）。
-            // 这是社区反馈「科技没研发、部件没装却能用全部功能」的可配置解法，
-            // 默认关闭，保持 v3「无芯片走接口」的设计。
-            if (!chip && DigitalStorage.Settings.DigitalStorageSettings.requireChipForCoreAccess)
-                return result;
-
-            // 本地核心按 NetworkName 建索引（用于远程找代理）
-            var localByNetwork = new Dictionary<string, Building_StorageCore>();
-            var addedRemotes = new HashSet<Building_StorageCore>();
-
+            // 【4.0「纯轮椅」】不再分有芯片 / 无芯片。3.0 是三层：
+            //   ① 有芯片 → 隔空取（不看可达性）
+            //   ② 无芯片 → 走代理点/接口到核心再取（要求 pawn.CanReach）
+            //   ③ requireChipForCoreAccess 打开 → 无芯片 = 完全没入口
+            //
+            // 用户拍板「核心一放就是完全体，全部无损直接隔空获取，不需要任何额外
+            // hediff / 建筑」，所以 ①②③ 全拆：所有人的行为与"有芯片"一致。
+            //
+            // 这也正是「为什么有时候能隔空取物有时候不行」的答案：旧代码里换个 pawn
+            // （有没有芯片）或换个位置（第 ② 层的 CanReach 判定）就会翻面。
+            //
+            // 唯一保留的门是核心必须通电 —— 那是核心自身状态，与访问方式无关（见 IsUsable）。
+            //
+            // 【4.0 暂不做跨图】只收本图核心；同 NetworkName 的远程核心逻辑随之作废。
             for (int i = 0; i < allCores.Count; i++)
             {
-                var core = allCores[i];
-
-                if (core.Map == pawn.Map)
-                {
-                    // 本地核心：芯片直连，否则必须有可达的代理点（接口）
-                    if (chip || HasReachableProxy(pawn, core))
-                        result.Add(new CoreAccess { ledgerCore = core, proxyCore = core });
-                    if (!string.IsNullOrEmpty(core.NetworkName) && !localByNetwork.ContainsKey(core.NetworkName))
-                        localByNetwork[core.NetworkName] = core;
-                }
-                else
-                {
-                    // 远程核心：优先本地同网络代理，兜底跨图接口直连
-                    if (addedRemotes.Contains(core)) continue;
-
-                    if (localByNetwork.TryGetValue(core.NetworkName, out var localProxy))
-                    {
-                        if (chip || HasReachableProxy(pawn, localProxy))
-                        {
-                            result.Add(new CoreAccess { ledgerCore = core, proxyCore = localProxy });
-                            addedRemotes.Add(core);
-                            continue;
-                        }
-                    }
-
-                    if (chip || HasReachableProxy(pawn, core))
-                    {
-                        result.Add(new CoreAccess { ledgerCore = core, proxyCore = core });
-                        addedRemotes.Add(core);
-                    }
-                }
+                Building_StorageCore core = allCores[i];
+                if (core == null || core.Map != pawn.Map) continue;
+                result.Add(new CoreAccess { ledgerCore = core, proxyCore = core });
             }
             return result;
         }
@@ -130,22 +104,20 @@ namespace DigitalStorage.AI
             return false;
         }
 
+        /// <summary>
+        /// 【4.0「纯轮椅」】恒返回 <see cref="IntVec3.Invalid"/> —— 表示"不需要走位"。
+        ///
+        /// 调用方（<c>JobDriver_DS_Withdraw</c> / <c>WorkGiver_DS_WithdrawForConstruct</c>）
+        /// 用 <c>proxy.IsValid</c> 决定要不要插一个 goto toil；Invalid 时材料直接到手，
+        /// 与消耗/取药那几条链的隔空取物保持一致。
+        ///
+        /// 3.0 这里是"按芯片决定走不走位"：有芯片 → Invalid，无芯片 → 最近接口/核心交互格。
+        /// 用户拍板核心一放就是完全体，走出去这一步就不该再有。
+        /// （接口建筑本身也属批 3 删除项。）
+        /// </summary>
         public static IntVec3 PickProxyCell(Pawn pawn, Building_StorageCore core)
         {
-            IntVec3 best = IntVec3.Invalid;
-            int bestDist = int.MaxValue;
-            foreach (var c in core.GetProxyCells())
-            {
-                if (!c.InBounds(pawn.Map)) continue;
-                if (!pawn.CanReach(c, PathEndMode.Touch, Danger.Deadly)) continue;
-                int d = (c - pawn.Position).LengthManhattan;
-                if (d < bestDist) { bestDist = d; best = c; }
-            }
-            // 接口都不可达时，检查核心自身交互格
-            if (!best.IsValid && core.InteractionCell.IsValid && core.InteractionCell.InBounds(pawn.Map)
-                && pawn.CanReach(core.InteractionCell, PathEndMode.Touch, Danger.Deadly))
-                best = core.InteractionCell;
-            return best;
+            return IntVec3.Invalid;
         }
     }
 }
