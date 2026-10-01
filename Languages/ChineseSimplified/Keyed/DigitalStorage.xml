@@ -112,24 +112,9 @@
   <DS_CoreDestroyLossDesc>存储核心被摧毁，因物资数量过大（超过3万堆叠），{0}堆叠物资已丢失。</DS_CoreDestroyLossDesc>
   <DS_GhostNotSellable>数字存储虚拟物品无法交易</DS_GhostNotSellable>
 
-  <!-- ========== 缓冲仓库 ========== -->
-  <DS_BufferBoundTo>已绑定: {0}</DS_BufferBoundTo>
-  <DS_BufferBoundToDesc>点击切换绑定到其他核心，或解绑。</DS_BufferBoundToDesc>
-  <DS_BufferBindCore>绑定核心</DS_BufferBindCore>
-  <DS_BufferBindCoreDesc>选择一个存储核心与此缓冲仓库绑定。</DS_BufferBindCoreDesc>
-  <DS_BufferSelectCore>{0} [{1}]</DS_BufferSelectCore>
-  <DS_BufferCurrentCore>{0} [{1}] (当前)</DS_BufferCurrentCore>
-  <DS_BufferUnbind>解绑</DS_BufferUnbind>
-  <DS_TabBufferWarehouse>缓冲库存</DS_TabBufferWarehouse>
+  <!-- 4.0：缓冲仓库相关 key 已随特性一并删除（DS_TabBufferWarehouse / DS_Buffer* 等）。
+       DS_Priority 被新的容器内容物面板复用，保留。 -->
   <DS_Priority>搬运优先级</DS_Priority>
-  <DS_BufferLockedItem>放什么物品:</DS_BufferLockedItem>
-  <DS_BufferNoItem>（无）</DS_BufferNoItem>
-  <DS_BufferSelect>选择</DS_BufferSelect>
-  <DS_BufferClearUnit>清空该单元</DS_BufferClearUnit>
-  <DS_BufferClearUnitDesc>物品吸回核心，放什么物品=无，Min/Max 归零</DS_BufferClearUnitDesc>
-  <DS_BufferCoreEmpty>（核心无库存）</DS_BufferCoreEmpty>
-  <DS_BufferMin>最少</DS_BufferMin>
-  <DS_BufferMax>最多</DS_BufferMax>
 
   <!-- ========== 3.0 升级信封 ========== -->
   <DigitalStorage_Letter30_Label>数字存储 3.1 更新说明 2026.5.27</DigitalStorage_Letter30_Label>

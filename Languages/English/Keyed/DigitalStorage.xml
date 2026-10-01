@@ -112,24 +112,9 @@
   <DS_CoreDestroyLossDesc>A storage core was destroyed. Due to excessive item count (over 30,000 stacks), {0} stacks were lost.</DS_CoreDestroyLossDesc>
   <DS_GhostNotSellable>Digital Storage virtual items cannot be traded</DS_GhostNotSellable>
 
-  <!-- ========== Buffer Warehouse ========== -->
-  <DS_BufferBoundTo>Bound to: {0}</DS_BufferBoundTo>
-  <DS_BufferBoundToDesc>Click to switch binding to another core, or unbind.</DS_BufferBoundToDesc>
-  <DS_BufferBindCore>Bind Core</DS_BufferBindCore>
-  <DS_BufferBindCoreDesc>Select a storage core to bind this buffer warehouse to.</DS_BufferBindCoreDesc>
-  <DS_BufferSelectCore>{0} [{1}]</DS_BufferSelectCore>
-  <DS_BufferCurrentCore>{0} [{1}] (current)</DS_BufferCurrentCore>
-  <DS_BufferUnbind>Unbind</DS_BufferUnbind>
-  <DS_TabBufferWarehouse>Buffer Stock</DS_TabBufferWarehouse>
+  <!-- 4.0: buffer-warehouse keys removed with the feature (DS_TabBufferWarehouse / DS_Buffer*).
+       DS_Priority is reused by the new container-contents panel, so it stays. -->
   <DS_Priority>Haul Priority</DS_Priority>
-  <DS_BufferLockedItem>Item:</DS_BufferLockedItem>
-  <DS_BufferNoItem>(none)</DS_BufferNoItem>
-  <DS_BufferSelect>Select</DS_BufferSelect>
-  <DS_BufferClearUnit>Clear this unit</DS_BufferClearUnit>
-  <DS_BufferClearUnitDesc>Items return to the core; item = none; Min/Max reset to 0.</DS_BufferClearUnitDesc>
-  <DS_BufferCoreEmpty>(core is empty)</DS_BufferCoreEmpty>
-  <DS_BufferMin>Min</DS_BufferMin>
-  <DS_BufferMax>Max</DS_BufferMax>
 
   <!-- ========== 3.0 Upgrade Letter ========== -->
   <DigitalStorage_Letter30_Label>Digital Storage 3.1 Update 2026.5.27</DigitalStorage_Letter30_Label>

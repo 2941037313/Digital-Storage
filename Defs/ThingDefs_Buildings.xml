@@ -80,64 +80,12 @@
   <!-- 4.0：输入接口建筑已删（产品决策「砍接口建筑：核心一放就是完全体」）。
        原先的「代理点 / 走接口取物」机制随之作废，改为纯轮椅（任何位置隔空存取）。 -->
 
-  <!-- 缓冲仓库 —— 物理存储桥接层，物品在 SlotGroup 真实存在，兼容所有 mod -->
-  <ThingDef ParentName="BuildingBase">
-    <defName>DigitalStorage_BufferWarehouse</defName>
-    <label>缓冲仓库</label>
-    <description>数字存储系统的物理缓冲区。物品在此真实存在，兼容所有 mod。自动从绑定核心补货，超额物品自动收纳。</description>
-    <thingClass>DigitalStorage.Components.Building_BufferWarehouse</thingClass>
-    <graphicData>
-      <texPath>缓冲仓库</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <drawSize>(1.5,1.5)</drawSize>
-    </graphicData>
-    <uiIconScale>1</uiIconScale>
-    <size>(1,1)</size>
-    <designationCategory>Furniture</designationCategory>
-    <passability>PassThroughOnly</passability>
-    <surfaceType>Item</surfaceType>
-    <drawGUIOverlay>true</drawGUIOverlay>
-    <castEdgeShadows>true</castEdgeShadows>
-    <terrainAffordanceNeeded>Medium</terrainAffordanceNeeded>
-    <minifiedDef>MinifiedThing</minifiedDef>
-    <statBases>
-      <MaxHitPoints>300</MaxHitPoints>
-      <WorkToBuild>500</WorkToBuild>
-      <Mass>10</Mass>
-      <Flammability>0.5</Flammability>
-    </statBases>
-    <fillPercent>0.8</fillPercent>
-    <tickerType>Normal</tickerType>
-    <building>
-      <maxItemsInCell>999</maxItemsInCell>
-      <preventDeteriorationOnTop>true</preventDeteriorationOnTop>
-      <ignoreStoredThingsBeauty>true</ignoreStoredThingsBeauty>
-      <defaultStorageSettings>
-        <filter>
-          <disallowNotEverStorable>true</disallowNotEverStorable>
-          <categories /> <!-- 默认不允任何种类——由自动锁定物品时 check filter -->
-        </filter>
-      </defaultStorageSettings>
-    </building>
-    <inspectorTabs>
-      <!-- 8.1: 原版 ITab_Storage 已移除（那是筛选/优先级的改动入口）——
-           缓冲仓库的设置唯一入口是下方的新 UI tab -->
-      <li>DigitalStorage.UI.ITab_BufferWarehouse</li>
-    </inspectorTabs>
-    <comps>
-      <li Class="CompProperties_Forbiddable" />
-      <li Class="DigitalStorage.Components.CompProperties_BufferWarehouse" />
-    </comps>
-    <thingCategories>
-      <li>BuildingsFurniture</li>
-    </thingCategories>
-    <researchPrerequisites>
-      <li>DigitalStorage_BufferWarehouse</li>
-    </researchPrerequisites>
-    <costList>
-      <Steel>100</Steel>
-      <ComponentIndustrial>5</ComponentIndustrial>
-    </costList>
-  </ThingDef>
+  <!-- 4.0：缓冲仓库特性已整体删除（用户拍板"砍掉"）。
+       它当初是"物理存储桥接层"——因为账本里的东西不是真 Thing，
+       需要一个真实存在、兼容所有 mod 的 SlotGroup 建筑来做桥梁。
+       4.0 的容器本身就是真实 Thing，桥不再需要。
+       同批删除：Building_BufferWarehouse(+_UI) / CompBufferWarehouse /
+       CompProperties_BufferWarehouse / BufferWarehouseUtility /
+       BufferWarehouseJobHelper / ITab_BufferWarehouse / Patch_BufferWarehouse。 -->
 
 </Defs>

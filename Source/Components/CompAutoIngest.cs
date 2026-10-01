@@ -179,9 +179,7 @@ namespace DigitalStorage.Components
                     foreach (var group in groups)
                     {
                         if (bufCount >= bufSize) break;
-                        // 7.31 晚：缓冲仓库有独立阈值补货逻辑，跳过——吸回会与补货
-                        // 互相拉扯成乒乓。普通 zone 行为不变。
-                        if (group.parent is Building_BufferWarehouse) continue;
+                        // 4.0：缓冲仓库特性已整体删除，原先这里跳过它以免补货/收纳乒乓的逻辑作废。
                         if (group.Settings.Priority > maxPrio) continue; // 严格高于最高核心 → 不动
                         foreach (var cell in group.CellsList)
                         {

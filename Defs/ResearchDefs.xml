@@ -90,20 +90,6 @@
     <researchViewY>0</researchViewY>
   </ResearchProjectDef>
 
-  <!-- 缓冲仓库 -->
-  <ResearchProjectDef>
-    <defName>DigitalStorage_BufferWarehouse</defName>
-    <label>缓冲仓库</label>
-    <description>解锁缓冲仓库。可建造物理存储区，自动从核心补货，兼容所有mod的物品查询。</description>
-    <baseCost>1500</baseCost>
-    <techLevel>Industrial</techLevel>
-    <prerequisites>
-      <li>DigitalStorage_BasicStorage</li>
-    </prerequisites>
-    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
-    <tab>DigitalStorage_Tab</tab>
-    <researchViewX>1</researchViewX>
-    <researchViewY>1</researchViewY>
-  </ResearchProjectDef>
+  <!-- 4.0：缓冲仓库研究已删（缓冲仓库特性整体砍掉）。 -->
 
 </Defs>
