@@ -60,23 +60,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Components\Building_StorageCore.cs" />
-    <Compile Include="Components\DigitalStorageMapComponent.cs" />
-    <Compile Include="Components\Dialog_RenameNetwork.cs" />
-    <Compile Include="Components\Hediff_TerminalImplant.cs" />
-    <Compile Include="Components\CompUseEffect_TerminalImplant.cs" />
     <Compile Include="Components\CompProperties_AutoIngest.cs" />
     <Compile Include="Components\CompAutoIngest.cs" />
-    <Compile Include="Components\CoreDestroyDropQueue.cs" />
-
-    <Compile Include="Ghost\GhostThing.cs" />
-    <Compile Include="Ghost\GhostLedgerIndex.cs" />
 
     <Compile Include="Core\HaulSourceContents.cs" />
-    <Compile Include="Core\ItemKey.cs" />
     <Compile Include="Core\ItemGroup.cs" />
-    <Compile Include="Core\LedgerPolicy.cs" />
-    <Compile Include="Core\LedgerItemCollector.cs" />
-    <Compile Include="Core\CoreLedger.cs" />
 
     <Compile Include="AI\DigitalStorage_JobDefOf.cs" />
     <Compile Include="AI\JobDriver_DS_Withdraw.cs" />
@@ -93,20 +81,17 @@
 
     <Compile Include="HarmonyPatches\HarmonyInit.cs" />
     <Compile Include="HarmonyPatches\Patch_ConsumeFromLedger.cs" />
-    <Compile Include="HarmonyPatches\Patch_ResourceCounter.cs" />
     <Compile Include="HarmonyPatches\Patch_ResourceCounter_HaulSources.cs" />
     <Compile Include="HarmonyPatches\Patch_DesignatorBuild_ProcessInput.cs" />
     <Compile Include="HarmonyPatches\Patch_ResourceDeliverJobFor.cs" />
     <Compile Include="HarmonyPatches\Patch_RecipeDef_MissingIngredients.cs" />
     <Compile Include="HarmonyPatches\Patch_FindBestMedicine.cs" />
-    <Compile Include="HarmonyPatches\Patch_RefuelFromLedger.cs" />
-    <Compile Include="HarmonyPatches\Patch_FixBrokenFromLedger.cs" />
-    <Compile Include="HarmonyPatches\Patch_FeedFromLedger.cs" />
+    <Compile Include="HarmonyPatches\Patch_RefuelFromStorage.cs" />
+    <Compile Include="HarmonyPatches\Patch_FixBrokenFromStorage.cs" />
+    <Compile Include="HarmonyPatches\Patch_FeedFromStorage.cs" />
     <Compile Include="HarmonyPatches\Patch_OrbitalTradeBeacon.cs" />
     <Compile Include="HarmonyPatches\Patch_HaulAIUtility.cs" />
     <Compile Include="HarmonyPatches\Patch_JobDriver_Equip.cs" />
-
-    <Compile Include="Services\DigitalStorageGameComponent.cs" />
 
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />

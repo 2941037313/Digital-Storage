@@ -26,21 +26,8 @@
   <!-- 4.0：数字存储接口研究已删（接口建筑砍掉，产品决策「核心一放就是完全体」）。
        原先依赖它的终端植入体研究与自动收纳 I 研究改为直接依赖基础数字存储。 -->
 
-  <!-- 终端植入体研究 -->
-  <ResearchProjectDef>
-    <defName>DigitalStorage_TerminalImplant</defName>
-    <label>终端植入体</label>
-    <description>解锁终端植入体。植入后殖民者可以在任意位置隔空存取物品，无需接近接口。</description>
-    <baseCost>3000</baseCost>
-    <techLevel>Spacer</techLevel>
-    <prerequisites>
-      <li>DigitalStorage_BasicStorage</li>
-    </prerequisites>
-    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
-    <tab>DigitalStorage_Tab</tab>
-    <researchViewX>3</researchViewX>
-    <researchViewY>2</researchViewY>
-  </ResearchProjectDef>
+  <!-- 4.0：终端植入体研究已删（芯片整体砍除）。4.0 是纯轮椅 ——
+       任何位置的殖民者都能直接存取，不需要任何 hediff / 建筑。 -->
 
   <!-- 自动收纳 1 级 -->
   <ResearchProjectDef>

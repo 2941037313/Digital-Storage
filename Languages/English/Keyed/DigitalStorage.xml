@@ -2,15 +2,7 @@
 <LanguageData>
 
   <!-- ========== Building_StorageCore ========== -->
-  <DS_UnnamedNetwork>Unnamed Network</DS_UnnamedNetwork>
-  <DS_RenameNetwork>Rename network</DS_RenameNetwork>
-  <DS_RenameNetworkDesc>Set a name for this storage network.</DS_RenameNetworkDesc>
-  <DS_InspectNetwork>Network: {0}</DS_InspectNetwork>
-  <DS_InspectCapacity>Capacity: {0} / {1} slots</DS_InspectCapacity>
   <DS_NoPower>No power</DS_NoPower>
-  <DS_DebugIngestAdjacent>Ingest adjacent</DS_DebugIngestAdjacent>
-  <DS_DebugIngestAdjacentDesc>(Debug) Ingest all valid items within 9 cells around the core into the ledger.</DS_DebugIngestAdjacentDesc>
-  <DS_DebugIngestResult>Ingested {0}, rejected {1}.</DS_DebugIngestResult>
   <DS_AutoIngest>Auto-Ingest</DS_AutoIngest>
   <DS_AutoIngestDesc>When enabled, the core automatically absorbs nearby loose items each tick without requiring hauling. Stops when unpowered.</DS_AutoIngestDesc>
 
@@ -18,19 +10,16 @@
   <DS_TabDigitalStorage>Virtual storage</DS_TabDigitalStorage>
   <DS_CapacityBar>{0} / {1} slots</DS_CapacityBar>
   <DS_Kinds>kinds</DS_Kinds>
-  <DS_Reserved>reserved {0}</DS_Reserved>
   <DS_WithdrawBtn>Withdraw</DS_WithdrawBtn>
   <DS_WithdrawTitle>Withdraw {0}</DS_WithdrawTitle>
   <DS_WithdrawAvailable>Available: {0}</DS_WithdrawAvailable>
   <DS_NoSpaceNearCore>No space near the core.</DS_NoSpaceNearCore>
 
   <!-- ========== Jobs ========== -->
-  <DS_ReportHaulingToCore>Hauling {0} into digital storage core [{1}]</DS_ReportHaulingToCore>
 
   <!-- ========== Float menu ========== -->
   <DS_WithdrawToSpot>Withdraw from digital storage…</DS_WithdrawToSpot>
   <DS_WithdrawItemLabel>{0} ({1} available)</DS_WithdrawItemLabel>
-  <DS_NoPathToCore>No path to storage core.</DS_NoPathToCore>
   <DS_WithdrawCarryLimit>Pawn can carry: {0}</DS_WithdrawCarryLimit>
   <DS_ReportConsuming>Consuming {0} from digital storage.</DS_ReportConsuming>
 
@@ -43,22 +32,12 @@
   <DS_Group_Other>Other</DS_Group_Other>
 
   <!-- ========== Building_InputInterface ========== -->
-  <DS_ConnectedTo>Connected to: {0}</DS_ConnectedTo>
-  <DS_NotConnected>Not connected</DS_NotConnected>
-  <DS_ConnectToCore>Connect to core</DS_ConnectToCore>
-  <DS_ConnectToCoreDescInterface>Select a storage core to connect to.</DS_ConnectToCoreDescInterface>
-  <DS_NoCoresAvailable>No cores available</DS_NoCoresAvailable>
 
   <!-- ========== Dialog_RenameNetwork ========== -->
-  <DS_EnterNetworkName>Enter network name:</DS_EnterNetworkName>
   <DS_Confirm>Confirm</DS_Confirm>
   <DS_Cancel>Cancel</DS_Cancel>
 
   <!-- ========== CompUseEffect_TerminalImplant ========== -->
-  <DS_ImplantSuccess>{0} has been implanted with a terminal chip and can now access the digital storage system remotely.</DS_ImplantSuccess>
-  <DS_OnlyHumans>Only humans can use this.</DS_OnlyHumans>
-  <DS_AlreadyImplanted>Already has a terminal implant.</DS_AlreadyImplanted>
-  <DS_ImplantConfirm>Implant a terminal chip into {0}?\n\nOnce implanted, they can access the digital storage system remotely and items will appear at their feet.</DS_ImplantConfirm>
 
   <!-- ========== Settings ========== -->
   <DS_SettingsCategory>Digital Storage 3.0</DS_SettingsCategory>
@@ -71,46 +50,17 @@
 
   <!-- ========== Access / automation settings ========== -->
   <DS_AccessSettings>Access &amp; automation</DS_AccessSettings>
-  <DS_RequireChip>Terminal chip required</DS_RequireChip>
-  <DS_RequireChipDesc>When enabled, only pawns with a terminal chip implant (or mechs controlled by an implanted mechanitor) can read or use the storage network. When disabled (default), any colonist can walk to a core or an input interface to use it, exactly like a stockpile.</DS_RequireChipDesc>
   <DS_AutoIngestToggle>Auto-ingest</DS_AutoIngestToggle>
   <DS_AutoIngestToggleDesc>Allow cores to absorb loose items automatically instead of waiting for a hauler. Turn this off if items seem to teleport around the map.</DS_AutoIngestToggleDesc>
   <DS_HomeAreaOnly>Auto-ingest home area only</DS_HomeAreaOnly>
   <DS_HomeAreaOnlyDesc>Automation only touches items inside your home area. Recommended: prevents items far away (mined chunks, quest loot) from being absorbed.</DS_HomeAreaOnlyDesc>
 
   <!-- ========== Caravan ========== -->
-  <DS_CaravanTab>Digital storage</DS_CaravanTab>
-  <DS_NoCoreItems>No items available in digital storage.</DS_NoCoreItems>
 
   <!-- ========== Upgrade ========== -->
-  <DS_Upgrade>Upgrade</DS_Upgrade>
-  <DS_Downgrade>Downgrade</DS_Downgrade>
-  <DS_UpgradeDesc>Upgrade storage core.\n\nCapacity: {0} → {1}\nPower: {2}W → {3}W</DS_UpgradeDesc>
-  <DS_DowngradeDesc>Downgrade storage core.\n\nCapacity: {0} → {1}\nPower: {2}W → {3}W</DS_DowngradeDesc>
-  <DS_UpgradeCost>Materials required: {0}</DS_UpgradeCost>
-  <DS_UpgradeStarted>{0} started upgrading.</DS_UpgradeStarted>
-  <DS_DowngradeStarted>{0} started downgrading.</DS_DowngradeStarted>
-  <DS_UpgradeComplete>{0} upgraded to {1}.</DS_UpgradeComplete>
-  <DS_DowngradeComplete>{0} downgraded to {1}.</DS_DowngradeComplete>
-  <DS_UpgradeInProgress>In progress: {0}</DS_UpgradeInProgress>
-  <DS_DowngradeInProgress>In progress: {0}</DS_DowngradeInProgress>
-  <DS_UpgradeCooldown>Cooldown: {0}</DS_UpgradeCooldown>
-  <DS_MaxLevel>Max level reached</DS_MaxLevel>
-  <DS_MinLevel>Min level reached</DS_MinLevel>
-  <DS_MaxLevelDesc>This storage core has reached its maximum level.</DS_MaxLevelDesc>
-  <DS_MinLevelDesc>This storage core has reached its minimum level.</DS_MinLevelDesc>
-  <DS_UpgradeNoMaterials>Not enough upgrade materials.</DS_UpgradeNoMaterials>
-  <DS_InspectLevel>Level: {0}/{1}</DS_InspectLevel>
-  <DS_UpgradeLevel_1>Basic</DS_UpgradeLevel_1>
-  <DS_UpgradeLevel_2>Advanced</DS_UpgradeLevel_2>
-  <DS_UpgradeLevel_3>High-Tech</DS_UpgradeLevel_3>
-  <DS_UpgradeLevel_4>Quantum</DS_UpgradeLevel_4>
 
   <DS_StorageFilter>Storage Filter</DS_StorageFilter>
   <DS_StorageFilterDesc>Set which item types are allowed into this core. All allowed by default.</DS_StorageFilterDesc>
-  <DS_CoreDestroyLossTitle>Core Destroyed - Items Lost</DS_CoreDestroyLossTitle>
-  <DS_CoreDestroyLossDesc>A storage core was destroyed. Due to excessive item count (over 30,000 stacks), {0} stacks were lost.</DS_CoreDestroyLossDesc>
-  <DS_GhostNotSellable>Digital Storage virtual items cannot be traded</DS_GhostNotSellable>
 
   <!-- 4.0: buffer-warehouse keys removed with the feature (DS_TabBufferWarehouse / DS_Buffer*).
        DS_Priority is reused by the new container-contents panel, so it stays. -->

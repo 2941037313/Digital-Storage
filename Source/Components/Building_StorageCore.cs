@@ -248,7 +248,7 @@ namespace DigitalStorage.Components
             MapHeld.haulDestinationManager?.Notify_HaulDestinationChangedPriority();
         }
 
-        // ===== 兼容 3.0 调用方的薄封装（批 3 清理） =====
+        // ===== 对外小接口 =====
 
         public StoragePriority storagePriority
         {
@@ -264,33 +264,10 @@ namespace DigitalStorage.Components
 
         public ThingFilter StorageFilter => GetStoreSettings().filter;
 
-        public bool AllowsItem(Thing t) => t != null && GetStoreSettings().filter.Allows(t);
-
-        /// <summary>def 级过滤器检查（搬出判定用，避免构造 Thing）。</summary>
-        public bool AllowsDef(ThingDef def) => def != null && GetStoreSettings().filter.Allows(def);
-
         public bool Powered => GetComp<CompPowerTrader>()?.PowerOn ?? true;
 
-        /// <summary>容量 = 栈数上限（3.0 的升级扩容已砍）。</summary>
-        public int GetCapacity() => maxStacks;
-
-        // ===================================================================
-        // 批 1 过渡桩 —— 3.0 的调用方还挂在这些成员上。
-        // 批 2 逐个替换成容器实现，批 3 随账本一起删。**不要在新代码里用它们。**
-        // ===================================================================
-
-        private CoreLedger ledger = new CoreLedger();
-        public CoreLedger Ledger => ledger;
-
-        private string networkName;
-        public string NetworkName
-        {
-            get => networkName ?? "DS_UnnamedNetwork".Translate().ToString();
-            set => networkName = value;
-        }
-
         /// <summary>
-        /// 可选范围全集：所有 <c>ThingCategory.Item</c> 非尸体 def（「全放开」，LedgerPolicy 白名单已废）。
+        /// 可选范围全集：所有 <c>ThingCategory.Item</c> 非尸体 def（「全放开」）。
         /// 静态缓存。**不要返回 <see cref="StorageFilter"/>** —— 见 parentFilter 字段的注释。
         /// </summary>
         public ThingFilter GetParentFilterPublic()
@@ -365,13 +342,9 @@ namespace DigitalStorage.Components
             Scribe_Values.Look(ref maxStacks, "maxStacks", 500);
             Scribe_Values.Look(ref storagePriorityField, "storagePriority", StoragePriority.Preferred);
             Scribe_Values.Look(ref allowWeaponsInStorage, "allowWeaponsInStorage", false);
-            // 批 1 过渡：3.0 存档字段（批 3 删）
-            Scribe_Values.Look(ref networkName, "networkName");
-            Scribe_Deep.Look(ref ledger, "ledger");
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
-                if (ledger == null) ledger = new CoreLedger();
                 if (innerContainer == null) innerContainer = new ThingOwner<Thing>(this);
                 innerContainer.dontTickContents = true;
                 GetStoreSettings();
@@ -436,9 +409,9 @@ namespace DigitalStorage.Components
                 };
             }
 
-            // 【临时】批 1 验证用。批 1 里原版入库路径还被 mod 自己的
-            // WorkGiver_DS_HaulToCore（priorityInType 高于 HaulGeneral）抢着，
-            // 所以需要一条手工路径才能把东西放进容器。批 2 删掉入库 WorkGiver 后即可移除。
+            // 开发模式专用的小工具：把相邻物品直接塞进容器。
+            // （4.0 起原版入库路径已经是原生的，这只是省去搬运的测试捷径；
+            //   正式发布前可考虑移除。）
             if (Prefs.DevMode)
             {
                 yield return new Command_Action
@@ -452,7 +425,7 @@ namespace DigitalStorage.Components
             }
         }
 
-        /// <summary>【临时】批 1 验证用，批 2 移除。</summary>
+        /// <summary>开发模式专用：把相邻物品直接塞进容器（省去搬运的测试捷径）。</summary>
         private void DevIngestAdjacent()
         {
             if (Map == null) return;

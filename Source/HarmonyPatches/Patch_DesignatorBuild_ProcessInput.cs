@@ -132,9 +132,9 @@ namespace DigitalStorage.HarmonyPatches
             if (allCores.Count == 0) return true;
 
             var mapStuffDefs = new HashSet<ThingDef>();
-            var ledgerStuffDefs = new HashSet<ThingDef>();
+            var containerStuffDefs = new HashSet<ThingDef>();
 
-            CollectStuffDefs(map, thingDef, ledgerStuffDefs);
+            CollectStuffDefs(map, thingDef, containerStuffDefs);
 
             foreach (var d in map.resourceCounter.AllCountedAmounts.Keys)
             {
@@ -143,12 +143,12 @@ namespace DigitalStorage.HarmonyPatches
                     mapStuffDefs.Add(d);
             }
 
-            var missingFromMap = new HashSet<ThingDef>(ledgerStuffDefs);
+            var missingFromMap = new HashSet<ThingDef>(containerStuffDefs);
             missingFromMap.ExceptWith(mapStuffDefs);
             if (missingFromMap.Count == 0) return true;
 
             var allDefs = new HashSet<ThingDef>(mapStuffDefs);
-            allDefs.UnionWith(ledgerStuffDefs);
+            allDefs.UnionWith(containerStuffDefs);
 
             var list = new List<FloatMenuOption>();
             foreach (var stuffDef in allDefs.OrderByDescending(d => d.stuffProps?.commonality ?? 0f)
@@ -194,7 +194,7 @@ namespace DigitalStorage.HarmonyPatches
     {
         private static Map cachedMap;
         private static int cachedTick = -1;
-        private static readonly HashSet<ThingDef> cachedLedgerStuffDefs = new HashSet<ThingDef>();
+        private static readonly HashSet<ThingDef> cachedContainerStuffDefs = new HashSet<ThingDef>();
         private static readonly List<Thing> tmpStuffThings = new List<Thing>();
 
         /// <summary>
@@ -206,18 +206,18 @@ namespace DigitalStorage.HarmonyPatches
         public static List<Thing> ExtendList(List<Thing> list, Map map, ThingDef stuffDef)
         {
             if (list == null || list.Count > 0 || map == null || stuffDef == null) return list;
-            if (!GetLedgerStuffDefs(map).Contains(stuffDef)) return list;
+            if (!GetContainerStuffDefs(map).Contains(stuffDef)) return list;
             return new List<Thing>(1) { null };
         }
 
-        private static HashSet<ThingDef> GetLedgerStuffDefs(Map map)
+        private static HashSet<ThingDef> GetContainerStuffDefs(Map map)
         {
             int tick = Find.TickManager.TicksGame;
-            if (map == cachedMap && tick == cachedTick) return cachedLedgerStuffDefs;
+            if (map == cachedMap && tick == cachedTick) return cachedContainerStuffDefs;
 
             cachedMap = map;
             cachedTick = tick;
-            cachedLedgerStuffDefs.Clear();
+            cachedContainerStuffDefs.Clear();
 
             // 4.0：容器内容物取代账本。ExtendList 只关心"这个 stuff 在不在"，
             // 所以只收 def（不需要数量）。缓存按 tick，因为内容物随时会变。
@@ -225,11 +225,11 @@ namespace DigitalStorage.HarmonyPatches
             for (int i = 0; i < tmpStuffThings.Count; i++)
             {
                 Thing t = tmpStuffThings[i];
-                if (t?.def != null) cachedLedgerStuffDefs.Add(t.def);
+                if (t?.def != null) cachedContainerStuffDefs.Add(t.def);
             }
             tmpStuffThings.Clear();
 
-            return cachedLedgerStuffDefs;
+            return cachedContainerStuffDefs;
         }
     }
 }

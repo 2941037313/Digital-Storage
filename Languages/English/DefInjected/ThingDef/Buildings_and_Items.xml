@@ -7,9 +7,6 @@
 
   <!-- Input Interface 已删（4.0 砍接口建筑） -->
 
-  <!-- Terminal Chip -->
-  <DigitalStorage_TerminalChip.label>terminal chip</DigitalStorage_TerminalChip.label>
-  <DigitalStorage_TerminalChip.description>An advanced neural interface chip that can be directly used to implant into the brain, allowing the carrier to remotely access the digital storage system.\n\nAfter implantation, items will be teleported directly to the carrier's feet, no need to walk to the storage core.</DigitalStorage_TerminalChip.description>
-  <DigitalStorage_TerminalChip.comps.CompProperties_Usable.useLabel>implant terminal chip</DigitalStorage_TerminalChip.comps.CompProperties_Usable.useLabel>
+  <!-- Terminal Chip 已删（4.0 砍芯片） -->
 
 </LanguageData>

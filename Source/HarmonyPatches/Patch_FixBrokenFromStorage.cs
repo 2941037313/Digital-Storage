@@ -16,11 +16,10 @@ namespace DigitalStorage.HarmonyPatches
     /// </summary>
     [HarmonyPatch(typeof(WorkGiver_FixBrokenDownBuilding), "FindClosestComponent")]
     [HarmonyPatch(new[] { typeof(Pawn) })]
-    static class Patch_FixBrokenFromLedger
+    static class Patch_FixBrokenFromStorage
     {
         static void Postfix(Pawn pawn, ref Thing __result)
         {
-            if (__result is Ghost.GhostThing) __result = null;
             if (__result != null || pawn?.Map == null) return;
 
             // 修一次只需要 1 个工业零件（与原版 FindClosestComponent 同一个 def）。

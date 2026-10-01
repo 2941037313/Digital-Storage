@@ -2,15 +2,7 @@
 <LanguageData>
 
   <!-- ========== Building_StorageCore ========== -->
-  <DS_UnnamedNetwork>未命名网络</DS_UnnamedNetwork>
-  <DS_RenameNetwork>重命名网络</DS_RenameNetwork>
-  <DS_RenameNetworkDesc>为此存储网络设置一个名称</DS_RenameNetworkDesc>
-  <DS_InspectNetwork>网络: {0}</DS_InspectNetwork>
-  <DS_InspectCapacity>容量: {0} / {1} 组</DS_InspectCapacity>
   <DS_NoPower>无电力</DS_NoPower>
-  <DS_DebugIngestAdjacent>吞入相邻</DS_DebugIngestAdjacent>
-  <DS_DebugIngestAdjacentDesc>（调试）把核心周围 9 格内所有可吞物品存入账本</DS_DebugIngestAdjacentDesc>
-  <DS_DebugIngestResult>已吞入 {0} 件，拒绝 {1} 件</DS_DebugIngestResult>
   <DS_AutoIngest>自动收纳</DS_AutoIngest>
   <DS_AutoIngestDesc>开启后，存储核心每 tick 自动吸收范围内的散落物品，无需殖民者搬运。断电自动停止。</DS_AutoIngestDesc>
 
@@ -18,19 +10,16 @@
   <DS_TabDigitalStorage>虚拟存储</DS_TabDigitalStorage>
   <DS_CapacityBar>{0} / {1} 组</DS_CapacityBar>
   <DS_Kinds>种</DS_Kinds>
-  <DS_Reserved>预订 {0}</DS_Reserved>
   <DS_WithdrawBtn>取出</DS_WithdrawBtn>
   <DS_WithdrawTitle>取出 {0}</DS_WithdrawTitle>
   <DS_WithdrawAvailable>可用: {0}</DS_WithdrawAvailable>
   <DS_NoSpaceNearCore>核心周围没有空位</DS_NoSpaceNearCore>
 
   <!-- ========== 工单 ========== -->
-  <DS_ReportHaulingToCore>把 {0} 送入数字存储核心 [{1}]</DS_ReportHaulingToCore>
 
   <!-- ========== 右键菜单 ========== -->
   <DS_WithdrawToSpot>从数字存储取出…</DS_WithdrawToSpot>
   <DS_WithdrawItemLabel>{0}（可用 {1}）</DS_WithdrawItemLabel>
-  <DS_NoPathToCore>无法到达存储核心。</DS_NoPathToCore>
   <DS_WithdrawCarryLimit>pawn 可搬运: {0}</DS_WithdrawCarryLimit>
   <DS_ReportConsuming>从数字存储取用 {0}。</DS_ReportConsuming>
 
@@ -43,22 +32,12 @@
   <DS_Group_Other>其他</DS_Group_Other>
 
   <!-- ========== Building_InputInterface ========== -->
-  <DS_ConnectedTo>连接到: {0}</DS_ConnectedTo>
-  <DS_NotConnected>未连接</DS_NotConnected>
-  <DS_ConnectToCore>连接到核心</DS_ConnectToCore>
-  <DS_ConnectToCoreDescInterface>选择要连接的存储核心</DS_ConnectToCoreDescInterface>
-  <DS_NoCoresAvailable>无可用核心</DS_NoCoresAvailable>
 
   <!-- ========== Dialog_RenameNetwork ========== -->
-  <DS_EnterNetworkName>输入网络名称:</DS_EnterNetworkName>
   <DS_Confirm>确定</DS_Confirm>
   <DS_Cancel>取消</DS_Cancel>
 
   <!-- ========== CompUseEffect_TerminalImplant ========== -->
-  <DS_ImplantSuccess>{0} 已植入终端芯片，现在可以远程访问数字存储系统</DS_ImplantSuccess>
-  <DS_OnlyHumans>只有人类可以使用</DS_OnlyHumans>
-  <DS_AlreadyImplanted>已安装终端芯片</DS_AlreadyImplanted>
-  <DS_ImplantConfirm>确定要为 {0} 植入终端芯片吗？\n\n植入后可以远程访问数字存储系统，物品将直接传送到脚下。</DS_ImplantConfirm>
 
   <!-- ========== Settings ========== -->
   <DS_SettingsCategory>数字存储 Digital Storage 3.0</DS_SettingsCategory>
@@ -71,46 +50,17 @@
 
   <!-- ========== 访问与自动化设置 ========== -->
   <DS_AccessSettings>访问与自动化</DS_AccessSettings>
-  <DS_RequireChip>需要终端芯片</DS_RequireChip>
-  <DS_RequireChipDesc>开启后：只有植入终端芯片的小人（或由其机械师控制的机械体）才能读取/使用存储网络。关闭（默认）：任何殖民者走到核心或输入接口即可使用，和普通储存区一样。</DS_RequireChipDesc>
   <DS_AutoIngestToggle>自动收纳</DS_AutoIngestToggle>
   <DS_AutoIngestToggleDesc>允许核心自动吸收附近散落物品，无需搬运工。若发现物品在地图上"瞬移"，关闭此项。</DS_AutoIngestToggleDesc>
   <DS_HomeAreaOnly>自动收纳仅限活动区</DS_HomeAreaOnly>
   <DS_HomeAreaOnlyDesc>自动化只处理活动区（Home）内的物品。推荐开启：防止远处物品（挖出的石块、任务战利品）被隔空吸走。</DS_HomeAreaOnlyDesc>
 
   <!-- ========== 商队 ========== -->
-  <DS_CaravanTab>数字存储</DS_CaravanTab>
-  <DS_NoCoreItems>数字存储中无可用物品</DS_NoCoreItems>
 
   <!-- ========== 升级系统 ========== -->
-  <DS_Upgrade>升级</DS_Upgrade>
-  <DS_Downgrade>降级</DS_Downgrade>
-  <DS_UpgradeDesc>升级存储核心。\n\n容量: {0} → {1}\n耗电: {2}W → {3}W</DS_UpgradeDesc>
-  <DS_DowngradeDesc>降级存储核心。\n\n容量: {0} → {1}\n耗电: {2}W → {3}W</DS_DowngradeDesc>
-  <DS_UpgradeCost>所需材料: {0}</DS_UpgradeCost>
-  <DS_UpgradeStarted>{0} 开始升级</DS_UpgradeStarted>
-  <DS_DowngradeStarted>{0} 开始降级</DS_DowngradeStarted>
-  <DS_UpgradeComplete>{0} 已升级至 {1}</DS_UpgradeComplete>
-  <DS_DowngradeComplete>{0} 已降级至 {1}</DS_DowngradeComplete>
-  <DS_UpgradeInProgress>进行中: {0}</DS_UpgradeInProgress>
-  <DS_DowngradeInProgress>进行中: {0}</DS_DowngradeInProgress>
-  <DS_UpgradeCooldown>冷却中: {0}</DS_UpgradeCooldown>
-  <DS_MaxLevel>已达最高等级</DS_MaxLevel>
-  <DS_MinLevel>已达最低等级</DS_MinLevel>
-  <DS_MaxLevelDesc>此存储核心已达到最高等级。</DS_MaxLevelDesc>
-  <DS_MinLevelDesc>此存储核心已达到最低等级。</DS_MinLevelDesc>
-  <DS_UpgradeNoMaterials>升级材料不足</DS_UpgradeNoMaterials>
-  <DS_InspectLevel>等级: {0}/{1}</DS_InspectLevel>
-  <DS_UpgradeLevel_1>基础</DS_UpgradeLevel_1>
-  <DS_UpgradeLevel_2>进阶</DS_UpgradeLevel_2>
-  <DS_UpgradeLevel_3>高级</DS_UpgradeLevel_3>
-  <DS_UpgradeLevel_4>量子</DS_UpgradeLevel_4>
 
   <DS_StorageFilter>存储筛选</DS_StorageFilter>
   <DS_StorageFilterDesc>设置允许存入核心的物品类型。默认全部允许。</DS_StorageFilterDesc>
-  <DS_CoreDestroyLossTitle>核心摧毁物资丢失</DS_CoreDestroyLossTitle>
-  <DS_CoreDestroyLossDesc>存储核心被摧毁，因物资数量过大（超过3万堆叠），{0}堆叠物资已丢失。</DS_CoreDestroyLossDesc>
-  <DS_GhostNotSellable>数字存储虚拟物品无法交易</DS_GhostNotSellable>
 
   <!-- 4.0：缓冲仓库相关 key 已随特性一并删除（DS_TabBufferWarehouse / DS_Buffer* 等）。
        DS_Priority 被新的容器内容物面板复用，保留。 -->

@@ -29,8 +29,10 @@ namespace DigitalStorage.AI
         /// <summary>右键「取出到指定格」。</summary>
         public static JobDef DigitalStorage_WithdrawToSpot;
 
-        /// <summary>取消耗品直接进嘴（原版吃 / 用药的 job 链不接容器）。</summary>
-        public static JobDef DigitalStorage_ConsumeFromLedger;
+        /// <summary>取消耗品直接进嘴（原版吃 / 用药的 job 链不接容器）。
+        /// 4.0：defName 由 <c>DigitalStorage_ConsumeFromLedger</c> 改为 <c>DigitalStorage_Consume</c>
+        /// —— 账本已整体删除，"FromLedger" 这个名字不再成立。</summary>
+        public static JobDef DigitalStorage_Consume;
 
         static DigitalStorage_JobDefOf()
         {

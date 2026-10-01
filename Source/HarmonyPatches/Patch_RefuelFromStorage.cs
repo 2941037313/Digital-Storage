@@ -18,12 +18,10 @@ namespace DigitalStorage.HarmonyPatches
     /// </summary>
     [HarmonyPatch(typeof(RefuelWorkGiverUtility), "FindBestFuel")]
     [HarmonyPatch(new[] { typeof(Pawn), typeof(Thing) })]
-    static class Patch_RefuelFromLedger
+    static class Patch_RefuelFromStorage
     {
         static void Postfix(Pawn pawn, Thing refuelable, ref Thing __result)
         {
-            // 过渡期：其它补丁（Patch_OrbitalTradeBeacon）还会返回账本 GhostThing，那不是真东西。
-            if (__result is Ghost.GhostThing) __result = null;
             if (__result != null || pawn?.Map == null || refuelable == null) return;
 
             CompRefuelable comp = refuelable.TryGetComp<CompRefuelable>();

@@ -15,9 +15,9 @@
     <reportString>从数字存储核心取料到指定位置。</reportString>
   </JobDef>
 
-  <!-- 阶段 4.6：从核心取消耗品直接进嘴 -->
+  <!-- 阶段 4.6：从核心取消耗品直接进嘴（4.0：defName 去掉 FromLedger —— 账本已删） -->
   <JobDef>
-    <defName>DigitalStorage_ConsumeFromLedger</defName>
+    <defName>DigitalStorage_Consume</defName>
     <driverClass>DigitalStorage.AI.JobDriver_DS_Consume</driverClass>
     <reportString>从数字存储核心取用 TargetA。</reportString>
   </JobDef>

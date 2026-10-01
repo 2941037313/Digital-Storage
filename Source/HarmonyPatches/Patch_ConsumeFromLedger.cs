@@ -54,7 +54,8 @@ namespace DigitalStorage.HarmonyPatches
             if (pawn.needs?.food == null) return false;
             if (pawn.Faction == Faction.OfPlayer) return true;
             if (pawn.IsPrisonerOfColony) return true;
-            if (Hediff_TerminalImplant.HasTerminalImplant(pawn)) return true;
+            // 4.0：删掉了「有终端芯片也放行」那一支 —— 芯片整体砍除（Hediff_TerminalImplant 已删）；
+            // faction / prisoner 两条已覆盖正常吃饭场景。
             return false;
         }
     }
@@ -222,12 +223,12 @@ namespace DigitalStorage.HarmonyPatches
             if (Find.TickManager.TicksGame == lastFailTick && pawn.thingIDNumber == lastFailPawnID)
                 return false;
 
-            // pawn 已有 ConsumeFromLedger job 在队列里 → 不重复创
-            if (pawn.CurJob?.def == DigitalStorage_JobDefOf.DigitalStorage_ConsumeFromLedger)
+            // pawn 已有 consume job 在队列里 → 不重复创
+            if (pawn.CurJob?.def == DigitalStorage_JobDefOf.DigitalStorage_Consume)
                 return false;
             for (int i = 0; i < pawn.jobs.jobQueue.Count; i++)
             {
-                if (pawn.jobs.jobQueue[i].job.def == DigitalStorage_JobDefOf.DigitalStorage_ConsumeFromLedger)
+                if (pawn.jobs.jobQueue[i].job.def == DigitalStorage_JobDefOf.DigitalStorage_Consume)
                     return false;
             }
             return true;

@@ -42,14 +42,11 @@ namespace DigitalStorage.AI
 
             // 【4.0 产品决策 · 砍芯片】这里原先有一道门：
             //   if (!HasTerminalImplant(pawn) && Settings.requireChipForCoreAccess) return null;
-            // 现在拆掉 —— 用户拍板「核心一放就是完全体，全部无损直接隔空获取，
-            // 不需要任何额外 hediff / 建筑」。
-            //
-            // 它正是「重进存档后既不吃饭也不吃药」的根因，实测日志：
+            // 用户拍板「核心一放就是完全体，全部无损直接隔空获取，不需要任何额外 hediff / 建筑」，
+            // 所以那道门已删 —— 它正是「重进存档后既不吃饭也不吃药」的根因，实测日志：
             //   [DS] GetFood: null (no chip and requireChipForCoreAccess=on)
-            //
-            // （Settings.requireChipForCoreAccess 与 DigitalStorage_TerminalImplant /
-            //   DigitalStorage_TerminalChip 属批 3 删除项；这里先停止读取它。）
+            // 芯片实体（Hediff_TerminalImplant / DigitalStorage_TerminalChip）与
+            // Settings.requireChipForCoreAccess 也已一并删除。
 
             // 社区反馈「食物方案禁止吃虫胶也没用」：原版 JobGiver_GetFood →
             // FoodUtility.TryFindBestFoodSourceFor 会对每个候选调 FoodUtility.WillEat
@@ -98,7 +95,7 @@ namespace DigitalStorage.AI
 
             LastFailReason = "ok: " + best.def.defName + " x" + take;
 
-            var job = JobMaker.MakeJob(DigitalStorage_JobDefOf.DigitalStorage_ConsumeFromLedger);
+            var job = JobMaker.MakeJob(DigitalStorage_JobDefOf.DigitalStorage_Consume);
             // targetA = 要吃/要用的那件真实东西（会被 Scribe，存档读档不丢）
             job.SetTarget(TargetIndex.A, best);
             // targetC = 它所在的容器（用于 FailOn 的电力/存在性检查）

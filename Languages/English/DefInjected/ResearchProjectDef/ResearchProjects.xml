@@ -6,7 +6,6 @@
 
   <!-- DigitalStorage_Interface 已删（4.0 砍接口建筑） -->
 
-  <DigitalStorage_TerminalImplant.label>terminal implant</DigitalStorage_TerminalImplant.label>
-  <DigitalStorage_TerminalImplant.description>Unlock the terminal implant. After implantation, colonists can remotely store and retrieve items from any location, without needing to approach an interface.</DigitalStorage_TerminalImplant.description>
+  <!-- DigitalStorage_TerminalImplant 已删（4.0 砍芯片） -->
 
 </LanguageData>

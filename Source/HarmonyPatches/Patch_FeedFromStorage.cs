@@ -16,7 +16,7 @@ namespace DigitalStorage.HarmonyPatches
     /// 按 <c>FoodScoring.Score</c> 降序选最优食物。
     /// </summary>
     [HarmonyPatch(typeof(FoodUtility), "TryFindBestFoodSourceFor")]
-    static class Patch_FeedFromLedger
+    static class Patch_FeedFromStorage
     {
         static void Postfix(Pawn getter, Pawn eater, ref Thing foodSource, ref ThingDef foodDef, ref bool __result)
         {
