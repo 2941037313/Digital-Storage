@@ -10,6 +10,8 @@ namespace DigitalStorage.HarmonyPatches
         {
             var harmony = new Harmony("DigitalStorage.HarmonyPatches");
             harmony.PatchAll();
+            // 第三方定向兼容（可选 mod）：必须在 PatchAll 之后单独装，失败也不能影响本 mod 的补丁
+            Compatibility.PhinixCompatPatch.Install(harmony);
             // Log.Message 在游戏内日志窗口不显示（只有 Player.log 有），诊断一律用 Warning。
             Log.Warning("[DigitalStorage 4.0] Harmony ready.");
         }

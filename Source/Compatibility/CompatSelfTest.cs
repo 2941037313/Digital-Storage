@@ -120,7 +120,8 @@ namespace DigitalStorage.Compatibility
                 sb.AppendLine("  ④ SlotGroup.get_HeldThings 补丁：方法=" + (getter == null ? "没找到" : "找到")
                     + "  全量 postfix=" + all + "   本 mod 挂上了=" + ours);
 
-                sb.AppendLine("  ⑤ " + PhinixState());
+                sb.AppendLine("  ⑤ " + PhinixState()
+                    + "   定向补丁已挂挂点数=" + PhinixCompatPatch.InstalledCount);
                 Log.Warning(sb.ToString());
             }
             catch (Exception e)
@@ -129,7 +130,7 @@ namespace DigitalStorage.Compatibility
             }
         }
 
-        /// <summary>反射读 Phinix 的分支开关：true ⇒ 它走 listerThings，我们打不通。</summary>
+        /// <summary>反射读 Phinix 的分支开关（与定向补丁共用同一份读取逻辑）。</summary>
         private static string PhinixState()
         {
             try
@@ -137,28 +138,13 @@ namespace DigitalStorage.Compatibility
                 Type clientType = AccessTools.TypeByName("PhinixClient.Client");
                 if (clientType == null) return "Phinix：未安装（找不到 PhinixClient.Client）";
 
-                object instance = null;
-                PropertyInfo instProp = clientType.GetProperty("Instance",
-                    BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
-                if (instProp != null) instance = instProp.GetValue(null);
-                if (instance == null)
-                {
-                    FieldInfo instField = clientType.GetField("Instance", BindingFlags.Public | BindingFlags.Static);
-                    if (instField != null) instance = instField.GetValue(null);
-                }
-                if (instance == null) return "Phinix：已安装但 Client.Instance 为 null（未初始化）";
+                bool? value = PhinixCompatPatch.TryGetAllItemsTradable();
+                if (value == null) return "Phinix：已安装但读不到 AllItemsTradable（Instance/Settings 未初始化或版本不同）";
 
-                PropertyInfo settingsProp = clientType.GetProperty("Settings");
-                object settings = settingsProp == null ? null : settingsProp.GetValue(instance);
-                if (settings == null) return "Phinix：已安装但 Settings 读不到";
-
-                PropertyInfo flag = settings.GetType().GetProperty("AllItemsTradable");
-                if (flag == null) return "Phinix：Settings 里没有 AllItemsTradable 属性（版本不同）";
-
-                object value = flag.GetValue(settings);
                 return "Phinix：AllItemsTradable=" + value
-                    + (Equals(value, true) ? "  ⇒ 它走 listerThings.AllThings 分支，**我们打不通**（需把它关掉）"
-                                           : "  ⇒ 走 AllGroups → HeldThings 分支（我们能接）");
+                    + (value == true
+                        ? "  ⇒ 走 listerThings 分支；**已由定向补丁在列表上做加法**"
+                        : "  ⇒ 走 AllGroups → HeldThings 分支（通用解覆盖）");
             }
             catch (Exception e)
             {

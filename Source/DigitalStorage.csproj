@@ -62,6 +62,7 @@
     <Compile Include="Components\Building_StorageCore.cs" />
     <Compile Include="Compatibility\CompatSelfTest.cs" />
     <Compile Include="Compatibility\CoreSlotGroupAdapter.cs" />
+    <Compile Include="Compatibility\PhinixCompatPatch.cs" />
     <Compile Include="Components\CompProperties_AutoIngest.cs" />
     <Compile Include="Components\CompAutoIngest.cs" />
 
