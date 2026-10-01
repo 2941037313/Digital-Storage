@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 using DigitalStorage.Components;
+using HarmonyLib;
 using RimWorld;
 using Verse;
 
@@ -9,15 +11,18 @@ namespace DigitalStorage.Diagnostics
     /// <summary>
     /// 自动收纳的「为什么没收这件东西」诊断（开发者模式 gizmo 触发，无常驻开销）。
     ///
-    /// <para><b>关键纪律：它必须调用与运行时完全相同的那份判定</b>
-    /// （<c>CompAutoIngest.RejectReason</c> / <c>CompAutoIngest.WouldVanillaHaulIntoCore</c> /
-    /// 同一个候选集 <c>listerHaulables</c>），绝不另写一套近似逻辑。本 mod 已经因为
-    /// "诊断测的是上游闸门"误判过一轮（交易那次的 <c>PlayerSellableNow</c> vs
-    /// <c>InSellablePosition</c>），平行实现的诊断只会制造新的假绿。</para>
+    /// <para><b>纪律一：调用与运行时完全相同的那份判定</b>
+    /// （<c>CompAutoIngest.RejectReason</c> / <c>WouldVanillaHaulIntoCore</c> /
+    /// 同一个候选集 <c>listerHaulables</c>），绝不另写近似逻辑。</para>
     ///
-    /// <para>输出分三层：①核心/设置/研究/供电；②原版待搬表里每一项被哪一步拦下；
-    /// ③"过了过滤但原版不肯搬进核心"的样本 —— 打印核心与物品当前储存的**优先级对比**，
-    /// 那就是原版目的地搜索的决胜依据。</para>
+    /// <para><b>纪律二：每个"闸门"都要给样本，且要给出能一眼看穿"全灭型故障"的分布数字。</b>
+    /// 教训：曾出现"待搬表 98 件全部被同一道闸门拦掉"，而诊断当时只打了一张计数表 ——
+    /// 计数的形状（98 全在同一格）根本没有暴露出来，白花一轮。所以现在每个拒因都带样本，
+    /// 并且直接打 <c>Spawned / 非Spawned</c>、"HaulableEver 里有多少不在待搬表里" 这两组分布。</para>
+    ///
+    /// <para><b>纪律三：判断"某件东西为什么进不了候选集"要问原版自己</b>
+    /// （反射调用私有的 <c>ListerHaulables.ShouldBeHaulable</c>），而不是把它的分支再抄一遍
+    /// —— 抄一遍就会漂移，而漂移出来的假绿正是本 mod 反复吃过亏的地方。</para>
     /// </summary>
     public static class IngestDiagnostics
     {
@@ -29,6 +34,9 @@ namespace DigitalStorage.Diagnostics
             "被预订",
             "刚被取出(保护窗口)"
         };
+
+        private static readonly MethodInfo ShouldBeHaulableMethod =
+            AccessTools.Method(typeof(ListerHaulables), "ShouldBeHaulable");
 
         public static void DumpFor(Building_StorageCore core)
         {
@@ -69,18 +77,28 @@ namespace DigitalStorage.Diagnostics
                 }
             }
 
-            // ② 与运行时同一个候选集 + 同一份过滤
+            // ② 与运行时同一个候选集 + 同一份过滤（每个拒因都给样本）
             var haulables = map.listerHaulables.ThingsPotentiallyNeedingHauling();
             int[] tally = new int[RejectNames.Length];
+            var samples = new List<Thing>[RejectNames.Length];
+            int spawnedInList = 0;
             int intoThisCore = 0;
             int intoOtherCore = 0;
             int noDestination = 0;
-            var samples = new List<Thing>();
+            var noDestSamples = new List<Thing>();
+
             foreach (Thing t in haulables)
             {
+                if (t.Spawned) spawnedInList++;
+
                 CompAutoIngest.Reject r = CompAutoIngest.RejectReason(t, map);
                 tally[(int)r]++;
-                if (r != CompAutoIngest.Reject.None) continue;
+                if (r != CompAutoIngest.Reject.None)
+                {
+                    if (samples[(int)r] == null) samples[(int)r] = new List<Thing>();
+                    if (samples[(int)r].Count < 4) samples[(int)r].Add(t);
+                    continue;
+                }
 
                 Building_StorageCore dest = CompAutoIngest.WouldVanillaHaulIntoCore(map, t);
                 if (dest == core) intoThisCore++;
@@ -88,28 +106,36 @@ namespace DigitalStorage.Diagnostics
                 else
                 {
                     noDestination++;
-                    if (samples.Count < 8) samples.Add(t);
+                    if (noDestSamples.Count < 6) noDestSamples.Add(t);
                 }
             }
 
-            sb.AppendLine("  原版待搬表(listerHaulables)总数=" + haulables.Count);
+            sb.AppendLine("  原版待搬表(listerHaulables)总数=" + haulables.Count
+                + " —— **Spawned=" + spawnedInList + " / 非Spawned=" + (haulables.Count - spawnedInList) + "**"
+                + "（非 Spawned 全会被过滤，这是正常的：容器内容物/背包物品）");
             for (int i = 0; i < tally.Length; i++)
             {
                 if (tally[i] == 0) continue;
                 sb.AppendLine("    " + RejectNames[i] + " = " + tally[i]);
+                if (samples[i] == null) continue;
+                for (int k = 0; k < samples[i].Count; k++)
+                {
+                    Thing s = samples[i][k];
+                    sb.AppendLine("        · " + Describe(s));
+                }
             }
             sb.AppendLine("    原版判定会搬进**本核心** = " + intoThisCore
                 + "；搬进别的核心 = " + intoOtherCore
                 + "；原版没有更好去处 = " + noDestination);
 
             // ③ 最内层：原版为什么不选核心 —— 打印优先级对比
-            for (int i = 0; i < samples.Count; i++)
+            for (int i = 0; i < noDestSamples.Count; i++)
             {
-                Thing t = samples[i];
+                Thing t = noDestSamples[i];
                 StoragePriority current = StoreUtility.CurrentStoragePriorityOf(t);
                 StoreUtility.TryFindBestBetterStorageFor(t, null, map, current, Faction.OfPlayer,
                     out IntVec3 cell, out IHaulDestination dest, needAccurateResult: false);
-                sb.AppendLine("    ✗ " + t.LabelShort + " x" + t.stackCount + " @ " + t.PositionHeld
+                sb.AppendLine("    ✗ " + Describe(t)
                     + " 当前储存优先级=" + current
                     + " 原版选中的格子=" + cell
                     + " 原版选中的目的地=" + (dest == null ? "null(认为无处可去/已放好)" : dest.ToString())
@@ -117,7 +143,60 @@ namespace DigitalStorage.Diagnostics
                     + " 收得下=" + core.GetDirectlyHeldThings().GetCountCanAccept(t));
             }
 
+            // ④ 反向对比：地图上的可搬物里，有多少**根本进不了**待搬表，以及原版为什么拒绝
+            List<Thing> ever = map.listerThings.ThingsInGroup(ThingRequestGroup.HaulableEver);
+            int everSpawned = 0;
+            int neverListed = 0;
+            var neverListedSamples = new List<Thing>();
+            for (int i = 0; i < ever.Count; i++)
+            {
+                Thing t = ever[i];
+                if (!t.Spawned) continue;
+                everSpawned++;
+                if (haulables.Contains(t)) continue;
+                neverListed++;
+                if (neverListedSamples.Count < 6) neverListedSamples.Add(t);
+            }
+            sb.AppendLine("  对比 HaulableEver(Spawned)=" + everSpawned
+                + " 其中**不在待搬表里**=" + neverListed);
+            for (int i = 0; i < neverListedSamples.Count; i++)
+            {
+                sb.AppendLine("    ✗ " + Describe(neverListedSamples[i])
+                    + " 原版ShouldBeHaulable=" + Verdict(neverListedSamples[i], map)
+                    + " 分支值[禁止=" + neverListedSamples[i].IsForbidden(Faction.OfPlayer)
+                    + " alwaysHaulable=" + neverListedSamples[i].def.alwaysHaulable
+                    + " EverHaulable=" + neverListedSamples[i].def.EverHaulable
+                    + " 在任意储存=" + StoreUtility.IsInAnyStorage(neverListedSamples[i])
+                    + " 在有效最优储存=" + StoreUtility.IsInValidBestStorage(neverListedSamples[i]) + "]");
+            }
+
             Log.Warning(sb.ToString());
+        }
+
+        /// <summary>物品的一句话描述（带 holder 链，专门为了让"不在图上"这类结论可核对）。</summary>
+        private static string Describe(Thing t)
+        {
+            if (t == null) return "<null>";
+            return t.LabelShort + " x" + t.stackCount
+                + " @ " + t.PositionHeld
+                + " spawned=" + t.Spawned
+                + " parent=" + (t.ParentHolder == null ? "null" : t.ParentHolder.GetType().Name)
+                + " def=" + (t.def == null ? "null" : t.def.defName);
+        }
+
+        /// <summary>直接问原版（私有方法 ShouldBeHaulable），不抄它的分支。</summary>
+        private static string Verdict(Thing t, Map map)
+        {
+            if (ShouldBeHaulableMethod == null) return "<?>";
+            try
+            {
+                object ok = ShouldBeHaulableMethod.Invoke(map.listerHaulables, new object[] { t });
+                return ok is bool b ? b.ToString() : "<?>";
+            }
+            catch (System.Exception e)
+            {
+                return "<反射失败:" + e.GetType().Name + ">";
+            }
         }
     }
 }

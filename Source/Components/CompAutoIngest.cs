@@ -253,7 +253,13 @@ namespace DigitalStorage.Components
         internal static Reject RejectReason(Thing t, Map map)
         {
             if (t == null || t.Destroyed) return Reject.NullOrDestroyed;
-            if (!t.Spawned || t.ParentHolder != null) return Reject.NotOnMap;
+            // ⚠️ 判断"在图上的散落物"**只能用 t.Spawned**。
+            // **绝不能**写 `t.ParentHolder != null` —— 已 Spawn 的东西 holder 就是 **Map 自己**的
+            // ThingOwner（Thing.cs:1137-1140 正是在处理 `holdingOwner.Owner is Map` 这种状态），
+            // 于是 ParentHolder **就是 Map、非 null**。用它会一次性把所有地面物品判成"不在图上"
+            // （实测：待搬表 98 件全灭、自动收纳归零，而"通过=0"看起来还像"没东西可收"）。
+            // 容器内 / 背包里的东西 Spawned == false，一条判断就够。
+            if (!t.Spawned) return Reject.NotOnMap;
             if (map.reservationManager.IsReserved(t)) return Reject.Reserved;
             if (IsRecentlyWithdrawn(t)) return Reject.RecentlyWithdrawn;
             return Reject.None;
