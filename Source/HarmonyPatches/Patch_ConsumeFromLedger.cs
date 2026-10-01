@@ -18,6 +18,10 @@ namespace DigitalStorage.HarmonyPatches
     {
         static void Postfix(Pawn pawn, ref Job __result)
         {
+            bool debug = DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog
+                         && ConsumePatchUtil.ShouldLog();
+            if (debug)
+                Log.Warning("[DS] GetFood: postfix entered, vanilla __result=" + (__result != null ? "non-null" : "null"));
             if (__result != null)
             {
                 // 目标住在容器里 → 原版那条消耗链执行不了，改由我们接管（否则静默卡死）
@@ -52,34 +56,37 @@ namespace DigitalStorage.HarmonyPatches
         {
             bool debug = DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog;
 
+            if (debug && ConsumePatchUtil.ShouldLog())
+                Log.Warning("[DS] TakeDrugs: postfix entered, vanilla __result=" + (__result != null ? "non-null" : "null"));
+
             // 原版可能自己返回了作业，但目标住在容器里 —— JobDriver_Ingest 那条链没有
             // canGotoSpawnedParent，执行不了。这种「看着有作业、实际做不成」比返回 null 更坏：
             // 它会静默卡住，而且我们因为 __result != null 而放手。所以精确识别并接管。
             if (__result != null)
             {
                 if (!ConsumePatchUtil.IsUnexecutableContainerTarget(__result)) return;
-                if (debug) Log.Message("[DS] TakeDrugs: 原版作业目标在容器里（Ingest 链走不通），接管。");
+                if (debug) Log.Warning("[DS] TakeDrugs: 原版作业目标在容器里（Ingest 链走不通），接管。");
                 __result = null;
             }
 
             if (!ConsumePatchUtil.ShouldTry(pawn))
             {
-                if (debug) Log.Message("[DS] TakeDrugs: ShouldTry=false（同 tick 刚失败 / 已有本 mod 作业）");
+                if (debug) Log.Warning("[DS] TakeDrugs: ShouldTry=false（同 tick 刚失败 / 已有本 mod 作业）");
                 return;
             }
 
             var policy = pawn.drugs?.CurrentPolicy;
-            if (policy == null) { if (debug) Log.Message("[DS] TakeDrugs: policy=null"); return; }
+            if (policy == null) { if (debug) Log.Warning("[DS] TakeDrugs: policy=null"); return; }
 
             for (int i = 0; i < policy.Count; i++)
             {
                 var drugDef = policy[i].drug;
                 bool want = pawn.drugs.ShouldTryToTakeScheduledNow(drugDef);
-                if (debug) Log.Message("[DS] TakeDrugs: " + drugDef.defName + " want=" + want);
+                if (debug) Log.Warning("[DS] TakeDrugs: " + drugDef.defName + " want=" + want);
                 if (!want) continue;
 
                 var job = ConsumptionHelper.TryCreateJob(pawn, t => t.def == drugDef);
-                if (debug) Log.Message("[DS] TakeDrugs: " + drugDef.defName + " -> " + ConsumptionHelper.LastFailReason);
+                if (debug) Log.Warning("[DS] TakeDrugs: " + drugDef.defName + " -> " + ConsumptionHelper.LastFailReason);
                 if (job != null) { __result = job; return; }
             }
         }
@@ -114,6 +121,19 @@ namespace DigitalStorage.HarmonyPatches
     /// <summary>节流：防同 tick 内反复创同一 job 导致 10 jobs/tick 循环。</summary>
     static class ConsumePatchUtil
     {
+        /// <summary>
+        /// 诊断日志节流：同一个 tick 内最多打一条，且两条之间至少隔 60 tick。
+        /// （每 tick 打会刷爆日志，而"完全看不到日志"恰恰是我们现在要排除的状态。）
+        /// </summary>
+        private static int lastLogTick = -100000;
+        public static bool ShouldLog()
+        {
+            int tick = Find.TickManager.TicksGame;
+            if (tick - lastLogTick < 60) return false;
+            lastLogTick = tick;
+            return true;
+        }
+
         /// <summary>
         /// 这个作业的目标是不是「未 Spawned 且住在 IHaulSource 容器里」的东西。
         ///
