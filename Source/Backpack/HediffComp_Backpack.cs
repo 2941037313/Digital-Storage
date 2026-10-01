@@ -80,9 +80,6 @@ namespace DigitalStorage.Backpack
 
         public int Count => GetDirectlyHeldThings().Count;
 
-        /// <summary>软上限（堆数），见 <see cref="CanFit"/>。</summary>
-        public int CapacityStacks => Props.capacityStacks;
-
         // ===================================================================
         // 查找
         // ===================================================================
@@ -143,22 +140,11 @@ namespace DigitalStorage.Backpack
                 IThingHolder holder = source.ParentHolder as IThingHolder;
                 owner = (holder == null) ? null : holder.GetDirectlyHeldThings();
             }
-            if (owner == null || owner.Owner is Map || !owner.Contains(source))
-            {
-                BackpackDiag.Say("TryAbsorb 失败：容器对不上（holdingOwner="
-                    + (source.holdingOwner == null ? "null" : source.holdingOwner.Owner.GetType().Name)
-                    + " 反推=" + (owner == null ? "null" : owner.Owner.GetType().Name) + "）");
-                return null;
-            }
+            if (owner == null || owner.Owner is Map || !owner.Contains(source)) return null;
 
             int want = (count < source.stackCount) ? count : source.stackCount;
             if (want <= 0) return null;
-            if (!CanFit(source))
-            {
-                BackpackDiag.Say("TryAbsorb 失败：装不下（背包件数=" + held.Count
-                    + " 上限=" + Props.capacityStacks + "）");
-                return null;
-            }
+            if (!CanFit(source)) return null;
 
             Thing taken;
             if (want >= source.stackCount)
@@ -172,18 +158,10 @@ namespace DigitalStorage.Backpack
                 // ⚠️ 这里返回的是**新建的 Thing**：调用方必须把它写回作业队列目标。
                 taken = source.SplitOff(want);
             }
-            if (taken == null)
-            {
-                BackpackDiag.Say("TryAbsorb 失败：取出的东西是 null（want=" + want
-                    + " stack=" + source.stackCount + "）");
-                return null;
-            }
+            if (taken == null) return null;
 
             if (held.TryAdd(taken, true)) return taken;
 
-            BackpackDiag.Say("TryAbsorb 失败：TryAdd 失败（背包件数=" + held.Count
-                + " 上限=" + Props.capacityStacks + " 取出件 holdingOwner="
-                + (taken.holdingOwner == null ? "null" : taken.holdingOwner.Owner.GetType().Name) + "）");
             Return(owner, taken);
             return null;
         }

@@ -68,30 +68,20 @@ namespace DigitalStorage.Backpack
 
                 // 没背包（非玩家阵营 / 未植入 hediff）⇒ 原版流程一字不改
                 HediffComp_Backpack bag = HediffComp_Backpack.For(actor);
+                if (bag == null) return;
+
                 Job job = (actor.jobs == null) ? null : actor.jobs.curJob;
-                List<LocalTargetInfo> queue = (job == null) ? null : job.GetTargetQueue(TargetIndex.B);
-                List<int> counts = (job == null) ? null : job.countQueue;
+                if (job == null) return;
 
-                // 【临时诊断】用户报"还是走到核心"时靠这几行定位是哪道门（定位完删）
-                BackpackDiag.Say("取料 toil 执行：pawn=" + actor.LabelShortCap
-                    + " 有背包=" + (bag != null)
-                    + " 背包件数=" + (bag == null ? -1 : bag.Count)
-                    + " 上限=" + (bag == null ? -1 : bag.CapacityStacks)
-                    + " job=" + (job == null ? "null" : job.def.defName)
-                    + " queue=" + (queue == null ? "null" : queue.Count.ToString())
-                    + " counts=" + (counts == null ? "null" : counts.Count.ToString()));
-
-                if (bag == null || job == null || queue.NullOrEmpty()) return;
+                List<LocalTargetInfo> queue = job.GetTargetQueue(TargetIndex.B);
+                if (queue.NullOrEmpty()) return;
+                List<int> counts = job.countQueue;
 
                 // 作业开始时先清掉上一次的残留（「默认清空」+ 保证有空间）。
                 // **必须有这一步**：背包满了 CanFit 会让每一件料都被静默拒掉（实测症状：
                 // 同一作业里两个不同 def 都"取到 0"，小人照样走到核心）。而背包内容物
                 // 对原版搜索是不可见的（不是 Thing），所以满背包里的东西不会自己回核心。
-                if (bag.Count > 0)
-                {
-                    int returned = bag.ReturnContentsToCore();
-                    BackpackDiag.Say("  作业开始清残留：退回核心 " + returned + " 件，背包剩 " + bag.Count);
-                }
+                if (bag.Count > 0) bag.ReturnContentsToCore();
 
                 // 已经在工作台内胆里的料，原版有 JumpIfTargetInsideBillGiver 直接跳过取料
                 // （JobDriver_DoBill.cs:145）—— 别把它拽出来，反而打乱原版路径。
@@ -103,12 +93,7 @@ namespace DigitalStorage.Backpack
                     Thing t = queue[i].Thing;
                     if (t == null || t.Destroyed) continue;
                     if (t.Spawned) continue;                              // 地上的：原版自己会走过去
-                    if (!(t.ParentHolder is Building_StorageCore))        // 只管核心内容物
-                    {
-                        BackpackDiag.Say("  #" + i + " 容器不是核心 ⇒ 不搬："
-                            + (t.ParentHolder == null ? "null" : t.ParentHolder.GetType().Name));
-                        continue;
-                    }
+                    if (!(t.ParentHolder is Building_StorageCore)) continue; // 只管核心内容物
                     if (giverInner != null && giverInner.Contains(t)) continue;
 
                     // 数量未知就**不动**（宁可不取，也不能超量）：countQueue 由原版
@@ -116,11 +101,7 @@ namespace DigitalStorage.Backpack
                     // 若某个第三方建的 DoBill 作业缺 countQueue，回退成"整堆"会搬出比
                     // curJob.count 更多的东西，之后 StartCarryThing 的
                     // failIfStackCountLessThanJobCount 判定就失去意义。
-                    if (counts == null || i >= counts.Count)
-                    {
-                        BackpackDiag.Say("  #" + i + " countQueue 对不上 ⇒ 不搬");
-                        continue;
-                    }
+                    if (counts == null || i >= counts.Count) continue;
 
                     Thing absorbed = bag.TryAbsorb(t, counts[i]);
                     if (absorbed == null) continue;
@@ -136,17 +117,10 @@ namespace DigitalStorage.Backpack
                     //   而不是**作业队列指着的那件** —— 测错了对象。）
                     if (!ReferenceEquals(absorbed, t))
                     {
-                        queue[i] = new LocalTargetInfo(absorbed);            // GetTargetQueue 返回的就是 job 的列表本体
+                        queue[i] = new LocalTargetInfo(absorbed); // GetTargetQueue 返回的就是 job 的列表本体
                         actor.Reserve(new LocalTargetInfo(absorbed), job, 1, -1, null, false);
                         if (actor.Map != null) actor.Map.reservationManager.Release(t, actor, job);
                     }
-
-                    Thing dest = absorbed.SpawnedParentOrMe;
-                    BackpackDiag.Say("  #" + i + " " + absorbed.LabelShort + " 需要 " + counts[i]
-                        + " → 背包内 " + absorbed.stackCount
-                        + (ReferenceEquals(absorbed, t) ? "（整摞，队列目标未变）" : "（拆堆，队列目标已改指）")
-                        + "；SpawnedParentOrMe=" + (dest == null ? "null" : dest.LabelShortCap)
-                        + "（应为小人 " + actor.LabelShortCap + "）");
                 }
             };
             return toil;
