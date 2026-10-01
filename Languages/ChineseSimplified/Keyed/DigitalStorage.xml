@@ -52,8 +52,6 @@
   <DS_AccessSettings>访问与自动化</DS_AccessSettings>
   <DS_AutoIngestToggle>自动收纳</DS_AutoIngestToggle>
   <DS_AutoIngestToggleDesc>允许核心自动吸收附近散落物品，无需搬运工。若发现物品在地图上"瞬移"，关闭此项。</DS_AutoIngestToggleDesc>
-  <DS_HomeAreaOnly>自动收纳仅限活动区</DS_HomeAreaOnly>
-  <DS_HomeAreaOnlyDesc>自动化只处理活动区（Home）内的物品。推荐开启：防止远处物品（挖出的石块、任务战利品）被隔空吸走。</DS_HomeAreaOnlyDesc>
 
   <!-- ========== 商队 ========== -->
 

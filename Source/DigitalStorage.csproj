@@ -67,6 +67,7 @@
     <Compile Include="Core\ItemGroup.cs" />
 
     <Compile Include="Diagnostics\TradeDiagnostics.cs" />
+    <Compile Include="Diagnostics\IngestDiagnostics.cs" />
 
     <Compile Include="AI\DigitalStorage_JobDefOf.cs" />
     <Compile Include="AI\JobDriver_DS_Withdraw.cs" />

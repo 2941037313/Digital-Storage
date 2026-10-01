@@ -19,15 +19,11 @@ namespace DigitalStorage.Settings
         /// </summary>
         public static bool autoIngestEnabled = true;
 
-        /// <summary>仅活动区：自动收纳只处理玩家 Home 区内的物品（防地图边缘/远矿被隔空吸走）。</summary>
-        public static bool autoIngestHomeAreaOnly = true;
-
         public override void ExposeData()
         {
             Scribe_Values.Look(ref costMultiplier, "costMultiplier", 1.0f);
             Scribe_Values.Look(ref enableDebugLog, "enableDebugLog", false);
             Scribe_Values.Look(ref autoIngestEnabled, "autoIngestEnabled", true);
-            Scribe_Values.Look(ref autoIngestHomeAreaOnly, "autoIngestHomeAreaOnly", true);
             base.ExposeData();
         }
 
@@ -54,9 +50,6 @@ namespace DigitalStorage.Settings
 
             listing.CheckboxLabeled("DS_AutoIngestToggle".Translate(), ref autoIngestEnabled,
                 "DS_AutoIngestToggleDesc".Translate());
-            listing.Gap(6f);
-            listing.CheckboxLabeled("DS_HomeAreaOnly".Translate(), ref autoIngestHomeAreaOnly,
-                "DS_HomeAreaOnlyDesc".Translate());
             listing.Gap(24f);
 
             Text.Font = GameFont.Medium;

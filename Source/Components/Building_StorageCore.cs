@@ -460,6 +460,15 @@ namespace DigitalStorage.Components
                     icon = TexCommand.ForbidOff,
                     action = DevIngestAdjacent
                 };
+                yield return new Command_Action
+                {
+                    defaultLabel = "[DEV] 打印自动收纳诊断",
+                    defaultDesc = "统计全图 HaulableEver 每一项被哪一道闸门拦下"
+                        + "（调用与运行时**同一份**判定，不会漂移），并打印本核心的开关/研究/过滤器/容量判定。\n"
+                        + "输出走 Log.Warning，日志窗口与 Player.log 都能看到。",
+                    icon = TexCommand.ForbidOff,
+                    action = () => Diagnostics.IngestDiagnostics.DumpFor(this)
+                };
             }
         }
 

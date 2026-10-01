@@ -62,7 +62,7 @@ namespace DigitalStorage.Components
         /// M3: 找接受该物品的「最高优先级」核心——路由决策基准。
         /// 多核心并存时物品去向不再取决于谁先 tick（旧实现各核心用自己的优先级独立决策）。
         /// </summary>
-        private static Building_StorageCore FindBestIngestCore(Map map, Thing t)
+        internal static Building_StorageCore FindBestIngestCore(Map map, Thing t)
         {
             Building_StorageCore best = null;
             // 直接枚举 haul source（不再走 DigitalStorageMapComponent 注册表 ——
@@ -151,7 +151,6 @@ namespace DigitalStorage.Components
                 candidateBuffer = new Thing[bufSize];
             int bufCount = 0;
 
-            bool homeAreaOnly = DigitalStorage.Settings.DigitalStorageSettings.autoIngestHomeAreaOnly;
 
             // 候选来源：map.listerThings.ThingsInGroup(HaulableEver)——**不用**原版的
             // listerHaulables.ThingsPotentiallyNeedingHauling()。
@@ -184,7 +183,7 @@ namespace DigitalStorage.Components
                 for (int step = 0; step < scanWindow.Count; step++)
                 {
                     Thing t = all[(start + step) % all.Count];
-                    if (!CanCollect(t, map, maxPrio, homeAreaOnly)) continue;
+                    if (!CanCollect(t, map, maxPrio)) continue;
                     // 缓冲满了也把窗口推完（否则前段会永久遮蔽后段），只是不再收。
                     if (bufCount >= bufSize) continue;
                     candidateBuffer[bufCount++] = t;
@@ -261,40 +260,59 @@ namespace DigitalStorage.Components
         }
 
         /// <summary>
-        /// 自动收纳候选的统一过滤：可收纳、未禁止、未预订、保护窗口外、不在更高优先级的储存里、
-        /// 可选活动区。**取代了原来"地面 / zone 两趟收集"的两套过滤**（见 CompTick 里的类注释）。
+        /// 候选被拒的原因。**过滤与诊断共用这一份判定**
+        /// （<see cref="RejectReason"/>），诊断绝不另写一套近似逻辑 —— 那样两边会漂移，
+        /// 出现"诊断全绿但就是不收"的假象（这个坑本 mod 已经踩过一次）。
         /// </summary>
-        private static bool CanCollect(Thing t, Map map, StoragePriority maxCorePrio, bool homeAreaOnly)
+        internal enum Reject
         {
-            if (t == null || t.Destroyed) return false;
+            None = 0,
+            NullOrDestroyed,
+            NotItem,
+            Mineable,
+            Forbidden,
+            Reserved,
+            RecentlyWithdrawn,
+            HigherPriorityStorage
+        }
+
+        /// <summary>
+        /// 自动收纳候选的统一过滤：是不是物品、不是未开采矿脉、未禁止、未预订、保护窗口外、
+        /// 不在更高优先级的储存里。
+        ///
+        /// <para><b>活动区（Home）闸门已于 4.0 删除</b>：它原本是社区反馈
+        /// 「老远处的石块被瞬移」的兜底，但那个问题的真凶是"未开采的矿脉也是 Item 类别"，
+        /// 现在由 <see cref="Reject.Mineable"/> 精确挡住；而活动区闸门误伤极大 ——
+        /// 挖矿出来的钢铁、开发者模式拆建筑掉的材料、交易掉在区外的白银全在活动区之外，
+        /// 表现就是"有些物品收得进、有些死活收不进"。
+        /// 用户定的方向本来就是「不加任何限制、任何位置隔空取放」。</para>
+        /// </summary>
+        internal static Reject RejectReason(Thing t, Map map, StoragePriority maxCorePrio)
+        {
+            if (t == null || t.Destroyed) return Reject.NullOrDestroyed;
             // 4.0「全放开」：LedgerPolicy 白名单已废，只留"是不是物品"。
             // 具体收不收由目标容器的 Accepts（过滤器 + 容量）决定 —— 见 TryIngest。
-            if (t.def == null || t.def.category != ThingCategory.Item) return false;
+            if (t.def == null || t.def.category != ThingCategory.Item) return Reject.NotItem;
 
             // 未开采的矿脉/岩石同样是 Item 类别。原版 listerHaulables 是靠
             // "Mineable 的 alwaysHaulable 为 false ⇒ 没有搬运标记就不入表"顺带挡住它们的；
-            // 我们改用 HaulableEver 之后它们会全部进来。社区反馈过「老远处的石块被瞬移」，
-            // 旧实现用"仅活动区"兜（既不精确，又挡不住营地内挖的矿），这里直接按类型挡。
-            if (t is Mineable) return false;
+            // 我们改用 HaulableEver 之后它们会全部进来，所以必须显式挡。
+            if (t is Mineable) return Reject.Mineable;
 
-            if (t.IsForbidden(Faction.OfPlayer)) return false;
-            if (map.reservationManager.IsReserved(t)) return false;
-            if (IsRecentlyWithdrawn(t)) return false;
+            if (t.IsForbidden(Faction.OfPlayer)) return Reject.Forbidden;
+            if (map.reservationManager.IsReserved(t)) return Reject.Reserved;
+            if (IsRecentlyWithdrawn(t)) return Reject.RecentlyWithdrawn;
 
-            // 玩家主动把东西放在**更高优先级**的储存里 → 不动它（用户 7.31 拍板的路由规则，
-            // 旧实现写在 zone 全扫那一段，现在统一到这一个过滤器）。
+            // 玩家主动把东西放在**更高优先级**的储存里 → 不动它（用户 7.31 拍板的路由规则）。
             SlotGroup slotGroup = map.haulDestinationManager.SlotGroupAt(t.PositionHeld);
-            if (slotGroup != null && slotGroup.Settings.Priority > maxCorePrio) return false;
+            if (slotGroup != null && slotGroup.Settings.Priority > maxCorePrio) return Reject.HigherPriorityStorage;
 
-            // 活动区限制只作用于"完全没有储存归属"的散落物：
-            // 有储存归属（zone/货架/容器）的东西本身就是玩家划定的意图，不该被活动区挡住，
-            // 否则交易掉在仓区里的白银、或区外营地的产出就永远收不进来。
-            if (homeAreaOnly && slotGroup == null)
-            {
-                var home = map.areaManager?.Home;
-                if (home != null && !home[t.PositionHeld]) return false;
-            }
-            return true;
+            return Reject.None;
+        }
+
+        private static bool CanCollect(Thing t, Map map, StoragePriority maxCorePrio)
+        {
+            return RejectReason(t, map, maxCorePrio) == Reject.None;
         }
 
         /// <summary>

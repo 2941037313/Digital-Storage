@@ -52,8 +52,6 @@
   <DS_AccessSettings>Access &amp; automation</DS_AccessSettings>
   <DS_AutoIngestToggle>Auto-ingest</DS_AutoIngestToggle>
   <DS_AutoIngestToggleDesc>Allow cores to absorb loose items automatically instead of waiting for a hauler. Turn this off if items seem to teleport around the map.</DS_AutoIngestToggleDesc>
-  <DS_HomeAreaOnly>Auto-ingest home area only</DS_HomeAreaOnly>
-  <DS_HomeAreaOnlyDesc>Automation only touches items inside your home area. Recommended: prevents items far away (mined chunks, quest loot) from being absorbed.</DS_HomeAreaOnlyDesc>
 
   <!-- ========== Caravan ========== -->
 
