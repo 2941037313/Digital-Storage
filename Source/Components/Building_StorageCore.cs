@@ -297,10 +297,35 @@ namespace DigitalStorage.Components
             // 「开发者 → 生成 → 建筑」是裸 GenSpawn 不设阵营 → 会被静默跳过。补上。
             if (Faction == null && def != null && def.CanHaveFaction)
                 SetFaction(Faction.OfPlayer);
+
+            // 【诊断】登记结果 —— 交易"我方空白"故障的核心待证命题：
+            // 两条原版交易路径用的**不是同一个注册表**，这里把两者都验一遍。
+            if (Prefs.DevMode)
+            {
+                bool inSourceList = map != null && map.haulDestinationManager != null
+                    && map.haulDestinationManager.AllHaulSourcesListForReading.Contains(this);
+                bool inColonist = false;
+                if (map != null)
+                {
+                    foreach (IHaulSource s in map.listerBuildings.AllColonistBuildingsOfType<IHaulSource>())
+                    {
+                        if (ReferenceEquals(s, this)) { inColonist = true; break; }
+                    }
+                }
+                Log.Warning("[DS-DIAG] 存储核心 SpawnSetup(respawn=" + respawningAfterLoad + ") faction="
+                    + (Faction == null ? "null" : Faction.Name)
+                    + " ∈haulSourceList=" + inSourceList
+                    + " ∈colonistIHaulSources=" + inColonist);
+            }
         }
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
+            // 【诊断】这是**唯一**会把自己从 haul source 注册表摘掉的地方
+            //（Thing.cs:1017，全代码库只有这一个 RemoveHaulSource 调用点）。
+            if (Prefs.DevMode)
+                Log.Warning("[DS-DIAG] 存储核心 DeSpawn(mode=" + mode + ") —— 此后它不再是 haul source");
+
             // 拆/毁时把内容物全部落地，避免随建筑一起消失（物品丢失）。
             if (mode == DestroyMode.Deconstruct || mode == DestroyMode.KillFinalize)
                 DropAllContents();
@@ -406,6 +431,19 @@ namespace DigitalStorage.Components
                     icon = ContentFinder<Texture2D>.Get("收纳", true),
                     isActive = () => autoIngest.Enabled,
                     toggleAction = () => autoIngest.Enabled = !autoIngest.Enabled
+                };
+            }
+
+            // 【临时诊断脚手架】一键把登记状态 / 可卖计数打进日志（游戏内日志窗口可见）。
+            if (Prefs.DevMode)
+            {
+                yield return new Command_Action
+                {
+                    defaultLabel = "[DS-DIAG] 打印交易诊断",
+                    defaultDesc = "开发模式专用（临时脚手架，发布前移除）：把本核心在三个注册表里的登记状态、"
+                        + "内容物可卖计数（真实 trader / null 两种），以及交易补丁的挂载状态打进日志。",
+                    icon = ContentFinder<Texture2D>.Get("UI/Commands/SetTargetFuelLevel", true),
+                    action = () => Diagnostics.TradeDiagnostics.DumpCoreState("手动诊断(gizmo)", null)
                 };
             }
 
