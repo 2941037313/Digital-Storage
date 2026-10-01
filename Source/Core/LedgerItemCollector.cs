@@ -8,7 +8,9 @@ namespace DigitalStorage.Core
 {
     /// <summary>
     /// 共享模块：收集所有可访问核心的账本库存 + 提款 + 回滚。
-    /// CaravanDS_Helper 和 TradeDS_Helper 共用，消除 ~200 行重复代码。
+    /// （4.0：原先的共用方 CaravanDS_Helper / TradeDS_Helper 都已删除 —— 商队走原版
+    /// <c>lookInHaulSources</c>，贸易走 <c>AllLaunchableThingsForTrade</c> 的补丁。
+    /// 本类现在只剩 <c>GetAllUsableCores</c> 还有人用，批 3 随账本一起删。）
     /// </summary>
     public struct MergedStock
     {

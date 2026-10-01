@@ -112,12 +112,10 @@
     <Compile Include="HarmonyPatches\Patch_RefuelFromLedger.cs" />
     <Compile Include="HarmonyPatches\Patch_FixBrokenFromLedger.cs" />
     <Compile Include="HarmonyPatches\Patch_FeedFromLedger.cs" />
-    <Compile Include="HarmonyPatches\Patch_DialogTrade.cs" />
     <Compile Include="HarmonyPatches\Patch_OrbitalTradeBeacon.cs" />
     <Compile Include="HarmonyPatches\Patch_BufferWarehouse.cs" />
     <Compile Include="HarmonyPatches\Patch_HaulAIUtility.cs" />
     <Compile Include="HarmonyPatches\Patch_JobDriver_Equip.cs" />
-    <Compile Include="UI\TradeDS_Helper.cs" />
 
     <Compile Include="Services\DigitalStorageGameComponent.cs" />
 
