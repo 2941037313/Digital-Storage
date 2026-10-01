@@ -53,29 +53,18 @@ namespace DigitalStorage.Components
         private StoragePriority storagePriorityField = StoragePriority.Preferred;
 
         /// <summary>
-        /// ⚠️ <b>武器默认不进容器 —— 这是已核实的硬阻塞，不是设计偏好。</b>
+        /// 武器是否可进容器。<b>4.0 起为 true</b>（"全放开"：真实 Thing 存得住什么就存什么）。
         ///
-        /// <c>Verse.AI/JobDriver_Equip.cs</c> 硬编码了具体类：
-        /// <code>
-        /// :22  TargetIsOnOutfitStand =&gt; target.ParentHolder is Building_OutfitStand
-        /// :28  OutfitStand =&gt; (Building_OutfitStand)job.GetTarget(TargetIndex.B).Thing
-        /// :35  job.targetB = (Building_OutfitStand)Target.ParentHolder
-        /// :55  pawn.Reserve((Building_OutfitStand)job.targetA.Thing.ParentHolder, ...)
-        /// </code>
-        /// 于是容器里的武器会被 <c>JobGiver_PickUpOpportunisticWeapon</c>
-        /// （它对 <c>ThingRequestGroup.Weapon</c> 传了 <c>lookInHaulSources: true</c> 且不做 source 检查，
-        /// 8 格半径）选中 → <c>TargetIsOnOutfitStand</c> 为 false → <c>Notify_Starting</c> 不设 targetB
-        /// → <c>MakeNewToils</c> 走 else 分支（:101）→ 对**未 Spawn 的物品**调 <c>DeSpawn()</c>（报错），
+        /// 之所以曾经必须为 false：<c>Verse.AI/JobDriver_Equip.cs</c> 硬编码了具体类
+        /// （:22 <c>ParentHolder is Building_OutfitStand</c>，:28 / :35 / :55 硬转换），
+        /// 容器里的武器会让它走 :101 的 else 分支 —— 对**未 Spawn 的物品**调 <c>DeSpawn()</c>（报错），
         /// 然后在物品**仍在容器里**时 <c>pawn.equipment.AddEquipment(...)</c>。
         ///
-        /// 原版衣架自己也是靠 <c>defaultStorageSettings</c> 拒武器来规避的
-        /// （只有 <c>fixedStorageSettings</c> 放行，因为它的 Equip 是硬编码支持自己的）。
-        ///
-        /// <b>要放开武器，必须先补一条 <c>JobDriver_Equip</c> 泛化补丁</b>（把具体类换成接口判定 +
-        /// 自己的"从容器取出"动作）。在那之前这里保持 false —— 过滤器会挡住武器，
-        /// 而 <see cref="Accepts"/> 直接查过滤器，所以挡得住的路径是完整的。
+        /// 现在由 <c>HarmonyPatches/Patch_JobDriver_Equip.cs</c> 接管：
+        /// 目标是通用 <see cref="IHaulSource"/> 容器内容物时，自己走"走到容器 → 取出 → 装备"这条链。
+        /// 原版衣架路径零影响（卫语句显式排除 <c>Building_OutfitStand</c>）。
         /// </summary>
-        private bool allowWeaponsInStorage;
+        private bool allowWeaponsInStorage = true;
 
         public Building_StorageCore()
         {
@@ -445,6 +434,60 @@ namespace DigitalStorage.Components
                     toggleAction = () => autoIngest.Enabled = !autoIngest.Enabled
                 };
             }
+
+            // 【临时】批 1 验证用。批 1 里原版入库路径还被 mod 自己的
+            // WorkGiver_DS_HaulToCore（priorityInType 高于 HaulGeneral）抢着，
+            // 所以需要一条手工路径才能把东西放进容器。批 2 删掉入库 WorkGiver 后即可移除。
+            if (Prefs.DevMode)
+            {
+                yield return new Command_Action
+                {
+                    defaultLabel = "[DEV] 把相邻物品塞进容器",
+                    defaultDesc = "开发模式专用：把自身格 + 相邻 8 格上的所有物品 DeSpawn 后 TryAdd 进 innerContainer。\n"
+                        + "用于批 1 验证 —— 此时原版入库路径还被 WorkGiver_DS_HaulToCore 抢着。",
+                    icon = TexCommand.ForbidOff,
+                    action = DevIngestAdjacent
+                };
+            }
+        }
+
+        /// <summary>【临时】批 1 验证用，批 2 移除。</summary>
+        private void DevIngestAdjacent()
+        {
+            if (Map == null) return;
+            int added = 0;
+            int rejected = 0;
+
+            var cells = new List<IntVec3>();
+            cells.AddRange(GenAdj.CellsOccupiedBy(this));
+            foreach (IntVec3 c in GenAdj.CellsAdjacent8Way(this)) cells.Add(c);
+
+            Map map = Map;
+            for (int ci = 0; ci < cells.Count; ci++)
+            {
+                IntVec3 cell = cells[ci];
+                if (!cell.InBounds(map)) continue;
+                List<Thing> things = map.thingGrid.ThingsListAtFast(cell);
+                for (int i = things.Count - 1; i >= 0; i--)
+                {
+                    Thing t = things[i];
+                    if (t.def == null || t.def.category != ThingCategory.Item) continue;
+                    if (!Accepts(t)) { rejected++; continue; }
+
+                    // 入库瞬移：DeSpawn + TryAdd（与 3.0 的产品决策一致）。
+                    // 失败必须放回地面，否则物品凭空消失。
+                    t.DeSpawn();
+                    if (innerContainer.TryAdd(t, true)) added++;
+                    else
+                    {
+                        rejected++;
+                        GenPlace.TryPlaceThing(t, Position, map, ThingPlaceMode.Near);
+                    }
+                }
+            }
+
+            Messages.Message("已塞入 " + added + " 件，拒收 " + rejected + " 件。",
+                this, MessageTypeDefOf.NeutralEvent);
         }
     }
 }
