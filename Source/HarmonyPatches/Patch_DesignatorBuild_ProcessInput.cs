@@ -109,6 +109,8 @@ namespace DigitalStorage.HarmonyPatches
     [HarmonyPriority(Priority.Low)]
     internal static class Patch_DesignatorBuild_ProcessInput_Fallback
     {
+        private static readonly List<Thing> tmpStuffThings = new List<Thing>();
+
         private static readonly AccessTools.FieldRef<Designator_Build, bool> WriteStuffRef =
             AccessTools.FieldRefAccess<Designator_Build, bool>("writeStuff");
 
@@ -126,14 +128,13 @@ namespace DigitalStorage.HarmonyPatches
             if (map == null) return true;
             if (!CanInteract(__instance)) return false;
 
-            var allCores = LedgerItemCollector.GetAllUsableCores(map);
+            var allCores = HaulSourceContents.EnabledSources(map);
             if (allCores.Count == 0) return true;
 
             var mapStuffDefs = new HashSet<ThingDef>();
             var ledgerStuffDefs = new HashSet<ThingDef>();
 
-            for (int i = 0; i < allCores.Count; i++)
-                CollectStuffDefs(allCores[i], thingDef, ledgerStuffDefs);
+            CollectStuffDefs(map, thingDef, ledgerStuffDefs);
 
             foreach (var d in map.resourceCounter.AllCountedAmounts.Keys)
             {
@@ -170,15 +171,16 @@ namespace DigitalStorage.HarmonyPatches
             return false;
         }
 
-        private static void CollectStuffDefs(Building_StorageCore core, ThingDef thingDef, HashSet<ThingDef> result)
+        private static void CollectStuffDefs(Map map, ThingDef thingDef, HashSet<ThingDef> result)
         {
-            if (core == null || core.Ledger == null) return;
-            foreach (var kv in core.Ledger.Stock)
+            HaulSourceContents.GatherAll(map, tmpStuffThings);
+            for (int i = 0; i < tmpStuffThings.Count; i++)
             {
-                if (kv.Value > 0 && kv.Key.def != null && kv.Key.def.IsStuff
-                    && kv.Key.def.stuffProps.CanMake(thingDef))
-                    result.Add(kv.Key.def);
+                ThingDef d = tmpStuffThings[i]?.def;
+                if (d != null && d.IsStuff && d.stuffProps.CanMake(thingDef))
+                    result.Add(d);
             }
+            tmpStuffThings.Clear();
         }
     }
 
@@ -193,6 +195,7 @@ namespace DigitalStorage.HarmonyPatches
         private static Map cachedMap;
         private static int cachedTick = -1;
         private static readonly HashSet<ThingDef> cachedLedgerStuffDefs = new HashSet<ThingDef>();
+        private static readonly List<Thing> tmpStuffThings = new List<Thing>();
 
         /// <summary>
         /// 只扩展列表内容，不修改原版缓存的 List&lt;Thing&gt;。
@@ -216,17 +219,16 @@ namespace DigitalStorage.HarmonyPatches
             cachedTick = tick;
             cachedLedgerStuffDefs.Clear();
 
-            var cores = LedgerItemCollector.GetAllUsableCores(map);
-            for (int i = 0; i < cores.Count; i++)
+            // 4.0：容器内容物取代账本。ExtendList 只关心"这个 stuff 在不在"，
+            // 所以只收 def（不需要数量）。缓存按 tick，因为内容物随时会变。
+            HaulSourceContents.GatherAll(map, tmpStuffThings);
+            for (int i = 0; i < tmpStuffThings.Count; i++)
             {
-                var core = cores[i];
-                if (core == null || core.Ledger == null) continue;
-                foreach (var kv in core.Ledger.Stock)
-                {
-                    if (kv.Value > 0 && kv.Key.def != null)
-                        cachedLedgerStuffDefs.Add(kv.Key.def);
-                }
+                Thing t = tmpStuffThings[i];
+                if (t?.def != null) cachedLedgerStuffDefs.Add(t.def);
             }
+            tmpStuffThings.Clear();
+
             return cachedLedgerStuffDefs;
         }
     }
