@@ -60,6 +60,7 @@ namespace DigitalStorage.Diagnostics
             sb.AppendLine("  核心 powered=" + core.Powered
                 + " HaulDestinationEnabled=" + core.HaulDestinationEnabled
                 + " **储存优先级=" + (coreSettings != null ? coreSettings.Priority.ToString() : "?") + "**"
+                + " **被玩家方预约=" + map.reservationManager.IsReservedByAnyoneOf(core, Faction.OfPlayer) + "**"
                 + " 栈=" + core.GetDirectlyHeldThings().Count + "/" + core.maxStacks);
 
             CompAutoIngest comp = core.GetComp<CompAutoIngest>();
@@ -139,6 +140,8 @@ namespace DigitalStorage.Diagnostics
                     + " 当前储存优先级=" + current
                     + " 原版选中的格子=" + cell
                     + " 原版选中的目的地=" + (dest == null ? "null(认为无处可去/已放好)" : dest.ToString())
+                    + " 内层[不需预约]=" + InnerVerdict(t, map, current, requiresReservation: false)
+                    + " 内层[需预约]=" + InnerVerdict(t, map, current, requiresReservation: true)
                     + " 核心Accept=" + core.Accepts(t)
                     + " 收得下=" + core.GetDirectlyHeldThings().GetCountCanAccept(t));
             }
@@ -182,6 +185,27 @@ namespace DigitalStorage.Diagnostics
                 + " spawned=" + t.Spawned
                 + " parent=" + (t.ParentHolder == null ? "null" : t.ParentHolder.GetType().Name)
                 + " def=" + (t.def == null ? "null" : t.def.defName);
+        }
+
+        /// <summary>
+        /// 内层函数（非格子型储存 = 容器那条腿）的判决。
+        /// <c>requiresDestReservation</c> 取 true/false 的差别是本 mod 踩过的大坑：
+        /// 为 true 时"目的地被任何玩家小人预约着"就会被跳过，而核心正是热门卸货点。
+        /// </summary>
+        private static string InnerVerdict(Thing t, Map map, StoragePriority current, bool requiresReservation)
+        {
+            try
+            {
+                bool ok = StoreUtility.TryFindBestBetterNonSlotGroupStorageFor(t, null, map, current,
+                    Faction.OfPlayer, out IHaulDestination dest, acceptSamePriority: false,
+                    requiresDestReservation: requiresReservation);
+                if (!ok) return "false";
+                return dest == null ? "true/null" : dest.GetType().Name;
+            }
+            catch (System.Exception e)
+            {
+                return "throw:" + e.GetType().Name;
+            }
         }
 
         /// <summary>直接问原版（私有方法 ShouldBeHaulable），不抄它的分支。</summary>

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DigitalStorage.Core;
@@ -273,35 +274,62 @@ namespace DigitalStorage.Components
         /// <summary>
         /// <b>收纳判据：原版自己会不会把这件东西搬进我们的核心。</b>
         ///
-        /// <para>调用的是原版 <c>StoreUtility.TryFindBestBetterStorageFor</c>
-        /// （<c>StoreUtility.cs:144</c>）：它同时搜"格子型储存"与"非格子型储存"，
-        /// 后者（<c>TryFindBestBetterNonSlotGroupStorageFor</c>，<c>:242</c>）正是我们的核心
-        /// 所在的那条腿（只跳过 <c>ISlotGroupParent</c> / <c>Building_Grave</c> /
-        /// <c>!HaulDestinationEnabled</c>）。返回的目的地就是我们的核心时才插手
-        /// —— <b>"原版本来就要把它搬进核心"，我们只是把这段搬运改成瞬时完成。</b></para>
+        /// <para>走原版 <c>StoreUtility.TryFindBestBetterNonSlotGroupStorageFor</c>
+        /// （<c>StoreUtility.cs:242</c>）——**非格子型储存**就是容器那条腿，核心正在其中
+        /// （它只跳过 <c>ISlotGroupParent</c> / <c>Building_Grave</c> / <c>!HaulDestinationEnabled</c>）。
+        /// 因而"禁止 / 不可搬 / 已在最优储存"由候选集回答，"优先级 / 过滤器 / 容量 / 阵营 /
+        /// 是否被禁"由原版回答，本 mod 一条都不复述。</para>
         ///
-        /// <para><b>为什么可以传 <c>carrier: null</c></b>：原版自己就这么调
-        /// （<c>IsInValidBestStorage</c>，<c>StoreUtility.cs:67</c>，连
-        /// <c>needAccurateResult: false</c> 也一样），它是个常年跑的路径，空 carrier 是被支持的。
-        /// <b>这也正是我们要的</b>：不借任何殖民者 ⇒ <c>p.health.capacities</c>、
-        /// <c>p.CanReserve</c>、可达性都不会渗进结论，某个小人倒地/断手也不会让核心静默停工
-        /// （"殖民者状态不影响核心的工作"）。距离只用于同为格子型储存之间的决胜，
-        /// 永远不会成为挡住核心的闸门。</para>
+        /// <para><b>⚠️ 两个必须显式处理的点（否则核心会被静默跳过）：</b></para>
+        /// <list type="number">
+        /// <item><b><c>requiresDestReservation: false</c></b>。默认 <c>true</c> 时
+        /// （<c>:285-305</c>）会要求目的地"可以被预约"：carrier 为空时退化成
+        /// <c>IsReservedByAnyoneOf(thing, faction)</c> —— 核心是个热门卸货点、常被别的搬运工
+        /// 预约着 ⇒ **整个核心被 continue 掉**。实测症状：56 件通过了过滤，却全被判
+        /// "原版没有更好去处"（选中格子 <c>Invalid</c>、目的地 <c>null</c>），而核心明明
+        /// <c>Accepts=True</c>、<c>收得下=3</c>。我们做的是瞬时入库：不派 job、不预约容器，
+        /// 这条要求与我们无关。</item>
+        /// <item><b>传 <c>carrier: null</c> 是安全的</b>：<c>:245</c> 只在
+        /// <c>!t.SpawnedOrAnyParentSpawned</c> 时才解引用 carrier，而候选集里的东西都 Spawned；
+        /// <c>:306-319</c> 的"可达性"整段在 carrier 为空时跳过 —— **正是我们要的**（隔空收纳，
+        /// 不受距离限制）。不借任何殖民者 ⇒ 殖民者的 health / CanReserve / 位置都不会渗进结论。</item>
+        /// </list>
+        ///
+        /// <para>另补一步原版保护：内层函数只看**容器之间**的关系，所以这里再问一次原版的
+        /// 格子型储存，**若存在同级或更高优先级的格子可放，就让给格子**
+        /// （保住用户 7.31 拍板的"别抢更高优先级储存"）。这条腿在空 carrier 下可能不可用，
+        /// 用 try/catch 包住：宁可少一层优先级保护，也不能让整个收纳失效。</para>
         /// </summary>
         internal static Building_StorageCore WouldVanillaHaulIntoCore(Map map, Thing t)
         {
             if (map == null || t == null || t.Destroyed) return null;
 
             StoragePriority currentPriority = StoreUtility.CurrentStoragePriorityOf(t);
-            if (!StoreUtility.TryFindBestBetterStorageFor(t, null, map, currentPriority,
-                    Faction.OfPlayer, out IntVec3 _, out IHaulDestination dest, needAccurateResult: false))
+            if (!StoreUtility.TryFindBestBetterNonSlotGroupStorageFor(t, null, map, currentPriority,
+                    Faction.OfPlayer, out IHaulDestination dest, acceptSamePriority: false,
+                    requiresDestReservation: false))
             {
-                return null; // 原版没有更好的去处（已经放好了 / 没地方放）
+                return null; // 原版认为没有更好的容器可放（含：它已经在最优储存里）
             }
 
             Building_StorageCore core = dest as Building_StorageCore;
             if (core == null || core.Destroyed) return null;
-            if (!core.Powered) return null;  // 断电的核心原版也不会搬进去（没有电力它就不可用）
+
+            try
+            {
+                if (StoreUtility.TryFindBestBetterStoreCellFor(t, null, map, currentPriority,
+                        Faction.OfPlayer, out IntVec3 cell, needAccurateResult: false))
+                {
+                    StoragePriority cellPriority = cell.GetSlotGroup(map).Settings.Priority;
+                    if ((int)cellPriority >= (int)core.GetStoreSettings().Priority) return null;
+                }
+            }
+            catch (Exception)
+            {
+                // 空 carrier 下这条腿可能不可用（它本是为有搬运工的场景写的）。忽略。
+            }
+
+            if (!core.Powered) return null; // 断电的核心原版也不会搬进去
             return core;
         }
 
