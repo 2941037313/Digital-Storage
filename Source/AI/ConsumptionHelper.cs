@@ -40,11 +40,16 @@ namespace DigitalStorage.AI
             // 统一排除 —— 所有消费 patch 都走这个入口，防止机械体从核心吃食物。
             if (pawn.RaceProps.IsMechanoid) { LastFailReason = "mechanoid"; return null; }
 
-            bool chip = Hediff_TerminalImplant.HasTerminalImplant(pawn);
-            // 设置「需要终端芯片」：没有芯片就没有任何访问入口（对齐 3.0 反馈
-            // 「科技没点、也没装部件，却能远程取物吃」）。默认关闭保持 v3 原设计。
-            if (!chip && DigitalStorage.Settings.DigitalStorageSettings.requireChipForCoreAccess)
-            { LastFailReason = "no chip and requireChipForCoreAccess=on"; return null; }
+            // 【4.0 产品决策 · 砍芯片】这里原先有一道门：
+            //   if (!HasTerminalImplant(pawn) && Settings.requireChipForCoreAccess) return null;
+            // 现在拆掉 —— 用户拍板「核心一放就是完全体，全部无损直接隔空获取，
+            // 不需要任何额外 hediff / 建筑」。
+            //
+            // 它正是「重进存档后既不吃饭也不吃药」的根因，实测日志：
+            //   [DS] GetFood: null (no chip and requireChipForCoreAccess=on)
+            //
+            // （Settings.requireChipForCoreAccess 与 DigitalStorage_TerminalImplant /
+            //   DigitalStorage_TerminalChip 属批 3 删除项；这里先停止读取它。）
 
             // 社区反馈「食物方案禁止吃虫胶也没用」：原版 JobGiver_GetFood →
             // FoodUtility.TryFindBestFoodSourceFor 会对每个候选调 FoodUtility.WillEat

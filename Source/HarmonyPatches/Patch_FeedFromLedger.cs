@@ -23,13 +23,9 @@ namespace DigitalStorage.HarmonyPatches
             if (__result || foodSource != null) return;
             if (getter?.Map == null || eater == null) return;
 
-            // 8.1 bugfix(喂食覆盖不全): 对齐原版 FeedPatientUtility.ShouldBeFed 的范围 ——
-            // 狱警送饭(囚犯,含站立) 或 喂食无法行动者(殖民者/奴隶/访客/囚犯/躺玩家床的动物)。
-            // 旧实现只认 IsColonist/IsPrisonerOfColony，漏了奴隶(Faction=玩家但 IsColonist=false)、
-            // 殖民地动物、访客(HostFaction=玩家) —— 这些倒地后吃不到核心食物。
-            bool isCaregiving = getter != eater
-                && (eater.IsPrisonerOfColony || FeedPatientUtility.ShouldBeFed(eater));
-            if (!Hediff_TerminalImplant.HasTerminalImplant(getter) && !isCaregiving) return;
+            // 【4.0 砍芯片】这里原先有一道门：
+            //   if (!HasTerminalImplant(getter) && !isCaregiving) return;
+            // 现在拆掉 —— 用户拍板核心一放就是完全体，任何人喂食都能从核心取。
 
             ThingFilter foodFilter = null;
             if (eater.foodRestriction != null)
