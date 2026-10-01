@@ -5,14 +5,63 @@ using Verse;
 namespace DigitalStorage.Backpack
 {
     /// <summary>
-    /// 每个殖民者 / 殖民地机械族自动植入「背包」（用户拍板的决策 1）。
+    /// 「背包」植入判据 + 状态同步的**唯一入口**（三个 Harmony 钩子共用，避免判据漂移）。
     ///
-    /// <para>用 <c>Pawn.SpawnSetup</c> 补挂：地图载入时 pawn 会重新 Spawn ⇒ 读档也覆盖；
-    /// 新加入的殖民者同样走这里。幂等：已有该 hediff 就不再加。</para>
+    /// <para><b>谁该有</b>：玩家派系的殖民者（含奴隶）+ 殖民地机械族。
+    /// <b>囚犯不给</b>（用户拍板）：囚犯不干活、也不该碰核心，给他们挂背包只会在健康页多一行噪音。</para>
     ///
-    /// <para><b>不需要注册成 haul source</b>：原版 bill 的容器扫描要求
-    /// <c>item is Thing</c>（<c>WorkGiver_DoBill.cs:483</c>），HediffComp 永远进不去。
+    /// <para>不需要注册成 haul source：原版 bill 的容器扫描要求 <c>item is Thing</c>
+    /// （<c>WorkGiver_DoBill.cs:483</c>），HediffComp 永远进不去。
     /// 详见 <see cref="HediffComp_Backpack"/> 的类注释。</para>
+    /// </summary>
+    internal static class BackpackImplant
+    {
+        private const string HediffDefName = "DS_CoreBackpack";
+        private static HediffDef def;
+        private static bool defResolved;
+
+        private static HediffDef Def
+        {
+            get
+            {
+                if (!defResolved)
+                {
+                    def = DefDatabase<HediffDef>.GetNamedSilentFail(HediffDefName);
+                    defResolved = true;
+                }
+                return def;
+            }
+        }
+
+        internal static bool ShouldHave(Pawn pawn)
+        {
+            if (pawn == null || pawn.health == null || pawn.health.hediffSet == null) return false;
+            if (pawn.Faction != Faction.OfPlayer) return false;
+            if (pawn.IsPrisoner) return false; // 用户拍板：囚犯不给
+            return pawn.RaceProps.Humanlike || pawn.RaceProps.IsMechanoid;
+        }
+
+        /// <summary>幂等：该有的补上，不该有的摘掉。摘除会走 <c>CompPostPostRemoved</c>（内容物落地，防丢物）。</summary>
+        internal static void Sync(Pawn pawn)
+        {
+            HediffDef hediffDef = Def;
+            if (hediffDef == null || pawn == null || pawn.health == null || pawn.health.hediffSet == null) return;
+
+            Hediff existing = pawn.health.hediffSet.GetFirstHediffOfDef(hediffDef);
+            if (ShouldHave(pawn))
+            {
+                if (existing == null) pawn.health.AddHediff(hediffDef);
+            }
+            else if (existing != null)
+            {
+                pawn.health.RemoveHediff(existing);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 植入 / 摘除。用 <c>Pawn.SpawnSetup</c> 补挂：地图载入时 pawn 会重新 Spawn ⇒ 读档也覆盖；
+    /// 新加入的殖民者同样走这里。
     /// </summary>
     [HarmonyPatch(typeof(Pawn), "SpawnSetup")]
     internal static class Patch_AutoImplantBackpack
@@ -20,17 +69,26 @@ namespace DigitalStorage.Backpack
         [HarmonyPostfix]
         private static void Postfix(Pawn __instance)
         {
-            Pawn pawn = __instance;
-            if (pawn == null || pawn.health == null || pawn.health.hediffSet == null) return;
-            if (pawn.Faction != Faction.OfPlayer) return;
-            // 殖民者（含奴隶）+ 玩家的机械族
-            if (!pawn.RaceProps.Humanlike && !pawn.RaceProps.IsMechanoid) return;
+            BackpackImplant.Sync(__instance);
+        }
+    }
 
-            HediffDef def = DefDatabase<HediffDef>.GetNamedSilentFail("DS_CoreBackpack");
-            if (def == null) return;
-            if (pawn.health.hediffSet.GetFirstHediffOfDef(def) != null) return;
-
-            pawn.health.AddHediff(def);
+    /// <summary>
+    /// 囚犯 ↔ 殖民者的**身份切换点**。
+    ///
+    /// <para>只挂 <c>SpawnSetup</c> 会漏掉"游戏中途被俘 / 被招募"（两者都不重新 Spawn）：
+    /// 被俘的殖民者会**留着**背包，被招募的囚犯要等下次读档才拿到。
+    /// <c>Pawn_GuestTracker.SetGuestStatus</c> 是权威切换点（俘虏 = 玩家派系 + Prisoner；
+    /// 招募 = 清空 guest 状态），postfix 时状态已经落定，两个方向都能判对。</para>
+    /// </summary>
+    [HarmonyPatch(typeof(Pawn_GuestTracker), "SetGuestStatus")]
+    internal static class Patch_BackpackOnGuestStatusChanged
+    {
+        // pawn 是 private 字段 ⇒ 用 Harmony 的下划线字段注入
+        [HarmonyPostfix]
+        private static void Postfix(Pawn ___pawn)
+        {
+            BackpackImplant.Sync(___pawn);
         }
     }
 

@@ -23,6 +23,11 @@ namespace DigitalStorage.HarmonyPatches
             if (__result || foodSource != null) return;
             if (getter?.Map == null || eater == null) return;
 
+            // 囚犯不能用核心（用户 2026-10-02 拍板）。判的是**取用者**：
+            // 典狱长给囚犯取饭时 getter = 典狱长 ⇒ 放行（饭照样从核心取、送进牢房）；
+            // 囚犯自己找饭时 getter = 囚犯 ⇒ 挡住，让他吃牢房里送来的那份。
+            if (!ConsumePatchUtil.PawnMayUseCore(getter)) return;
+
             // 【4.0 砍芯片】这里原先有一道门：
             //   if (!HasTerminalImplant(getter) && !isCaregiving) return;
             // 现在拆掉 —— 用户拍板核心一放就是完全体，任何人喂食都能从核心取。

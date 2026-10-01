@@ -236,6 +236,8 @@ namespace DigitalStorage.Components
             NullOrDestroyed,
             /// <summary>不在图上（在别人背包里 / 在某个容器里）—— 绝不能对它们 DeSpawn。</summary>
             NotOnMap,
+            /// <summary>在关押区里（牢房 / 有囚犯的房间）—— 见 <see cref="IsInPrisonArea"/>。</summary>
+            InPrisonArea,
             Reserved,
             RecentlyWithdrawn
         }
@@ -261,9 +263,45 @@ namespace DigitalStorage.Components
             // （实测：待搬表 98 件全灭、自动收纳归零，而"通过=0"看起来还像"没东西可收"）。
             // 容器内 / 背包里的东西 Spawned == false，一条判断就够。
             if (!t.Spawned) return Reject.NotOnMap;
+            if (IsInPrisonArea(t, map)) return Reject.InPrisonArea;
             if (map.reservationManager.IsReserved(t)) return Reject.Reserved;
             if (IsRecentlyWithdrawn(t)) return Reject.RecentlyWithdrawn;
             return Reject.None;
+        }
+
+        /// <summary>
+        /// 这件东西是不是在**关押区**里。给囚犯送饭是"把饭丢在地上"：
+        /// <c>WorkGiver_Warden_DeliverFood:49</c> 建 <c>DeliverFood</c> 作业，落点
+        /// <c>job.targetC = RCellFinder.SpotToChewStandingNear(囚犯, 食物)</c>
+        /// （<c>SpotToStandDuringJob</c> 只在囚犯**自己的 region** 内 4 格找），
+        /// 而 <c>JobDriver_FoodDeliver:91</c> 直接 <c>TryDropCarriedThing</c> —— <b>不设禁止</b>。
+        /// ⇒ 那坨饭会进原版待搬表、被核心当场吸走，囚犯永远吃不到，监狱喂食整体失效。
+        ///
+        /// <para>判据全部用**原版自己的概念**：房间是牢房（<c>Room.IsPrisonCell</c>，
+        /// 由房内"关囚犯的床"推出），或房间里有囚犯（覆盖"有围墙但没屋顶、原版不认作
+        /// prison cell"的牢房）。两种情况都不收。</para>
+        ///
+        /// <para>代价：真在牢房里的殖民地物资（误丢进去的钢材之类）也不会被吸走 ——
+        /// 那是囚犯的私人空间，本来就不该被自动清空。</para>
+        /// </summary>
+        private static bool IsInPrisonArea(Thing t, Map map)
+        {
+            Room room = t.PositionHeld.GetRoom(map);
+            if (room == null) return false; // 露天/过道：没有房间，无从判断
+            if (room.IsPrisonCell) return true;
+
+            // 原版同款写法（WorkGiver_Warden_DeliverFood.FoodAvailableInRoomTo:81-89）
+            List<Region> regions = room.Regions;
+            for (int i = 0; i < regions.Count; i++)
+            {
+                List<Thing> pawns = regions[i].ListerThings.ThingsInGroup(ThingRequestGroup.Pawn);
+                for (int j = 0; j < pawns.Count; j++)
+                {
+                    Pawn p = pawns[j] as Pawn;
+                    if (p != null && p.IsPrisoner) return true;
+                }
+            }
+            return false;
         }
 
         private static bool CanCollect(Thing t, Map map)

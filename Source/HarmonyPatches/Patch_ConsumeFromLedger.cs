@@ -36,13 +36,11 @@ namespace DigitalStorage.HarmonyPatches
             // 8.1 bugfix(社区反馈:机械体吃饭):机械体没有食物需求(needs.food==null),
             // 原版 JobGiver_GetFood 因无需求返回 null,这里不能接管派饭——
             // 否则玩家派系机械体会不停从核心吃食物(食物凭空消耗,机械体不消化)。
-            // v3-bug1 修了派系/囚犯过滤,漏了机械体(v3-bug1 后仍会吃)。
             if (pawn.needs?.food == null) return false;
-            if (pawn.Faction == Faction.OfPlayer) return true;
-            if (pawn.IsPrisonerOfColony) return true;
-            // 4.0：删掉了「有终端芯片也放行」那一支 —— 芯片整体砍除（Hediff_TerminalImplant 已删）；
-            // faction / prisoner 两条已覆盖正常吃饭场景。
-            return false;
+
+            // 【4.0】囚犯不再放行（v3 曾显式放行 `pawn.IsPrisonerOfColony`）——
+            // 见 ConsumePatchUtil.PawnMayUseCore。囚犯的饭由典狱长送进牢房。
+            return ConsumePatchUtil.PawnMayUseCore(pawn);
         }
     }
 
@@ -62,6 +60,7 @@ namespace DigitalStorage.HarmonyPatches
             }
 
             if (!ConsumePatchUtil.ShouldTry(pawn)) return;
+            if (!ConsumePatchUtil.PawnMayUseCore(pawn)) return;
 
             var policy = pawn.drugs?.CurrentPolicy;
             if (policy == null) return;
@@ -90,6 +89,7 @@ namespace DigitalStorage.HarmonyPatches
                 __result = null;
             }
             if (!ConsumePatchUtil.ShouldTry(pawn)) return;
+            if (!ConsumePatchUtil.PawnMayUseCore(pawn)) return;
             foreach (var def in DefDatabase<JoyGiverDef>.AllDefs)
             {
                 if (!(def.Worker is JoyGiver_Ingest)) continue;
@@ -106,6 +106,26 @@ namespace DigitalStorage.HarmonyPatches
     /// <summary>节流：防同 tick 内反复创同一 job 导致 10 jobs/tick 循环。</summary>
     static class ConsumePatchUtil
     {
+        /// <summary>
+        /// 这个 pawn 能不能用数字存储核心。**囚犯不能**（用户 2026-10-02 拍板）。
+        ///
+        /// <para>核心是殖民地的物流；囚犯只能用**送进牢房**的东西。原版对这件事有明确设计：
+        /// <c>WorkGiver_Warden_DeliverFood:40</c> 要求"食物与囚犯不在同一房间"才去送，
+        /// <c>FoodAvailableInRoomTo</c> 把"囚犯房间里已有的食物"算作已满足，
+        /// <c>JobDriver_FoodDeliver</c> 把饭丢在牢房地上。
+        /// 放开这条 = 囚犯隔墙从核心取饭取药，监狱的喂食/投药机制整体失去意义
+        /// （v3 曾显式放行 <c>IsPrisonerOfColony</c>，4.0 撤销）。</para>
+        ///
+        /// <para>注意语义方向：这里判的是**取用者**。典狱长/医生代囚犯取用（喂食、投药、
+        /// 手术）时取用者是殖民者，照常放行 —— 只有囚犯自己取用被挡。</para>
+        /// </summary>
+        public static bool PawnMayUseCore(Pawn pawn)
+        {
+            if (pawn == null) return false;
+            if (pawn.IsPrisoner) return false;
+            return pawn.Faction == Faction.OfPlayer;
+        }
+
         /// <summary>
         /// 诊断日志节流：**按 key 分别记**（同 key 最多 60 tick 一条）。
         /// 早先版本是全局共用一个名额，结果 GetFood 先占了、TakeDrugs 就被压掉 —— 那正是
