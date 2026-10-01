@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using DigitalStorage.Core;
 using RimWorld;
@@ -9,28 +8,245 @@ using Verse;
 namespace DigitalStorage.Components
 {
     /// <summary>
-    /// 存储核心 —— v3 账本建筑。
+    /// 存储核心 —— <b>4.0 容器实现</b>。
     ///
-    /// 不再继承 Building_Storage：原版派工、StoreUtility、物品堆放统统看不到这个建筑。
-    /// 所有库存由 CoreLedger 管理，纯数据。
+    /// 与 3.0（账本建筑）的根本差别：内容物是**真实的 Thing**，住在 <see cref="ThingOwner{T}"/> 里，
+    /// 而不是一串 (def, stuff) → 数量的数据。因此：
+    ///
+    /// <list type="bullet">
+    /// <item>原版**双向**原生接受，零 Harmony：
+    ///   取出 = <see cref="IHaulSource"/>（<c>Thing.SpawnSetup:888</c> 自动登记）
+    ///   放入 = <see cref="IHaulDestination"/>（<c>Thing.SpawnSetup:884</c> 自动登记）</item>
+    /// <item>能存品质 / 耐久 / 衣物 / 武器差异 —— 账本键 (def, stuff) 存不下这些</item>
+    /// <item>不 tick（<see cref="ShouldTickContents"/> = false + <c>dontTickContents</c>）⇒ 不腐烂、不耗性能</item>
+    /// </list>
+    ///
+    /// 原版同构模板：<c>Building_OutfitStand</c>（奥德赛衣架）/
+    /// <c>Building_Bookcase</c>（书架）——「用 ThingOwner 存东西的建筑」是原版就有的形态。
+    ///
+    /// 机制细节与实测数据见 obsidian：
+    /// <c>代码Wiki/csharp-api/容器内容物参与原版作业-ParentHolder返回Map.md</c>
     /// </summary>
     [StaticConstructorOnStartup]
-    public class Building_StorageCore : Building, IRenameable
+    public class Building_StorageCore : Building, IThingHolder, ISearchableContents,
+        IHaulSource, IHaulDestination, IApparelSource, IStoreSettingsParent, IThingHolderTickable
     {
-        private static readonly Texture2D RenameTex = ContentFinder<Texture2D>.Get("UI/Buttons/Rename", true);
         private static readonly Material LightMat = MaterialPool.MatFrom("2.0/一束光", ShaderDatabase.MoteGlow);
         private static readonly Material OrbMat = MaterialPool.MatFrom("2.0/一个球", ShaderDatabase.Cutout);
 
-        private string networkName;
-        private CompPowerTrader powerComp;
-        private CompStorageCoreUpgrade upgradeComp;
-        private CoreLedger ledger = new CoreLedger();
-        private StoragePriority storagePriorityField = StoragePriority.Normal;
+        // ===================================================================
+        // 4.0 容器本体
+        // ===================================================================
+
+        /// <summary>内容物。物品在这里**未 Spawned**，因此不进 listerThings / 不注册 TickManager。</summary>
+        public ThingOwner<Thing> innerContainer;
+
+        private StorageSettings storeSettings;
+        private bool haulSourceEnabled = true;
+        private bool haulDestinationEnabled = true;
 
         /// <summary>
-        /// X4: 优先级改属性——setter 触发 Ghost 刷新通知。
-        /// 旧实现直接赋值字段，在途工单/UI 缓存不知道优先级变了。
+        /// 栈数上限（<see cref="Accepts"/> 用）。4.0 起不再有"升级扩容"，是固定值 + 未来的 def 字段。
         /// </summary>
+        public int maxStacks = 500;
+
+        private StoragePriority storagePriorityField = StoragePriority.Preferred;
+
+        /// <summary>
+        /// ⚠️ <b>武器默认不进容器 —— 这是已核实的硬阻塞，不是设计偏好。</b>
+        ///
+        /// <c>Verse.AI/JobDriver_Equip.cs</c> 硬编码了具体类：
+        /// <code>
+        /// :22  TargetIsOnOutfitStand =&gt; target.ParentHolder is Building_OutfitStand
+        /// :28  OutfitStand =&gt; (Building_OutfitStand)job.GetTarget(TargetIndex.B).Thing
+        /// :35  job.targetB = (Building_OutfitStand)Target.ParentHolder
+        /// :55  pawn.Reserve((Building_OutfitStand)job.targetA.Thing.ParentHolder, ...)
+        /// </code>
+        /// 于是容器里的武器会被 <c>JobGiver_PickUpOpportunisticWeapon</c>
+        /// （它对 <c>ThingRequestGroup.Weapon</c> 传了 <c>lookInHaulSources: true</c> 且不做 source 检查，
+        /// 8 格半径）选中 → <c>TargetIsOnOutfitStand</c> 为 false → <c>Notify_Starting</c> 不设 targetB
+        /// → <c>MakeNewToils</c> 走 else 分支（:101）→ 对**未 Spawn 的物品**调 <c>DeSpawn()</c>（报错），
+        /// 然后在物品**仍在容器里**时 <c>pawn.equipment.AddEquipment(...)</c>。
+        ///
+        /// 原版衣架自己也是靠 <c>defaultStorageSettings</c> 拒武器来规避的
+        /// （只有 <c>fixedStorageSettings</c> 放行，因为它的 Equip 是硬编码支持自己的）。
+        ///
+        /// <b>要放开武器，必须先补一条 <c>JobDriver_Equip</c> 泛化补丁</b>（把具体类换成接口判定 +
+        /// 自己的"从容器取出"动作）。在那之前这里保持 false —— 过滤器会挡住武器，
+        /// 而 <see cref="Accepts"/> 直接查过滤器，所以挡得住的路径是完整的。
+        /// </summary>
+        private bool allowWeaponsInStorage;
+
+        public Building_StorageCore()
+        {
+            innerContainer = new ThingOwner<Thing>(this);
+            // 双保险：即便外面漏了 ShouldTickContents，容器自身也不再 tick 内容。
+            // ThingOwner.DoTick() 会线性遍历每个物品调 DoTick()，而容器里的物品是未 Spawned 的
+            // —— 实测报错 "Got temperature for null map" ← CompRottable.TickInterval ← ThingOwner.DoTick。
+            innerContainer.dontTickContents = true;
+        }
+
+        // ===== IThingHolderTickable =====
+        //
+        // Thing.DoTick() 末尾检查这个（Thing.cs:752）：
+        //   if (... || (cachedTickable != null && !cachedTickable.ShouldTickContents) ...) return;
+        // false = 不 tick 内容物 ⇒ 不腐烂、不耗性能。这是整个设计的存在理由。
+        public bool ShouldTickContents => false;
+
+        // ===== IThingHolder =====
+
+        /// <summary>
+        /// 【4.0 的地基】不是 null，而是 <c>Map</c>。
+        ///
+        /// <c>ThingOwnerUtility.GetRootMap</c> 的循环（<c>ThingOwnerUtility.cs:140</c>）：
+        /// <code>
+        /// while (holder != null) { if (holder is Map m) return m; holder = holder.ParentHolder; }
+        /// </code>
+        /// 这里 holder 的静态类型是 IThingHolder ⇒ <c>holder.ParentHolder</c> 是**接口分派**，
+        /// 会走到本属性。链变成：物品 → 本建筑（不是 Map）→ .ParentHolder = Map → is Map → 返回 Map ✓
+        ///
+        /// <b>为什么是数据修复而不是 Harmony 补丁</b>：改的是数据不是代码入口，**不会被 JIT 内联绕过**
+        /// （2026-10-01 实测：给 <c>ThingOwnerUtility.GetRootMap</c> 打 postfix 无效，
+        /// 因为该小静态方法被内联进了 <c>Thing.get_MapHeld</c>）。
+        ///
+        /// <b>没有它</b>，下列闸门全部会拒掉内容物：
+        /// <code>
+        /// ReservationManager.cs:172                     MapHeld != map
+        /// ToilFailConditions.cs:69                      MapHeld != actor.Map
+        /// WorkGiver_DoBill.cs:490                       pawn.CanReserve(内容物)
+        /// </code>
+        /// 注意 <c>Thing.SpawnedOrAnyParentSpawned</c> 走的是 <c>Thing.ParentHolder</c>（非虚，不受 <c>new</c> 影响），
+        /// 所以不受牵连 —— 它本来就返回 true。
+        /// </summary>
+        public new IThingHolder ParentHolder => Map;
+
+        public ThingOwner GetDirectlyHeldThings() => innerContainer;
+
+        public void GetChildHolders(List<IThingHolder> outChildren)
+        {
+            ThingOwnerUtility.AppendThingHoldersFromThings(outChildren, innerContainer);
+        }
+
+        // ===== ISearchableContents（Z 搜索能看到） =====
+
+        public ThingOwner SearchableContents => innerContainer;
+
+        // ===== IHaulSource（取出方向） =====
+
+        public bool HaulSourceEnabled => haulSourceEnabled;
+
+        // ===== IHaulDestination（放入方向） =====
+
+        public bool HaulDestinationEnabled => haulDestinationEnabled;
+
+        /// <summary>
+        /// 原版问"这个目的地收不收这件东西"。被
+        /// <c>StoreUtility.TryFindBestBetterNonSlotGroupStorageFor</c>（<c>StoreUtility.cs:262</c>）
+        /// 与 <c>JobDriver_HaulToContainer</c> 的失败条件调用，**每次找目的地都会跑**，要保持便宜。
+        ///
+        /// <b>【甲-1】按"东西在哪边"分流 —— 这个方法就是出库语义的开关：</b>
+        ///
+        /// <c>ListerHaulables.ShouldBeHaulable</c> 靠
+        /// <c>IsInAnyStorage() =&gt; CurrentHaulDestinationOf(t)?.Accepts(t) ?? false</c>
+        /// 判断"它还在有效存储里吗"。
+        ///
+        /// <list type="bullet">
+        /// <item><b>已经在容器里</b> → <b>只按过滤器作答</b>。
+        ///   改过滤器 → Allows 变 false → IsInAnyStorage 变 false → ShouldBeHaulable 变 true
+        ///   → WorkGiver_Haul 建 HaulToCell 作业 → 搬运工来容器里取走（原版容器感知）。
+        ///   这里**绝不能**掺容量规则：一旦 maxStacks 满，容器里所有"放不下"的东西都会被判为
+        ///   无处可去，原版会把已有库存全搬出去。</item>
+        /// <item><b>要进来的</b> → 过滤器 + 容量 + 真收得下。
+        ///   否则 <c>HaulAIUtility.cs:191</c> 的 job.count 会是 0 → <c>StartCarryThing</c> 抛异常。</item>
+        /// </list>
+        ///
+        /// 这也和原版一致：<c>Building_Storage.Accepts</c> 只看过滤器，容量由 <c>MaxItemsInCell</c> 在放置时管。
+        /// </summary>
+        public bool Accepts(Thing t)
+        {
+            if (t == null || t.def == null) return false;
+            if (!Spawned) return false;
+            if (!haulDestinationEnabled) return false;
+
+            StorageSettings st = GetStoreSettings();
+            bool allowed = (st == null || st.filter == null) || st.filter.Allows(t);
+
+            if (ReferenceEquals(t.ParentHolder, this)) return allowed;
+
+            if (!allowed) return false;
+            if (innerContainer.Count >= maxStacks && !ContainerHasDef(t.def)) return false;
+            return innerContainer.GetCountCanAccept(t) > 0;
+        }
+
+        /// <summary>
+        /// 容器里是否已经有同 def 的东西。**只在 maxStacks 满时调用**，
+        /// 所以 O(N) 线性扫描是可以接受的（不进热路径）。
+        /// </summary>
+        private bool ContainerHasDef(ThingDef def)
+        {
+            for (int i = 0; i < innerContainer.Count; i++)
+            {
+                Thing t = innerContainer[i];
+                if (t != null && t.def == def) return true;
+            }
+            return false;
+        }
+
+        // ===== IApparelSource（穿戴方向） =====
+        //
+        // JobDriver_Wear.cs 的两处：
+        //   apparel.ParentHolder is IApparelSource apparelSource   // 决定走不走 source 路径
+        //   ApparelSource.RemoveApparel(apparel);                  // 从容器里摘出来再穿
+        // JobGiver_OptimizeApparel.cs:147 也用（target 变成容器后才发 Wear 作业）。
+        //
+        // 没有它：Wear 走 else 分支的 GotoThing(A) + FailOnDespawnedNullOrForbidden(A)，
+        // 内容物 Spawned=false ⇒ 当场 Incompletable ⇒ 一 tick 十次。
+        //
+        // 注意：**衣物走接口（可扩展），武器走具体类（JobDriver_Equip 写死 Building_OutfitStand）**
+        // —— 这是原版自己的不一致，也是 allowWeaponsInStorage 默认 false 的原因。
+        public bool ApparelSourceEnabled => haulSourceEnabled;
+
+        public bool RemoveApparel(Apparel apparel) => innerContainer.Remove(apparel);
+
+        // ===== IStoreSettingsParent =====
+
+        /// <summary>原版存储标签页。false = 不显示（我们用自己的 Dialog_StorageFilter）。</summary>
+        public bool StorageTabVisible => false;
+
+        public StorageSettings GetStoreSettings()
+        {
+            if (storeSettings == null)
+            {
+                storeSettings = new StorageSettings(this);
+                // 「全放开」：真实 Thing 存得住什么就存什么（品质/耐久/衣物都行）。
+                storeSettings.filter.SetAllowAll(null);
+                storeSettings.Priority = storagePriorityField;
+                ApplyWeaponFilter();
+            }
+            return storeSettings;
+        }
+
+        public StorageSettings GetParentStoreSettings()
+        {
+            return (def != null && def.building != null) ? def.building.fixedStorageSettings : null;
+        }
+
+        /// <summary>把 <see cref="allowWeaponsInStorage"/> 落到过滤器上。Accepts 直接查过滤器 ⇒ 同时改了进出两侧。</summary>
+        private void ApplyWeaponFilter()
+        {
+            if (storeSettings == null || storeSettings.filter == null) return;
+            storeSettings.filter.SetAllow(ThingCategoryDefOf.Weapons, allowWeaponsInStorage);
+        }
+
+        public void Notify_SettingsChanged()
+        {
+            if (!Spawned || MapHeld == null) return;
+            MapHeld.listerHaulables?.Notify_HaulSourceChanged(this);
+            MapHeld.haulDestinationManager?.Notify_HaulDestinationChangedPriority();
+        }
+
+        // ===== 兼容 3.0 调用方的薄封装（批 3 清理） =====
+
         public StoragePriority storagePriority
         {
             get => storagePriorityField;
@@ -38,31 +254,39 @@ namespace DigitalStorage.Components
             {
                 if (storagePriorityField == value) return;
                 storagePriorityField = value;
-                Map?.GetComponent<Ghost.GhostLedgerIndex>()?.OnCoreStateChanged(this);
+                if (storeSettings != null) storeSettings.Priority = value;
+                Notify_SettingsChanged();
             }
         }
-        private readonly List<Building_InputInterface> interfaces = new List<Building_InputInterface>();
-        private ThingFilter storageFilter;
-        private static ThingFilter parentFilter;
 
-        private static ThingFilter GetParentFilter()
-        {
-            if (parentFilter == null)
-            {
-                parentFilter = new ThingFilter();
-                // 正向添加：只允许可存储的根类别
-                foreach (ThingDef def in DefDatabase<ThingDef>.AllDefs)
-                {
-                    if (def.category == ThingCategory.Item && !def.IsCorpse && LedgerPolicy.CanIngest(def))
-                        parentFilter.SetAllow(def, true);
-                }
-            }
-            return parentFilter;
-        }
+        public ThingFilter StorageFilter => GetStoreSettings().filter;
 
+        public bool AllowsItem(Thing t) => t != null && GetStoreSettings().filter.Allows(t);
+
+        /// <summary>def 级过滤器检查（搬出判定用，避免构造 Thing）。</summary>
+        public bool AllowsDef(ThingDef def) => def != null && GetStoreSettings().filter.Allows(def);
+
+        public bool Powered => GetComp<CompPowerTrader>()?.PowerOn ?? true;
+
+        /// <summary>容量 = 栈数上限（3.0 的升级扩容已砍）。</summary>
+        public int GetCapacity() => maxStacks;
+
+        // ===================================================================
+        // 批 1 过渡桩 —— 3.0 的调用方还挂在这些成员上。
+        // 批 2 逐个替换成容器实现，批 3 随账本一起删。**不要在新代码里用它们。**
+        // ===================================================================
+
+        private CoreLedger ledger = new CoreLedger();
         public CoreLedger Ledger => ledger;
-        public ThingFilter StorageFilter => storageFilter;
-        public ThingFilter GetParentFilterPublic() => GetParentFilter();
+
+        private string networkName;
+        public string NetworkName
+        {
+            get => networkName ?? "DS_UnnamedNetwork".Translate().ToString();
+            set => networkName = value;
+        }
+
+        private readonly List<Building_InputInterface> interfaces = new List<Building_InputInterface>();
         public IReadOnlyList<Building_InputInterface> Interfaces => interfaces;
 
         public void RegisterInterface(Building_InputInterface iface)
@@ -75,185 +299,97 @@ namespace DigitalStorage.Components
             if (iface != null) interfaces.Remove(iface);
         }
 
-        /// <summary>
-        /// 代理点 = 所有已连接的接口的位置 + 自身交互格。
-        /// 派工层用这个列表选 pawn 最近的落脚点。
-        /// 没接口时核心自己顶上（第八章规则 2）。
-        /// </summary>
+        /// <summary>代理点 = 已连接接口的位置；没有接口时用自身交互格。</summary>
         public IEnumerable<IntVec3> GetProxyCells()
         {
             bool hasInterface = false;
             for (int i = 0; i < interfaces.Count; i++)
             {
-                var iface = interfaces[i];
+                Building_InputInterface iface = interfaces[i];
                 if (iface != null && iface.Spawned)
                 {
                     hasInterface = true;
                     yield return iface.Position;
                 }
             }
-            // 只有没有接口时才用核心自身作为代理点
             if (!hasInterface && Spawned) yield return InteractionCell;
         }
 
-        public string NetworkName
-        {
-            get => networkName ?? "DS_UnnamedNetwork".Translate().ToString();
-            set => networkName = value;
-        }
+        public ThingFilter GetParentFilterPublic() => GetStoreSettings().filter;
 
-        public string RenamableLabel
-        {
-            get => networkName ?? LabelCapNoCount;
-            set => networkName = value;
-        }
-
-        public string BaseLabel => LabelCapNoCount;
-        public string InspectLabel => LabelCap;
-
-        public bool Powered => powerComp != null && powerComp.PowerOn;
-
-        public int GetCapacity()
-        {
-            return upgradeComp != null ? upgradeComp.GetCapacity() : 100;
-        }
-
-        public bool AllowsItem(Thing t)
-        {
-            if (storageFilter == null) return true;
-            return storageFilter.Allows(t.def);
-        }
-
-        /// <summary>def 级过滤器检查（搬出判定用，避免构造 Thing）。</summary>
-        public bool AllowsDef(ThingDef def)
-        {
-            if (storageFilter == null) return true;
-            return storageFilter.Allows(def);
-        }
+        // ===== 生命周期 =====
 
         public override void SpawnSetup(Map map, bool respawningAfterLoad)
         {
             base.SpawnSetup(map, respawningAfterLoad);
-            powerComp = GetComp<CompPowerTrader>();
-            upgradeComp = GetComp<CompStorageCoreUpgrade>();
+            if (innerContainer == null) innerContainer = new ThingOwner<Thing>(this);
+            GetStoreSettings();
 
-            if (storageFilter == null)
-            {
-                storageFilter = new ThingFilter();
-                storageFilter.SetAllowAll(GetParentFilter());
-            }
-
-            map.GetComponent<DigitalStorageMapComponent>()?.RegisterCore(this);
-            Current.Game?.GetComponent<Services.DigitalStorageGameComponent>()?.RegisterCore(this);
-            map.GetComponent<Ghost.GhostLedgerIndex>()?.RegisterCore(this);
+            // StoreUtility.TryFindBestBetterNonSlotGroupStorageFor:267 有
+            //   if (thing != null && thing.Faction != faction) continue;
+            // 「开发者 → 生成 → 建筑」是裸 GenSpawn 不设阵营 → 会被静默跳过。补上。
+            if (Faction == null && def != null && def.CanHaveFaction)
+                SetFaction(Faction.OfPlayer);
         }
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
         {
-            // I6a: 摧毁前转移库存到存活核心
+            // 拆/毁时把内容物全部落地，避免随建筑一起消失（物品丢失）。
             if (mode == DestroyMode.Deconstruct || mode == DestroyMode.KillFinalize)
-                TransferOrQueueDrop();
+                DropAllContents();
 
-            Map?.GetComponent<Ghost.GhostLedgerIndex>()?.UnregisterCore(this);
-            Map?.GetComponent<Ghost.GhostLedgerIndex>()?.OnCoreStateChanged(this);
-            Map?.GetComponent<DigitalStorageMapComponent>()?.DeregisterCore(this);
-            Current.Game?.GetComponent<Services.DigitalStorageGameComponent>()?.DeregisterCore(this);
             base.DeSpawn(mode);
         }
 
-        private void TransferOrQueueDrop()
+        /// <summary>
+        /// 把内容物全部丢在脚下。**不用 CoreDestroyDropQueue**（那是账本时代按 ItemKey 排队的东西）。
+        /// 放不下的会留在容器里 —— 这里记一条 error，不再静默吞掉。
+        /// </summary>
+        private void DropAllContents()
         {
-            if (ledger == null) return;
-            var map = Map;
+            if (innerContainer == null || innerContainer.Count == 0) return;
+            Map map = Map;
             if (map == null) return;
 
-            var mapComp = map.GetComponent<DigitalStorageMapComponent>();
-            if (mapComp == null) return;
-
-            // 找同图其他 powered 核心，优先给空组最多的
-            var targets = mapComp.GetAllCores()
-                .Where(c => c != this && c.Spawned && c.Powered)
-                .OrderByDescending(c => c.GetCapacity() - c.Ledger.UsedCapacity())
-                .ToList();
-
-            // F2: 旧实现只校验「目标还有 1 个空组」就把整个 key 的量 AddRaw 过去，
-            // 源核心有多种物品时目标会一次吃到远超容量的 key 数。
-            // 现在按「目标空组数」逐 key 转移，且全程不 fire StockChanged（抑制事件），
-            // 转移完再用 OnCoreStateChanged 做一次定向刷账。
-            var keysToTransfer = new List<KeyValuePair<ItemKey, long>>();
-            foreach (var key in ledger.AllKeys().ToList())
+            innerContainer.TryDropAll(Position, map, ThingPlaceMode.Near);
+            if (innerContainer.Count > 0)
             {
-                long amount = ledger.StockOf(key);
-                if (amount > 0) keysToTransfer.Add(new KeyValuePair<ItemKey, long>(key, amount));
+                Log.Error("[DigitalStorage] " + innerContainer.Count
+                    + " 个物品无法落在存储核心脚下（空间不足），将随建筑一起销毁：" + this);
             }
-            if (keysToTransfer.Count == 0) return;
-
-            var overflow = new List<KeyValuePair<ItemKey, long>>();
-
-            ledger.SuppressStockEvents = true;
-            try
-            {
-                foreach (var pair in keysToTransfer)
-                {
-                    var key = pair.Key;
-                    long amount = pair.Value;
-                    if (amount <= 0) continue;
-
-                    foreach (var target in targets)
-                    {
-                        bool alreadyHasKey = target.Ledger.StockOf(key) > 0;
-                        int freeGroups = target.GetCapacity() - target.Ledger.UsedCapacity();
-                        // 新 key 需要占 1 个空组；已有 key 只需要目标没满
-                        if (!alreadyHasKey && freeGroups <= 0) continue;
-                        if (alreadyHasKey && freeGroups < 0) continue;
-
-                        // 转移：先加后扣（X2：修复拆核心再放回库存翻倍）
-                        target.Ledger.AddRawNoNotify(key, amount);
-                        ledger.RemoveRawNoNotify(key, amount);
-                        amount = 0;
-                        break;
-                    }
-
-                    if (amount > 0)
-                        overflow.Add(new KeyValuePair<ItemKey, long>(key, amount));
-                }
-            }
-            finally
-            {
-                ledger.SuppressStockEvents = false;
-            }
-
-            // I6b: 溢出部分加入分帧掉落队列（Enqueue 时同步扣源账本，防止重复）
-            if (overflow.Count > 0)
-            {
-                var dropQueue = map.GetComponent<CoreDestroyDropQueue>();
-                if (dropQueue != null)
-                {
-                    foreach (var pair in overflow)
-                    {
-                        long amount = ledger.StockOf(pair.Key);
-                        if (amount > 0)
-                        {
-                            dropQueue.Enqueue(pair.Key, amount, Position);
-                            ledger.RemoveRaw(pair.Key, amount);
-                        }
-                    }
-                }
-            }
-
-            // 定向刷账：一次处理所有被移除的 key（替代逐次 AddRaw/RemoveRaw 的事件风暴）
-            var ghostIndex = map.GetComponent<Ghost.GhostLedgerIndex>();
-            if (ghostIndex != null)
-                foreach (var pair in keysToTransfer)
-                    ghostIndex.OnKeyChanged(pair.Key);
         }
 
         protected override void ReceiveCompSignal(string signal)
         {
             base.ReceiveCompSignal(signal);
-            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff")
-                Map?.GetComponent<Ghost.GhostLedgerIndex>()?.OnCoreStateChanged(this);
+            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff") Notify_SettingsChanged();
         }
+
+        public override void ExposeData()
+        {
+            base.ExposeData();
+            Scribe_Deep.Look(ref innerContainer, "innerContainer", this);
+            Scribe_Deep.Look(ref storeSettings, "storeSettings", this);
+            Scribe_Values.Look(ref haulSourceEnabled, "haulSourceEnabled", true);
+            Scribe_Values.Look(ref haulDestinationEnabled, "haulDestinationEnabled", true);
+            Scribe_Values.Look(ref maxStacks, "maxStacks", 500);
+            Scribe_Values.Look(ref storagePriorityField, "storagePriority", StoragePriority.Preferred);
+            Scribe_Values.Look(ref allowWeaponsInStorage, "allowWeaponsInStorage", false);
+            // 批 1 过渡：3.0 存档字段（批 3 删）
+            Scribe_Values.Look(ref networkName, "networkName");
+            Scribe_Deep.Look(ref ledger, "ledger");
+
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            {
+                if (ledger == null) ledger = new CoreLedger();
+                if (innerContainer == null) innerContainer = new ThingOwner<Thing>(this);
+                innerContainer.dontTickContents = true;
+                GetStoreSettings();
+                ApplyWeaponFilter();
+            }
+        }
+
+        // ===== 表现 =====
 
         protected override void DrawAt(Vector3 drawLoc, bool flip = false)
         {
@@ -272,6 +408,19 @@ namespace DigitalStorage.Components
             Graphics.DrawMesh(MeshPool.plane10, orbMat, OrbMat, 0);
         }
 
+        public override string GetInspectString()
+        {
+            var sb = new StringBuilder();
+            string baseInspect = base.GetInspectString();
+            if (!string.IsNullOrEmpty(baseInspect)) sb.AppendLine(baseInspect);
+
+            sb.AppendLine("存储核心：" + innerContainer.Count + " 栈 / " + innerContainer.TotalStackCount
+                + " 个单位（上限 " + maxStacks + " 栈）");
+            sb.AppendLine("存储优先级：" + storagePriorityField);
+            if (!Powered) sb.AppendLine("DS_NoPower".Translate());
+            return sb.ToString().TrimEnd();
+        }
+
         public override IEnumerable<Gizmo> GetGizmos()
         {
             foreach (var g in base.GetGizmos()) yield return g;
@@ -280,19 +429,10 @@ namespace DigitalStorage.Components
             {
                 defaultLabel = "DS_StorageFilter".Translate(),
                 defaultDesc = "DS_StorageFilterDesc".Translate(),
-                icon = ContentFinder<UnityEngine.Texture2D>.Get("UI/Commands/SetTargetFuelLevel", true),
+                icon = ContentFinder<Texture2D>.Get("UI/Commands/SetTargetFuelLevel", true),
                 action = () => Find.WindowStack.Add(new UI.Dialog_StorageFilter(this))
             };
 
-            yield return new Command_Action
-            {
-                defaultLabel = "DS_RenameNetwork".Translate(),
-                defaultDesc = "DS_RenameNetworkDesc".Translate(),
-                icon = RenameTex,
-                action = () => Find.WindowStack.Add(new Dialog_RenameNetwork(this))
-            };
-
-            // I5b: 自动收纳开关（研究后可见）
             var autoIngest = GetComp<CompAutoIngest>();
             if (autoIngest != null && autoIngest.IsResearched)
             {
@@ -305,77 +445,6 @@ namespace DigitalStorage.Components
                     toggleAction = () => autoIngest.Enabled = !autoIngest.Enabled
                 };
             }
-
-            // 调试 gizmo：只在开发者模式下显示（社区反馈抱怨 UI 上挂着看不懂的按钮）
-            if (Prefs.DevMode)
-            {
-                yield return new Command_Action
-                {
-                    defaultLabel = "DS_DebugIngestAdjacent".Translate(),
-                    defaultDesc = "DS_DebugIngestAdjacentDesc".Translate(),
-                    icon = TexCommand.ForbidOff,
-                    action = DebugIngestAdjacent
-                };
-            }
-        }
-
-        /// <summary>临时调试：把核心相邻 8 格 + 自身 9 格里所有可吃物品吞进账本。</summary>
-        private void DebugIngestAdjacent()
-        {
-            if (Map == null) return;
-            int cap = GetCapacity();
-            int total = 0;
-            int rejected = 0;
-
-            var cells = new List<IntVec3>();
-            cells.AddRange(GenAdj.CellsOccupiedBy(this));
-            foreach (var c in GenAdj.CellsAdjacent8Way(this)) cells.Add(c);
-
-            foreach (var cell in cells)
-            {
-                if (!cell.InBounds(Map)) continue;
-                var things = Map.thingGrid.ThingsListAtFast(cell);
-                for (int i = things.Count - 1; i >= 0; i--)
-                {
-                    var t = things[i];
-                    if (t.def.category != ThingCategory.Item) continue;
-                    if (!LedgerPolicy.CanIngest(t)) { rejected++; continue; }
-                    if (ledger.Ingest(t, cap)) total++;
-                    else rejected++;
-                }
-            }
-            Messages.Message("DS_DebugIngestResult".Translate(total, rejected), this, MessageTypeDefOf.NeutralEvent);
-        }
-
-        public override void ExposeData()
-        {
-            base.ExposeData();
-            Scribe_Values.Look(ref networkName, "networkName");
-            Scribe_Values.Look(ref storagePriorityField, "storagePriority", StoragePriority.Normal);
-            Scribe_Deep.Look(ref ledger, "ledger");
-            Scribe_Deep.Look(ref storageFilter, "storageFilter");
-            if (Scribe.mode == LoadSaveMode.PostLoadInit && ledger == null)
-            {
-                ledger = new CoreLedger();
-            }
-            if (Scribe.mode == LoadSaveMode.PostLoadInit && storageFilter == null)
-            {
-                // F7: 旧实现 SetAllowAll(null) 会放开全部白名单（连尸体/衣物都放行），
-                // 与 SpawnSetup 的 GetParentFilter() 口径不一致。这里对齐。
-                storageFilter = new ThingFilter();
-                storageFilter.SetAllowAll(GetParentFilter());
-            }
-        }
-
-        public override string GetInspectString()
-        {
-            var sb = new StringBuilder();
-            string baseInspect = base.GetInspectString();
-            if (!string.IsNullOrEmpty(baseInspect)) sb.AppendLine(baseInspect);
-            sb.AppendLine("DS_InspectNetwork".Translate(NetworkName));
-            sb.AppendLine("DS_InspectCapacity".Translate(ledger.UsedCapacity(), GetCapacity()));
-            if (!Powered) sb.AppendLine("DS_NoPower".Translate());
-            return sb.ToString().TrimEnd();
         }
     }
 }
