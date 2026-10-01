@@ -43,6 +43,18 @@ namespace DigitalStorage.Components
 
         private StorageSettings storeSettings;
         private bool haulSourceEnabled = true;
+
+        /// <summary>
+        /// 过滤器 UI 的「父过滤器」= 可选范围的**全集**（静态、只读）。
+        ///
+        /// ⚠️ <b>它必须与 <see cref="StorageFilter"/> 是两个不同的对象。</b>
+        /// <c>ThingFilterUI.DoThingFilterConfigWindow(rect, state, filter, parentFilter, mask)</c>
+        /// 用 parentFilter 建树、用 filter 画勾选。批 1 曾把两者都返回
+        /// <c>GetStoreSettings().filter</c>，结果树的可选范围 = 当前勾选范围 ——
+        /// 取消勾选一个条目，它就从树里消失，玩家再也勾不回来
+        /// （用户实测「被操作过的条目会消失，让我无法操作筛选」）。
+        /// </summary>
+        private static ThingFilter parentFilter;
         private bool haulDestinationEnabled = true;
 
         /// <summary>
@@ -208,7 +220,9 @@ namespace DigitalStorage.Components
             {
                 storeSettings = new StorageSettings(this);
                 // 「全放开」：真实 Thing 存得住什么就存什么（品质/耐久/衣物都行）。
-                storeSettings.filter.SetAllowAll(null);
+                // 用父过滤器而不是 SetAllowAll(null)，让"自己的可选范围"与"UI 显示的全集"
+                // 完全一致 —— 否则过滤器窗口里会出现 UI 看不见/勾不到的条目。
+                storeSettings.filter.SetAllowAll(GetParentFilterPublic());
                 storeSettings.Priority = storagePriorityField;
                 ApplyWeaponFilter();
             }
@@ -304,7 +318,23 @@ namespace DigitalStorage.Components
             if (!hasInterface && Spawned) yield return InteractionCell;
         }
 
-        public ThingFilter GetParentFilterPublic() => GetStoreSettings().filter;
+        /// <summary>
+        /// 可选范围全集：所有 <c>ThingCategory.Item</c> 非尸体 def（「全放开」，LedgerPolicy 白名单已废）。
+        /// 静态缓存。**不要返回 <see cref="StorageFilter"/>** —— 见 parentFilter 字段的注释。
+        /// </summary>
+        public ThingFilter GetParentFilterPublic()
+        {
+            if (parentFilter == null)
+            {
+                parentFilter = new ThingFilter();
+                foreach (ThingDef def in DefDatabase<ThingDef>.AllDefs)
+                {
+                    if (def.category == ThingCategory.Item && !def.IsCorpse)
+                        parentFilter.SetAllow(def, true);
+                }
+            }
+            return parentFilter;
+        }
 
         // ===== 生命周期 =====
 
