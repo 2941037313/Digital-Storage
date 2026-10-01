@@ -228,6 +228,17 @@ namespace DigitalStorage.Diagnostics
                   .Append(" 单位=").Append(held != null ? held.TotalStackCount : -1).AppendLine();
                 sb.Append("     可卖出(真实trader)=").Append(sellableTrader).Append(" 其中白银=").Append(silverTrader)
                   .Append(" | 可卖出(trader=null)=").Append(sellableNull).Append(" 其中白银=").Append(silverNull).AppendLine();
+                // 最后一道闸门：TradeDeal.InSellablePosition（私有）。上一轮诊断只测到 PlayerSellableNow
+                // 就收工，漏了这一道，直接导致误判"全绿"。数字取自 Patch_TradeDeal_InSellablePosition。
+                sb.Append("     末闸 InSellablePosition: 放行=").Append(HarmonyPatches.Patch_TradeDeal_InSellablePosition.PassedContainerItems)
+                  .Append(" 拒绝=").Append(HarmonyPatches.Patch_TradeDeal_InSellablePosition.RejectedContainerItems);
+                string rejectReason = HarmonyPatches.Patch_TradeDeal_InSellablePosition.LastRejectReason;
+                if (!string.IsNullOrEmpty(rejectReason))
+                {
+                    sb.Append(" 拒绝原因=").Append(rejectReason);
+                }
+                sb.AppendLine();
+                HarmonyPatches.Patch_TradeDeal_InSellablePosition.ResetDiagnosticCounters();
                 sb.Append("     ∈listerThings=").Append(Contains(viaListerThings, c))
                   .Append(" ∈allBuildingsColonist=").Append(Contains(viaColonistBuildings, c))
                   .Append(" ∈haulSourceList=").Append(Contains(viaHaulSourceList, c))

@@ -93,6 +93,7 @@
     <Compile Include="HarmonyPatches\Patch_FixBrokenFromStorage.cs" />
     <Compile Include="HarmonyPatches\Patch_FeedFromStorage.cs" />
     <Compile Include="HarmonyPatches\Patch_OrbitalTradeBeacon.cs" />
+    <Compile Include="HarmonyPatches\Patch_TradeDeal_InSellablePosition.cs" />
     <Compile Include="HarmonyPatches\Patch_HaulAIUtility.cs" />
     <Compile Include="HarmonyPatches\Patch_JobDriver_Equip.cs" />
     <Compile Include="HarmonyPatches\Patch_TradeDiagnostics.cs" />
