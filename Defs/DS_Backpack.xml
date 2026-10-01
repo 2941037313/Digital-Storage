@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <!--
+    「背包」：挂在 pawn 身上的 ThingOwner（见 HediffComp_Backpack）。
+    由 Patch_AutoImplantBackpack 自动植入每个殖民者 / 殖民地机械族，不是手术植入物。
+    纯实验版 hediff：无阶段、无日恢复，只当 comp 的载体。
+  -->
+  <HediffDef>
+    <defName>DS_CoreBackpack</defName>
+    <label>数字存储背包</label>
+    <description>随身接入数字存储核心的接口。按需从核心取出所需材料，用完归还，背包默认清空。</description>
+    <hediffClass>HediffWithComps</hediffClass>
+    <isBad>false</isBad>
+    <initialSeverity>1</initialSeverity>
+    <maxSeverity>1</maxSeverity>
+    <comps>
+      <li Class="DigitalStorage.Backpack.HediffCompProperties_Backpack">
+        <capacityStacks>4</capacityStacks>
+      </li>
+    </comps>
+  </HediffDef>
+</Defs>

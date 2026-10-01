@@ -76,6 +76,10 @@
 
     <Compile Include="Effects\Mote_DS_IngestBeam.cs" />
 
+    <Compile Include="Backpack\HediffComp_Backpack.cs" />
+    <Compile Include="Backpack\Patch_AutoImplantBackpack.cs" />
+    <Compile Include="Backpack\BackpackDebugActions.cs" />
+
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
     <Compile Include="UI\Dialog_StorageFilter.cs" />
