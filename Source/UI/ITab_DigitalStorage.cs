@@ -128,7 +128,10 @@ namespace DigitalStorage.UI
                     Rect btnR = new Rect(row.xMax - 100f, row.y, 100f, 22f);
                     if (Widgets.ButtonText(btnR, "DS_WithdrawBtn".Translate()))
                     {
-                        Find.WindowStack.Add(new Dialog_WithdrawAmount(core, kv.Key));
+                        // 4.0：Dialog_WithdrawAmount 已改为 def 口径（见其类注释）。
+                        // 本 ITab 仍是账本口径，等批 3 换成"容器内容物面板"时一并重写。
+                        Find.WindowStack.Add(new Dialog_WithdrawAmount(core, kv.Key.def,
+                            (int)System.Math.Min(avail, int.MaxValue)));
                     }
 
                     ly += 26f;

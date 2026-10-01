@@ -63,7 +63,6 @@
     <Compile Include="Components\Building_BufferWarehouse.cs" />
     <Compile Include="Components\Building_BufferWarehouse_UI.cs" />
     <Compile Include="Components\Building_StorageCore.cs" />
-    <Compile Include="Components\Building_InputInterface.cs" />
     <Compile Include="Components\DigitalStorageMapComponent.cs" />
     <Compile Include="Components\Dialog_RenameNetwork.cs" />
     <Compile Include="Components\Hediff_TerminalImplant.cs" />
@@ -95,7 +94,6 @@
     <Compile Include="AI\FoodScoring.cs" />
     <Compile Include="AI\JobDriver_DS_Consume.cs" />
     <Compile Include="AI\CoreFinder.cs" />
-    <Compile Include="AI\JobDriver_DS_ReserveHelper.cs" />
 
     <Compile Include="UI\ITab_BufferWarehouse.cs" />
     <Compile Include="UI\ITab_DigitalStorage.cs" />

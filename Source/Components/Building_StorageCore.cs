@@ -289,35 +289,6 @@ namespace DigitalStorage.Components
             set => networkName = value;
         }
 
-        private readonly List<Building_InputInterface> interfaces = new List<Building_InputInterface>();
-        public IReadOnlyList<Building_InputInterface> Interfaces => interfaces;
-
-        public void RegisterInterface(Building_InputInterface iface)
-        {
-            if (iface != null && !interfaces.Contains(iface)) interfaces.Add(iface);
-        }
-
-        public void DeregisterInterface(Building_InputInterface iface)
-        {
-            if (iface != null) interfaces.Remove(iface);
-        }
-
-        /// <summary>代理点 = 已连接接口的位置；没有接口时用自身交互格。</summary>
-        public IEnumerable<IntVec3> GetProxyCells()
-        {
-            bool hasInterface = false;
-            for (int i = 0; i < interfaces.Count; i++)
-            {
-                Building_InputInterface iface = interfaces[i];
-                if (iface != null && iface.Spawned)
-                {
-                    hasInterface = true;
-                    yield return iface.Position;
-                }
-            }
-            if (!hasInterface && Spawned) yield return InteractionCell;
-        }
-
         /// <summary>
         /// 可选范围全集：所有 <c>ThingCategory.Item</c> 非尸体 def（「全放开」，LedgerPolicy 白名单已废）。
         /// 静态缓存。**不要返回 <see cref="StorageFilter"/>** —— 见 parentFilter 字段的注释。

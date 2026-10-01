@@ -145,17 +145,24 @@ namespace DigitalStorage.Core
         /// </summary>
         public static Thing ExtractToFeet(Thing t, int count, Pawn pawn)
         {
-            if (t == null || t.Destroyed || pawn == null) return null;
-            Map map = pawn.Map;
-            if (map == null) return null;
-            if (count <= 0) return null;
+            if (pawn == null) return null;
+            return ExtractTo(t, count, pawn.Position, pawn.Map);
+        }
+
+        /// <summary>
+        /// <see cref="ExtractToFeet"/> 的通用形态：取出后落到 <paramref name="pos"/>。
+        /// 与 pawn 解耦，供 ITab / 其它非 job 场景复用。
+        /// </summary>
+        public static Thing ExtractTo(Thing t, int count, IntVec3 pos, Map map)
+        {
+            if (t == null || t.Destroyed || map == null) return null;
+            if (count <= 0 || !pos.IsValid) return null;
 
             IThingHolder holder = t.ParentHolder as IThingHolder;
             if (holder == null) return null;
             ThingOwner owner = holder.GetDirectlyHeldThings();
             if (owner == null || !owner.Contains(t)) return null;
 
-            // 只在容器里还有同 def 的其它堆时才有意义；先算实际能取多少。
             int take = Math.Min(count, t.stackCount);
             if (take <= 0) return null;
 
@@ -173,16 +180,47 @@ namespace DigitalStorage.Core
             }
             if (taken == null) return null;
 
-            if (!GenPlace.TryPlaceThing(taken, pawn.Position, map, ThingPlaceMode.Near, null, null, default))
+            if (!GenPlace.TryPlaceThing(taken, pos, map, ThingPlaceMode.Near, null, null, default))
             {
-                // 脚下放不下 → 退回容器，避免物品消失
+                // 放不下 → 退回容器，避免物品消失
                 if (!owner.TryAdd(taken, true))
-                    GenPlace.TryPlaceThing(taken, pawn.Position, map, ThingPlaceMode.Near);
+                    GenPlace.TryPlaceThing(taken, pos, map, ThingPlaceMode.Near);
                 return null;
             }
 
             Components.CompAutoIngest.MarkWithdrawn(taken);
             return taken;
+        }
+
+        /// <summary>
+        /// 从容器里凑齐 <paramref name="count"/> 个 <paramref name="def"/>，逐个落到
+        /// <paramref name="pos"/>，返回实际取出的总数。
+        ///
+        /// <para>用于 ITab 面板的"取出"按钮 —— 原版 UI 不知道我们的容器，
+        /// 而 job 路径只认「一件 Thing」，凑多堆得在这里做。</para>
+        ///
+        /// <para><paramref name="forbid"/>：取出后设为禁止（3.0 语义）。防止刚取出来就被
+        /// 原版搬运工或自动收纳送回去，形成"取—送"死循环。</para>
+        /// </summary>
+        public static int ExtractDefTo(ThingDef def, int count, IntVec3 pos, Map map, bool forbid = true)
+        {
+            if (def == null || count <= 0 || map == null) return 0;
+
+            int got = 0;
+            while (got < count)
+            {
+                // 每次重新找最大堆：上一轮可能已把它取空
+                Thing next = FindBest(map, t => t.stackCount, t => t.def == def);
+                if (next == null) break;
+
+                int want = Math.Min(count - got, next.stackCount);
+                Thing taken = ExtractTo(next, want, pos, map);
+                if (taken == null) break; // 放不下 → 停止，避免死循环
+
+                if (forbid) taken.SetForbidden(true, false);
+                got += taken.stackCount;
+            }
+            return got;
         }
     }
 }

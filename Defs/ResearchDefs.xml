@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
   <!-- 研究页签 -->
@@ -23,21 +23,8 @@
     <researchViewY>2</researchViewY>
   </ResearchProjectDef>
 
-  <!-- 接口研究 -->
-  <ResearchProjectDef>
-    <defName>DigitalStorage_Interface</defName>
-    <label>数字存储接口</label>
-    <description>解锁存储接口。接口 3x3 范围内的殖民者可以隔空存取物品。</description>
-    <baseCost>2000</baseCost>
-    <techLevel>Industrial</techLevel>
-    <prerequisites>
-      <li>DigitalStorage_BasicStorage</li>
-    </prerequisites>
-    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
-    <tab>DigitalStorage_Tab</tab>
-    <researchViewX>1</researchViewX>
-    <researchViewY>2</researchViewY>
-  </ResearchProjectDef>
+  <!-- 4.0：数字存储接口研究已删（接口建筑砍掉，产品决策「核心一放就是完全体」）。
+       原先依赖它的终端植入体研究与自动收纳 I 研究改为直接依赖基础数字存储。 -->
 
   <!-- 终端植入体研究 -->
   <ResearchProjectDef>
@@ -47,7 +34,7 @@
     <baseCost>3000</baseCost>
     <techLevel>Spacer</techLevel>
     <prerequisites>
-      <li>DigitalStorage_Interface</li>
+      <li>DigitalStorage_BasicStorage</li>
     </prerequisites>
     <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
     <tab>DigitalStorage_Tab</tab>
@@ -63,7 +50,7 @@
     <baseCost>1000</baseCost>
     <techLevel>Spacer</techLevel>
     <prerequisites>
-      <li>DigitalStorage_Interface</li>
+      <li>DigitalStorage_BasicStorage</li>
     </prerequisites>
     <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
     <tab>DigitalStorage_Tab</tab>

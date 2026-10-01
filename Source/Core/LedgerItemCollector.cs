@@ -59,11 +59,9 @@ namespace DigitalStorage.Core
 
                     bool hasPeer = result.Exists(lc =>
                         CoreFinder.IsUsable(lc) && lc.NetworkName == c.NetworkName);
-                    if (!hasPeer && includeCrossMapInterfaces)
-                    {
-                        foreach (var cell in c.GetProxyCells())
-                            if (cell.InBounds(map)) { hasPeer = true; break; }
-                    }
+                    // 4.0 删了接口建筑（Building_InputInterface / GetProxyCells 已移除）：
+                    // 跨图核心现在只认「本地有同 NetworkName 的核心」这一条路。
+                    // 整个跨图逻辑在批 3 随账本一起删。
                     if (hasPeer) result.Add(c);
                 }
             }

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
 
   <!-- ========== Building_StorageCore ========== -->
@@ -29,7 +29,7 @@
 
   <!-- ========== Float menu ========== -->
   <DS_WithdrawToSpot>Withdraw from digital storage…</DS_WithdrawToSpot>
-  <DS_WithdrawItemLabel>{0} ({1} available, from {2})</DS_WithdrawItemLabel>
+  <DS_WithdrawItemLabel>{0} ({1} available)</DS_WithdrawItemLabel>
   <DS_NoPathToCore>No path to storage core.</DS_NoPathToCore>
   <DS_WithdrawCarryLimit>Pawn can carry: {0}</DS_WithdrawCarryLimit>
   <DS_ReportConsuming>Consuming {0} from digital storage.</DS_ReportConsuming>

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
 
   <!-- ========== Building_StorageCore ========== -->
@@ -29,7 +29,7 @@
 
   <!-- ========== 右键菜单 ========== -->
   <DS_WithdrawToSpot>从数字存储取出…</DS_WithdrawToSpot>
-  <DS_WithdrawItemLabel>{0}（可用 {1}，来自 {2}）</DS_WithdrawItemLabel>
+  <DS_WithdrawItemLabel>{0}（可用 {1}）</DS_WithdrawItemLabel>
   <DS_NoPathToCore>无法到达存储核心。</DS_NoPathToCore>
   <DS_WithdrawCarryLimit>pawn 可搬运: {0}</DS_WithdrawCarryLimit>
   <DS_ReportConsuming>从数字存储取用 {0}。</DS_ReportConsuming>

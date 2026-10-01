@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
   <!-- 数字存储建筑基类 -->
@@ -144,42 +144,8 @@
     </costList>
   </ThingDef>
 
-  <!-- 输入接口 - 物品放上去自动传送到核心 -->
-  <ThingDef ParentName="DigitalStorage_BuildingBase">
-    <defName>DigitalStorage_InputInterface</defName>
-    <label>数字存储接口</label>
-    <description>数字存储系统的接入点。殖民者可以走到这里存取核心网络中的物品。\n\n可手动选择连接目标核心，支持跨地图连接。</description>
-    <thingClass>DigitalStorage.Components.Building_InputInterface</thingClass>
-    <graphicData>
-      <texPath>接口</texPath>
-      <graphicClass>Graphic_Single</graphicClass>
-      <shaderType>CutoutComplex</shaderType>
-      <drawSize>(1,1)</drawSize>
-    </graphicData>
-    <uiIconScale>0.9</uiIconScale>
-    <fillPercent>0.4</fillPercent>
-    <statBases>
-      <MaxHitPoints>150</MaxHitPoints>
-      <WorkToBuild>1000</WorkToBuild>
-      <Mass>20</Mass>
-    </statBases>
-    <size>(1,1)</size>
-    <comps>
-      <li Class="CompProperties_Power">
-        <compClass>CompPowerTrader</compClass>
-        <basePowerConsumption>50</basePowerConsumption>
-        <shortCircuitInRain>true</shortCircuitInRain>
-      </li>
-    </comps>
-    <researchPrerequisites>
-      <li>DigitalStorage_Interface</li>
-    </researchPrerequisites>
-    <costList>
-      <Steel>50</Steel>
-      <Plasteel>25</Plasteel>
-      <ComponentIndustrial>5</ComponentIndustrial>
-    </costList>
-  </ThingDef>
+  <!-- 4.0：输入接口建筑已删（产品决策「砍接口建筑：核心一放就是完全体」）。
+       原先的「代理点 / 走接口取物」机制随之作废，改为纯轮椅（任何位置隔空存取）。 -->
 
   <!-- 缓冲仓库 —— 物理存储桥接层，物品在 SlotGroup 真实存在，兼容所有 mod -->
   <ThingDef ParentName="BuildingBase">
