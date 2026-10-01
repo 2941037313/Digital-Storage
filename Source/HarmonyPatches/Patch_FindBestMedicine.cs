@@ -1,6 +1,4 @@
 using System;
-using DigitalStorage.AI;
-using DigitalStorage.Components;
 using DigitalStorage.Core;
 using HarmonyLib;
 using RimWorld;
@@ -9,21 +7,24 @@ using Verse;
 namespace DigitalStorage.HarmonyPatches
 {
     /// <summary>
-    /// G1：治疗时账本取药。Postfix HealthAIUtility.FindBestMedicine。
-    /// 原版返回 null（地图无药）→ 扫账本 → Withdraw → 芯片直塞背包 / 无芯片 spawn 脚下。
-    /// 药品优先级按 MedicalPotency 排序（闪耀药 > 普通药 > 草药），同时受患者 medCare 策略约束。
+    /// G1：治疗时从容器取药。Postfix <c>HealthAIUtility.FindBestMedicine</c>。
+    ///
+    /// 原版返回 null（地图上没药）→ 扫容器 → 取出放到治疗者脚下 → 原版 tend job 照跑。
+    ///
+    /// 药品优先级按 <c>MedicalPotency</c> 排序（闪耀药 &gt; 普通药 &gt; 草药），
+    /// 同时受患者 <c>medCare</c> 策略约束。
+    ///
+    /// <b>为什么必须"取出来给它"</b>：原版这个方法既没有 <c>lookInHaulSources</c> 参数，
+    /// 下游的 <c>JobDriver_TendPatient</c> 也没有 <c>canGotoSpawnedParent</c> ——
+    /// 原版根本走不到容器内容物。取出后原版 job 语义一字不改。
     /// </summary>
     [HarmonyPatch(typeof(HealthAIUtility), "FindBestMedicine")]
     static class Patch_FindBestMedicine
     {
         static void Postfix(Pawn healer, Pawn patient, bool onlyUseInventory, ref Thing __result)
         {
-            if (__result is Ghost.GhostThing) __result = null;
             if (__result != null || onlyUseInventory) return;
             if (healer?.Map == null || patient == null) return;
-
-            var accesses = CoreFinder.AllUsableAccesses(healer);
-            if (accesses.Count == 0) return;
 
             MedicalCareCategory medCare = patient.playerSettings?.medCare ?? MedicalCareCategory.NoMeds;
             if (medCare <= MedicalCareCategory.NoMeds) return;
@@ -31,67 +32,15 @@ namespace DigitalStorage.HarmonyPatches
             int needed = Medicine.GetMedicineCountToFullyHeal(patient);
             if (needed <= 0) return;
 
-            // 扫所有核心账本，找品质最高的药品
-            ItemKey? bestKey = null;
-            float bestPotency = float.MinValue;
-            Building_StorageCore bestCore = null;
-            long bestAvail = 0;
+            Thing best = HaulSourceContents.FindBest(
+                healer.Map,
+                t => t.def.GetStatValueAbstract(StatDefOf.MedicalPotency),
+                t => t.def.IsMedicine && medCare.AllowsMedicine(t.def));
 
-            foreach (var access in accesses)
-            {
-                foreach (var kv in access.ledgerCore.Ledger.Stock)
-                {
-                    if (kv.Value <= 0) continue;
-                    var def = kv.Key.def;
-                    if (def == null || !def.IsMedicine) continue;
-                    if (!medCare.AllowsMedicine(def)) continue;
+            if (best == null) return;
 
-                    long avail = access.ledgerCore.Ledger.Available(kv.Key);
-                    if (avail <= 0) continue;
-
-                    float potency = def.GetStatValueAbstract(StatDefOf.MedicalPotency);
-                    if (potency > bestPotency)
-                    {
-                        bestPotency = potency;
-                        bestKey = kv.Key;
-                        bestCore = access.ledgerCore;
-                        bestAvail = avail;
-                    }
-                }
-            }
-
-            if (bestKey == null || bestCore == null) return;
-
-            int take = Math.Min((int)bestAvail, needed);
-            if (take <= 0) return;
-
-            var thing = bestCore.Ledger.Withdraw(bestKey.Value, take);
-            if (thing == null) return;
-
-            if (Hediff_TerminalImplant.HasTerminalImplant(healer))
-            {
-                // 芯片 pawn：药直塞背包，跳过取药行走
-                if (!healer.inventory.innerContainer.TryAdd(thing, true))
-                {
-                    // 背包满 → 退回账本（修复 I10.01.8：扣账后早退丢药）
-                    bestCore.Ledger.AddRaw(bestKey.Value, thing.stackCount);
-                    if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
-                    return;
-                }
-            }
-            else
-            {
-                // 无芯片：药生成在脚下，就近捡起
-                if (!GenPlace.TryPlaceThing(thing, healer.Position, healer.Map, ThingPlaceMode.Near, null, null, default))
-                {
-                    bestCore.Ledger.AddRaw(bestKey.Value, thing.stackCount);
-                    if (!thing.Destroyed) thing.Destroy(DestroyMode.Vanish);
-                    return;
-                }
-                CompAutoIngest.MarkWithdrawn(thing);
-            }
-
-            __result = thing;
+            Thing taken = HaulSourceContents.ExtractToFeet(best, needed, healer);
+            if (taken != null) __result = taken;
         }
     }
 }

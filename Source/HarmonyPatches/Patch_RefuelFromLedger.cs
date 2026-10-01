@@ -1,6 +1,4 @@
-using System.Linq;
-using DigitalStorage.AI;
-using DigitalStorage.Components;
+using System;
 using DigitalStorage.Core;
 using HarmonyLib;
 using RimWorld;
@@ -9,9 +7,14 @@ using Verse;
 namespace DigitalStorage.HarmonyPatches
 {
     /// <summary>
-    /// G2: 补充燃料从账本取。
-    /// RefuelWorkGiverUtility.FindBestFuel 只在 map 上搜索燃料，
-    /// 此 Postfix 在 map 无燃料时查账本 → Withdraw → spawn 脚下。
+    /// G2: 补充燃料从容器取。
+    ///
+    /// <c>RefuelWorkGiverUtility.FindBestFuel</c> 是 <b>private static</b>，
+    /// 内部裸 <c>GenClosest.ClosestThingReachable(...)</c> <b>没传 <c>lookInHaulSources</c></b>
+    /// → 只在 map 上找燃料 → 此 Postfix 在找不到时扫容器 → 取出放脚下。
+    ///
+    /// 下游 <c>JobDriver_Refuel</c> / <c>RefuelAtomic</c> 没有 <c>canGotoSpawnedParent</c>，
+    /// 所以必须取出，不能让原版自己去容器里拿。
     /// </summary>
     [HarmonyPatch(typeof(RefuelWorkGiverUtility), "FindBestFuel")]
     [HarmonyPatch(new[] { typeof(Pawn), typeof(Thing) })]
@@ -19,47 +22,24 @@ namespace DigitalStorage.HarmonyPatches
     {
         static void Postfix(Pawn pawn, Thing refuelable, ref Thing __result)
         {
+            // 过渡期：其它补丁（Patch_OrbitalTradeBeacon）还会返回账本 GhostThing，那不是真东西。
             if (__result is Ghost.GhostThing) __result = null;
             if (__result != null || pawn?.Map == null || refuelable == null) return;
 
-            var comp = refuelable.TryGetComp<CompRefuelable>();
+            CompRefuelable comp = refuelable.TryGetComp<CompRefuelable>();
             if (comp == null) return;
 
-            var filter = comp.Props.fuelFilter;
+            ThingFilter filter = comp.Props.fuelFilter;
             if (filter == null) return;
 
-            var accesses = CoreFinder.AllUsableAccesses(pawn);
-            if (accesses.Count == 0) return;
+            int needed = comp.GetFuelCountToFullyRefuel();
+            if (needed <= 0) return;
 
-            // 找燃料：任何通过 fuelFilter 的 ThingDef
-            foreach (var access in accesses)
-            {
-                foreach (var kv in access.ledgerCore.Ledger.Stock)
-                {
-                    if (kv.Value <= 0 || kv.Key.def == null) continue;
-                    if (!filter.Allows(kv.Key.def)) continue;
+            Thing best = HaulSourceContents.FindBest(pawn.Map, null, t => filter.Allows(t.def));
+            if (best == null) return;
 
-                    long avail = access.ledgerCore.Ledger.Available(kv.Key);
-                    if (avail <= 0) continue;
-
-                    int needed = comp.GetFuelCountToFullyRefuel();
-                    if (needed <= 0) continue;
-                    int take = System.Math.Min(needed, (int)System.Math.Min(avail, (long)int.MaxValue));
-                    var thing = access.ledgerCore.Ledger.Withdraw(kv.Key, take);
-                    if (thing == null) continue;
-
-                    // 统一 spawn 脚下：FindBestFuel 只扫地图不扫背包，芯片也无法走背包捷径
-                    if (GenPlace.TryPlaceThing(thing, pawn.Position, pawn.Map, ThingPlaceMode.Near, null, null, default))
-                    {
-                        CompAutoIngest.MarkWithdrawn(thing);
-                        __result = thing;
-                        return;
-                    }
-                    // spawn 失败 → 退回账本
-                    access.ledgerCore.Ledger.AddRaw(kv.Key, take);
-                    thing.Destroy(DestroyMode.Vanish);
-                }
-            }
+            Thing taken = HaulSourceContents.ExtractToFeet(best, needed, pawn);
+            if (taken != null) __result = taken;
         }
     }
 }
