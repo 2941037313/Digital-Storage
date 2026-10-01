@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DigitalStorage.AI;
 using DigitalStorage.Components;
 using HarmonyLib;
@@ -19,19 +20,29 @@ namespace DigitalStorage.HarmonyPatches
         static void Postfix(Pawn pawn, ref Job __result)
         {
             bool debug = DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog
-                         && ConsumePatchUtil.ShouldLog();
+                         && ConsumePatchUtil.ShouldLog("GetFood");
             if (debug)
-                Log.Warning("[DS] GetFood: postfix entered, vanilla __result=" + (__result != null ? "non-null" : "null"));
+                Log.Warning("[DS] GetFood: entered, vanilla __result=" + (__result != null ? "non-null" : "null"));
             if (__result != null)
             {
                 // 目标住在容器里 → 原版那条消耗链执行不了，改由我们接管（否则静默卡死）
                 if (!ConsumePatchUtil.IsUnexecutableContainerTarget(__result)) return;
                 __result = null;
             }
-            if (!ConsumePatchUtil.ShouldTry(pawn)) return;
-            if (!CanUseCoreFood(pawn)) return;
+            if (!ConsumePatchUtil.ShouldTry(pawn))
+            {
+                if (debug) Log.Warning("[DS] GetFood: ShouldTry=false（同 tick 刚失败 / 已有本 mod 作业）");
+                return;
+            }
+            if (!CanUseCoreFood(pawn))
+            {
+                if (debug) Log.Warning("[DS] GetFood: CanUseCoreFood=false（食物需求为空 / 派系与囚犯判定没过）");
+                return;
+            }
             __result = ConsumptionHelper.TryCreateJob(pawn,
                 t => t.def.IsNutritionGivingIngestible);
+            if (debug) Log.Warning("[DS] GetFood: "
+                + (__result != null ? "job created" : "null") + " (" + ConsumptionHelper.LastFailReason + ")");
         }
 
         private static bool CanUseCoreFood(Pawn pawn)
@@ -56,7 +67,7 @@ namespace DigitalStorage.HarmonyPatches
         {
             bool debug = DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog;
 
-            if (debug && ConsumePatchUtil.ShouldLog())
+            if (debug && ConsumePatchUtil.ShouldLog("TakeDrugs"))
                 Log.Warning("[DS] TakeDrugs: postfix entered, vanilla __result=" + (__result != null ? "non-null" : "null"));
 
             // 原版可能自己返回了作业，但目标住在容器里 —— JobDriver_Ingest 那条链没有
@@ -122,15 +133,17 @@ namespace DigitalStorage.HarmonyPatches
     static class ConsumePatchUtil
     {
         /// <summary>
-        /// 诊断日志节流：同一个 tick 内最多打一条，且两条之间至少隔 60 tick。
-        /// （每 tick 打会刷爆日志，而"完全看不到日志"恰恰是我们现在要排除的状态。）
+        /// 诊断日志节流：**按 key 分别记**（同 tick 最多一条、两条之间 >= 60 tick）。
+        /// 早先版本是全局共用一个名额，结果 GetFood 先占了，TakeDrugs 就被压掉了 —— 那正是
+        /// 「只有一条日志」的原因。每个 patch 有独立名额才不会互相掩盖。
         /// </summary>
-        private static int lastLogTick = -100000;
-        public static bool ShouldLog()
+        private static readonly Dictionary<string, int> lastLogTickByKey = new Dictionary<string, int>();
+        public static bool ShouldLog(string key)
         {
             int tick = Find.TickManager.TicksGame;
-            if (tick - lastLogTick < 60) return false;
-            lastLogTick = tick;
+            int last;
+            if (lastLogTickByKey.TryGetValue(key, out last) && tick - last < 60) return false;
+            lastLogTickByKey[key] = tick;
             return true;
         }
 
