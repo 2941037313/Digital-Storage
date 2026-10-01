@@ -12,22 +12,18 @@ namespace DigitalStorage.Backpack
     /// <summary>
     /// 【临时诊断】背包取料链的探针。定位完就整文件删除。
     ///
-    /// <para>用户报「让殖民者制作东西，殖民者还是前往核心而不是走背包」，但静态读源码
-    /// 每一道门都成立（<c>ParentHolder</c> 确实是核心、<c>SpawnedParentOrMe</c> 确实是小人、
-    /// 读档确实会调 <c>Pawn.SpawnSetup</c>）。所以不再推断，让运行时说实话：
-    /// <list type="number">
-    /// <item>启动时汇报关键挂点的 patch 数 —— 直接回答"补丁到底挂上没有"
-    ///   （<c>Harmony.PatchAll</c> 里任一补丁抛异常，它**后面**的补丁就全不挂，
-    ///   所以不能假设挂上了）</item>
-    /// <item>取料 toil 每次执行打印全部门值 + 每件料的处置</item>
-    /// <item><c>JobDriver_HaulToContainer</c> 目的地是我们的核心时打印一行 ——
-    ///   覆盖"搬空工作台 / 搬货入库"这条也会走到核心的路</item>
-    /// </list></para>
+    /// <para>2026-10-02 事故：曾按名字 patch <c>Toils_Goto.GotoThing</c>，而它有**两个重载**
+    /// ⇒ <c>AmbiguousMatchException</c> 抛在 <c>HarmonyInit</c> 静态构造里 ⇒
+    /// <b><c>PatchAll</c> 中断，它之后的所有补丁全部静默不挂</b>（整个 mod 半死不活）。
+    /// 所以现在这里有一条<b>挂点审计</b>：逐条 try/catch，把"没挂上"和"歧义"都打出来。</para>
     ///
     /// <para>开关：开发者模式 或 Mod 设置里的「启用调试日志」。全部走 <c>Log.Warning</c>。</para>
     /// </summary>
     internal static class BackpackDiag
     {
+        /// <summary>与 <c>HarmonyInit</c> 里 new Harmony(...) 的 id 必须一致。</summary>
+        public const string HarmonyId = "DigitalStorage.HarmonyPatches";
+
         public static bool On
         {
             get { return Prefs.DevMode || DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog; }
@@ -38,75 +34,100 @@ namespace DigitalStorage.Backpack
             if (On) Log.Warning("[DS-BAG] " + msg);
         }
 
-        /// <summary>启动时汇报挂点状态。补丁没挂上时这是唯一能说话的地方。</summary>
+        /// <summary>
+        /// 启动时审计本 mod 的每个挂点。**本方法在 HarmonyInit 静态构造里被调用，
+        /// 因此自身绝不能抛异常** —— 全程 try/catch。
+        /// </summary>
         public static void ReportPatchState()
         {
             if (!On) return;
 
-            var sb = new StringBuilder();
-            sb.AppendLine("[DS-BAG] ==== Harmony 挂点状态 ====");
-            Append(sb, typeof(JobDriver_DoBill), "MakeNewToils");
-            Append(sb, typeof(JobDriver_HaulToContainer), "MakeNewToils");
-            Append(sb, typeof(Pawn), "SpawnSetup");
-            Append(sb, typeof(Pawn), "Kill");
-            Append(sb, typeof(Pawn_GuestTracker), "SetGuestStatus");
-            Log.Warning(sb.ToString());
-        }
-
-        private static void Append(StringBuilder sb, System.Type type, string method)
-        {
-            MethodInfo mi = AccessTools.Method(type, method);
-            if (mi == null)
+            try
             {
-                sb.AppendLine("  " + type.Name + "." + method + " —— **方法没找到**");
-                return;
+                var sb = new StringBuilder();
+                sb.AppendLine("[DS-BAG] ==== 本 mod Harmony 挂点审计（ours = 本 mod 挂上的条数） ====");
+                int bad = 0;
+
+                bad += Check(sb, typeof(JobDriver_DoBill), "MakeNewToils");
+                bad += Check(sb, typeof(JobDriver_HaulToContainer), "MakeNewToils");
+                bad += Check(sb, typeof(WorkGiverUtility), "HaulStuffOffBillGiverJob");
+                bad += Check(sb, typeof(Pawn), "SpawnSetup");
+                bad += Check(sb, typeof(Pawn), "Kill");
+                bad += Check(sb, typeof(Pawn_GuestTracker), "SetGuestStatus");
+                bad += Check(sb, typeof(JobGiver_GetFood), "TryGiveJob");
+                bad += Check(sb, typeof(JobGiver_TakeDrugsForDrugPolicy), "TryGiveJob");
+                bad += Check(sb, typeof(JoyGiver_Ingest), "TryGiveJob");
+                bad += Check(sb, typeof(JobGiver_SatisfyChemicalNeed), "TryGiveJob");
+                bad += Check(sb, typeof(JobGiver_SatifyChemicalDependency), "TryGiveJob");
+                bad += Check(sb, typeof(JoyGiver_TakeDrug), "BestIngestItem");
+                bad += Check(sb, typeof(FoodUtility), "TryFindBestFoodSourceFor");
+                bad += Check(sb, typeof(HealthAIUtility), "FindBestMedicine");
+                bad += Check(sb, typeof(HaulAIUtility), "PawnCanAutomaticallyHaul");
+                bad += Check(sb, typeof(HaulAIUtility), "PawnCanAutomaticallyHaulFast");
+                bad += Check(sb, typeof(JobDriver_Equip), "Notify_Starting");
+                bad += Check(sb, typeof(JobDriver_Equip), "MakeNewToils");
+                bad += Check(sb, typeof(TradeUtility), "AllLaunchableThingsForTrade");
+                bad += Check(sb, typeof(TradeDeal), "InSellablePosition");
+                bad += Check(sb, typeof(ResourceCounter), "UpdateResourceCounts");
+                bad += Check(sb, typeof(Designator_Build), "ProcessInput");
+
+                sb.AppendLine("  —— ours=0 / 异常 的条目数 = " + bad + "（>0 就是有挂点没挂上）");
+                Log.Warning(sb.ToString());
             }
-
-            Patches info = Harmony.GetPatchInfo(mi);
-            int pre = (info == null || info.Prefixes == null) ? 0 : info.Prefixes.Count;
-            int post = (info == null || info.Postfixes == null) ? 0 : info.Postfixes.Count;
-            sb.AppendLine("  " + type.Name + "." + method + " prefix=" + pre + " postfix=" + post);
-        }
-    }
-
-    /// <summary>
-    /// 诊断：**用原版自己的那条 toil** 验证"走到 X"会把 dest 解析成谁。
-    ///
-    /// <para><c>Toils_Goto.GotoThing(..., canGotoSpawnedParent: true)</c> 的 dest 在
-    /// toil 的 initAction 里才取 <c>SpawnedParentOrMe</c>（<c>Toils_Goto.cs:20</c>）。
-    /// 用户看到的"为取料走向核心"如果成立，这里就会在 `job=DoBill` 而 dest 解析成核心时打出 ★。
-    /// 反过来说：**只要 ★ 一次都没出现，bill 的取料就真的没走向核心**，往核心走的是别的作业。</para>
-    ///
-    /// <para>只在诊断开关打开时才包装 initAction（release 下零影响），且原 initAction 照常调用。</para>
-    /// </summary>
-    [HarmonyPatch(typeof(Toils_Goto), "GotoThing")]
-    internal static class Patch_Diag_GotoSpawnedParent
-    {
-        [HarmonyPostfix]
-        private static void Postfix(TargetIndex ind, bool canGotoSpawnedParent, ref Toil __result)
-        {
-            if (!BackpackDiag.On || !canGotoSpawnedParent || __result == null) return;
-
-            Toil toil = __result;
-            Action original = toil.initAction;
-            toil.initAction = delegate
+            catch (Exception e)
             {
-                Pawn actor = toil.actor;
-                Job job = (actor == null || actor.jobs == null) ? null : actor.jobs.curJob;
-                Thing thing = (job == null) ? null : job.GetTarget(ind).Thing;
-                Thing dest = (thing == null) ? null : thing.SpawnedParentOrMe;
+                Log.Warning("[DS-BAG] 挂点审计自身异常（已忽略）：" + e);
+            }
+        }
 
-                if (dest is Building_StorageCore)
+        private static int Check(StringBuilder sb, Type type, string method)
+        {
+            try
+            {
+                MethodInfo mi = AccessTools.Method(type, method);
+                if (mi == null)
                 {
-                    BackpackDiag.Say("★ 往核心寻路：pawn=" + (actor == null ? "?" : actor.LabelShortCap)
-                        + " job=" + (job == null ? "?" : job.def.defName)
-                        + " 目标=" + (thing == null ? "?" : thing.LabelShort)
-                        + " dest=" + dest.LabelShort
-                        + "（背包里那个应该解析成小人自己才会是 0 距离）");
+                    sb.AppendLine("  " + type.Name + "." + method + " —— 方法没找到");
+                    return 1;
                 }
 
-                if (original != null) original();
-            };
+                Patches info = Harmony.GetPatchInfo(mi);
+                int ours = CountOurs(info == null ? null : info.Prefixes)
+                         + CountOurs(info == null ? null : info.Postfixes)
+                         + CountOurs(info == null ? null : info.Transpilers);
+                int all = Count(info == null ? null : info.Prefixes)
+                        + Count(info == null ? null : info.Postfixes)
+                        + Count(info == null ? null : info.Transpilers);
+
+                sb.AppendLine("  " + type.Name + "." + method + "  ours=" + ours + " / 全量=" + all);
+                return ours == 0 ? 1 : 0;
+            }
+            catch (Exception e)
+            {
+                // 歧义 / 解析失败 —— 这类异常会让 PatchAll 中断，必须显眼
+                sb.AppendLine("  " + type.Name + "." + method + " —— ★★ 挂点异常 "
+                    + e.GetType().Name + "（这种异常会中断 PatchAll，后面全部补丁不挂）");
+                return 1;
+            }
+        }
+
+        private static int Count(System.Collections.Generic.IEnumerable<Patch> patches)
+        {
+            if (patches == null) return 0;
+            int n = 0;
+            foreach (Patch p in patches) n++;
+            return n;
+        }
+
+        private static int CountOurs(System.Collections.Generic.IEnumerable<Patch> patches)
+        {
+            if (patches == null) return 0;
+            int n = 0;
+            foreach (Patch p in patches)
+            {
+                if (p != null && p.owner == HarmonyId) n++;
+            }
+            return n;
         }
     }
 
@@ -133,7 +154,6 @@ namespace DigitalStorage.Backpack
 
     /// <summary>
     /// 诊断：任何"把东西搬进我们核心"的搬运作业都报一行。
-    /// 这条覆盖"取料 toil 之外"的走位 —— 用户看到的"前往核心"可能是它。
     /// 只读，不改行为。
     /// </summary>
     [HarmonyPatch(typeof(JobDriver_HaulToContainer), "MakeNewToils")]
