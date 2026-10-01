@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using System.Text;
 using DigitalStorage.Components;
@@ -65,6 +66,47 @@ namespace DigitalStorage.Backpack
             int pre = (info == null || info.Prefixes == null) ? 0 : info.Prefixes.Count;
             int post = (info == null || info.Postfixes == null) ? 0 : info.Postfixes.Count;
             sb.AppendLine("  " + type.Name + "." + method + " prefix=" + pre + " postfix=" + post);
+        }
+    }
+
+    /// <summary>
+    /// 诊断：**用原版自己的那条 toil** 验证"走到 X"会把 dest 解析成谁。
+    ///
+    /// <para><c>Toils_Goto.GotoThing(..., canGotoSpawnedParent: true)</c> 的 dest 在
+    /// toil 的 initAction 里才取 <c>SpawnedParentOrMe</c>（<c>Toils_Goto.cs:20</c>）。
+    /// 用户看到的"为取料走向核心"如果成立，这里就会在 `job=DoBill` 而 dest 解析成核心时打出 ★。
+    /// 反过来说：**只要 ★ 一次都没出现，bill 的取料就真的没走向核心**，往核心走的是别的作业。</para>
+    ///
+    /// <para>只在诊断开关打开时才包装 initAction（release 下零影响），且原 initAction 照常调用。</para>
+    /// </summary>
+    [HarmonyPatch(typeof(Toils_Goto), "GotoThing")]
+    internal static class Patch_Diag_GotoSpawnedParent
+    {
+        [HarmonyPostfix]
+        private static void Postfix(TargetIndex ind, bool canGotoSpawnedParent, ref Toil __result)
+        {
+            if (!BackpackDiag.On || !canGotoSpawnedParent || __result == null) return;
+
+            Toil toil = __result;
+            Action original = toil.initAction;
+            toil.initAction = delegate
+            {
+                Pawn actor = toil.actor;
+                Job job = (actor == null || actor.jobs == null) ? null : actor.jobs.curJob;
+                Thing thing = (job == null) ? null : job.GetTarget(ind).Thing;
+                Thing dest = (thing == null) ? null : thing.SpawnedParentOrMe;
+
+                if (dest is Building_StorageCore)
+                {
+                    BackpackDiag.Say("★ 往核心寻路：pawn=" + (actor == null ? "?" : actor.LabelShortCap)
+                        + " job=" + (job == null ? "?" : job.def.defName)
+                        + " 目标=" + (thing == null ? "?" : thing.LabelShort)
+                        + " dest=" + dest.LabelShort
+                        + "（背包里那个应该解析成小人自己才会是 0 距离）");
+                }
+
+                if (original != null) original();
+            };
         }
     }
 

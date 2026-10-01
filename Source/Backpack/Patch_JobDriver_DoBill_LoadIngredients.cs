@@ -123,8 +123,13 @@ namespace DigitalStorage.Backpack
                     }
 
                     int got = bag.TryAbsorb(t, counts[i]);
+                    // 装完立刻验证"走到这料"那一跳会解析成谁 —— 这才是"会不会走向核心"的判据
+                    // （Toils_Goto.cs:20 在 initAction 里取 SpawnedParentOrMe）
+                    Thing dest = t.SpawnedParentOrMe;
                     BackpackDiag.Say("  #" + i + " " + t.LabelShort + " 需要 " + counts[i]
-                        + " → 实际取到 " + got);
+                        + " → 实际取到 " + got
+                        + "；SpawnedParentOrMe=" + (dest == null ? "null" : dest.LabelShortCap)
+                        + "（应为小人 " + actor.LabelShortCap + "）");
                 }
             };
             return toil;
