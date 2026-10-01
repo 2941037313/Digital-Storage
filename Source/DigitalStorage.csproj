@@ -76,6 +76,8 @@
     <Compile Include="AI\JobDriver_DS_Consume.cs" />
     <Compile Include="AI\CoreFinder.cs" />
 
+    <Compile Include="Effects\Mote_DS_IngestBeam.cs" />
+
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
     <Compile Include="UI\Dialog_StorageFilter.cs" />
