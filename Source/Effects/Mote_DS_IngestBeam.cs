@@ -50,7 +50,25 @@ namespace DigitalStorage.Effects
         private static readonly Material BeamEndMat = MaterialPool.MatFrom(
             "Other/OrbitalBeamEnd", ShaderDatabase.MoteGlow, MapMaterialRenderQueues.OrbitalBeam);
 
-        private static readonly MaterialPropertyBlock MatPropertyBlock = new MaterialPropertyBlock();
+        /// <summary>
+        /// ⚠️ <b>每个四边形必须各用一块 <see cref="MaterialPropertyBlock"/>，不能共用。</b>
+        ///
+        /// <para><c>Graphics.DrawMesh</c> 的绘制发生在**渲染阶段**，而属性块是**按引用**读取的
+        /// —— 同一帧内共用一块时，本帧所有绘制都会拿到**最后一次 SetColor** 的值。
+        /// 本 mod 实测踩过：柱与落点原本同色所以看不出来，一旦落点带了自己的淡出因子
+        /// （<c>1 - t/FootDuration</c>），每帧最后一块经常落在"落点快淡完"的那束上，
+        /// 于是**整屏光束一起趋近 0 ⇒ 完全看不见特效**（而收纳本身一切正常，极具误导性）。</para>
+        ///
+        /// <para>所以按"本 Mote 的 3 个四边形"各持一块：实例字段（不跨 Mote 共享）+
+        /// 同一 Mote 内也按四边形分开。首次绘制时惰性创建，之后零分配。</para>
+        /// </summary>
+        private readonly MaterialPropertyBlock[] blocks = new MaterialPropertyBlock[3];
+
+        private MaterialPropertyBlock Block(int index)
+        {
+            if (blocks[index] == null) blocks[index] = new MaterialPropertyBlock();
+            return blocks[index];
+        }
 
         /// <summary>HSL(246,100%,70%) × 强度 0.65 —— 由 HTML 预览定稿的紫蓝色。</summary>
         private static readonly Color BeamColor = new Color(0.54f, 0.50f, 0.90f, 0.65f);
@@ -82,16 +100,19 @@ namespace DigitalStorage.Effects
             {
                 Color color = BeamColor;
                 color.a *= alpha;
-                MatPropertyBlock.SetColor(ShaderPropertyIDs.Color, color);
 
                 Vector3 center = new Vector3(exactPosition.x, altitude + height * 0.5f, exactPosition.z);
                 for (int i = 0; i < 2; i++)
                 {
+                    // 每个四边形一块属性块 —— 见 blocks 字段的注释（共用会让整屏一起消失）。
+                    MaterialPropertyBlock block = Block(i);
+                    block.SetColor(ShaderPropertyIDs.Color, color);
+
                     Matrix4x4 m = default(Matrix4x4);
                     m.SetTRS(center,
                         Quaternion.Euler(0f, angle + i * 90f, 0f) * Quaternion.Euler(90f, 0f, 0f),
                         new Vector3(BeamWidth, 1f, height));
-                    Graphics.DrawMesh(MeshPool.plane10, m, BeamMat, 0, null, 0, MatPropertyBlock);
+                    Graphics.DrawMesh(MeshPool.plane10, m, BeamMat, 0, null, 0, block);
                 }
             }
 
@@ -102,13 +123,15 @@ namespace DigitalStorage.Effects
                 float footFade = 1f - (float)ticksPassed / FootDuration;
                 Color footColor = BeamColor;
                 footColor.a *= Alpha * breathe * footFade;
-                MatPropertyBlock.SetColor(ShaderPropertyIDs.Color, footColor);
+
+                MaterialPropertyBlock footBlock = Block(2);
+                footBlock.SetColor(ShaderPropertyIDs.Color, footColor);
 
                 Matrix4x4 foot = default(Matrix4x4);
                 float footSize = FootSize * footGrow;
                 foot.SetTRS(new Vector3(exactPosition.x, altitude, exactPosition.z),
                     Quaternion.Euler(0f, angle, 0f), new Vector3(footSize, 1f, footSize));
-                Graphics.DrawMesh(MeshPool.plane10, foot, BeamEndMat, 0, null, 0, MatPropertyBlock);
+                Graphics.DrawMesh(MeshPool.plane10, foot, BeamEndMat, 0, null, 0, footBlock);
             }
         }
 
