@@ -34,12 +34,15 @@ namespace DigitalStorage.Effects
     [StaticConstructorOnStartup]
     public class Mote_DS_IngestBeam : Mote
     {
-        /// <summary>光柱拔起所需秒数（纯观感）。</summary>
-        private const float GrowSeconds = 0.2f;
+        /// <summary>光柱拔起所需 tick（纯观感；由 HTML 预览定稿：40）。</summary>
+        private const int GrowTicks = 40;
 
-        private const float MaxHeight = 8f;
-        private const float BeamWidth = 0.4f;
-        private const float FootSize = 1.2f;
+        /// <summary>地面落点扇形的存活 tick（由预览定稿：41）。</summary>
+        private const int FootDuration = 41;
+
+        private const float MaxHeight = 14f;
+        private const float BeamWidth = 1.15f;
+        private const float FootSize = 0.8f;
 
         private static readonly Material BeamMat = MaterialPool.MatFrom(
             "Other/OrbitalBeam", ShaderDatabase.MoteGlow, MapMaterialRenderQueues.OrbitalBeam);
@@ -49,7 +52,8 @@ namespace DigitalStorage.Effects
 
         private static readonly MaterialPropertyBlock MatPropertyBlock = new MaterialPropertyBlock();
 
-        private static readonly Color BeamColor = new Color(0.55f, 0.9f, 1f, 0.85f);
+        /// <summary>HSL(246,100%,70%) × 强度 0.65 —— 由 HTML 预览定稿的紫蓝色。</summary>
+        private static readonly Color BeamColor = new Color(0.54f, 0.50f, 0.90f, 0.65f);
 
         private float angle;
 
@@ -62,22 +66,24 @@ namespace DigitalStorage.Effects
         {
             if (Destroyed || Find.UIRoot.HideMotes) return;
 
-            float grow = Mathf.Clamp01(AgeSecs / GrowSeconds);
+            int ticksPassed = Find.TickManager.TicksGame - spawnTick;
+            float grow = Mathf.Clamp01((float)ticksPassed / GrowTicks);
             float height = MaxHeight * grow;
 
             // 淡入/淡出/稳定期全部由 Def 的 mote 字段驱动（基类 Alpha 已经算好）。
-            float alpha = Alpha * (0.92f + Mathf.Sin(AgeSecs * 18f) * 0.08f);
+            float breathe = 0.92f + Mathf.Sin(ticksPassed * 0.35f) * 0.08f;
+            float alpha = Alpha * breathe;
             if (alpha <= 0.01f) return;
-
-            Color color = BeamColor;
-            color.a *= alpha;
-            MatPropertyBlock.SetColor(ShaderPropertyIDs.Color, color);
 
             float altitude = AltitudeLayer.MetaOverlays.AltitudeFor();
 
             // 光柱：两片互相垂直的竖直面（十字），从任意角度看都像柱体。
             if (height > 0.05f)
             {
+                Color color = BeamColor;
+                color.a *= alpha;
+                MatPropertyBlock.SetColor(ShaderPropertyIDs.Color, color);
+
                 Vector3 center = new Vector3(exactPosition.x, altitude + height * 0.5f, exactPosition.z);
                 for (int i = 0; i < 2; i++)
                 {
@@ -89,12 +95,21 @@ namespace DigitalStorage.Effects
                 }
             }
 
-            // 地面落点光斑（对应米莉拉那条的 BeamEnd）。
-            Matrix4x4 foot = default(Matrix4x4);
-            float footSize = FootSize * grow;
-            foot.SetTRS(new Vector3(exactPosition.x, altitude, exactPosition.z),
-                Quaternion.Euler(0f, angle, 0f), new Vector3(footSize, 1f, footSize));
-            Graphics.DrawMesh(MeshPool.plane10, foot, BeamEndMat, 0, null, 0, MatPropertyBlock);
+            // 地面落点扇形（对应米莉拉那条的 BeamEnd）：只活 FootDuration tick，之后自行淡掉。
+            float footGrow = Mathf.Clamp01((float)ticksPassed / GrowTicks);
+            if (FootSize > 0f && ticksPassed < FootDuration)
+            {
+                float footFade = 1f - (float)ticksPassed / FootDuration;
+                Color footColor = BeamColor;
+                footColor.a *= Alpha * breathe * footFade;
+                MatPropertyBlock.SetColor(ShaderPropertyIDs.Color, footColor);
+
+                Matrix4x4 foot = default(Matrix4x4);
+                float footSize = FootSize * footGrow;
+                foot.SetTRS(new Vector3(exactPosition.x, altitude, exactPosition.z),
+                    Quaternion.Euler(0f, angle, 0f), new Vector3(footSize, 1f, footSize));
+                Graphics.DrawMesh(MeshPool.plane10, foot, BeamEndMat, 0, null, 0, MatPropertyBlock);
+            }
         }
 
         public override void ExposeData()

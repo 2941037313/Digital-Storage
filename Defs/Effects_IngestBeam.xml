@@ -13,7 +13,8 @@
     **不能**在 XML 里写 <lifespan>，否则启动即报
     "doesn't correspond to any field in type MoteProperties"。
 
-    当前 0.1 + 0.4 + 0.25 = 0.75 秒 = 45 tick。
+    当前 0.2 + 0.75 + 0.3 = 1.25 秒 = 75 tick（由 HTML 预览定稿；拔起 40 / 落点 41 tick
+    是 Mote_DS_IngestBeam 里的常量）。
   -->
   <ThingDef ParentName="MoteBase">
     <defName>DS_IngestBeam</defName>
@@ -27,9 +28,9 @@
     </graphicData>
     <altitudeLayer>MoteOverhead</altitudeLayer>
     <mote>
-      <fadeInTime>0.1</fadeInTime>
-      <solidTime>0.4</solidTime>
-      <fadeOutTime>0.25</fadeOutTime>
+      <fadeInTime>0.2</fadeInTime>
+      <solidTime>0.75</solidTime>
+      <fadeOutTime>0.3</fadeOutTime>
     </mote>
   </ThingDef>
 </Defs>
