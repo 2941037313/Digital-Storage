@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -86,15 +86,10 @@
     <Compile Include="Core\LedgerItemCollector.cs" />
     <Compile Include="Core\CoreLedger.cs" />
 
-    <Compile Include="AI\JobDriver_DS_Ingest.cs" />
-    <Compile Include="AI\WorkGiver_DS_HaulToCore.cs" />
-    <Compile Include="AI\LedgerBillPlanner.cs" />
-    <Compile Include="AI\JobDriver_DS_WithdrawForBill.cs" />
+    <Compile Include="AI\DigitalStorage_JobDefOf.cs" />
     <Compile Include="AI\BufferWarehouseJobHelper.cs" />
-    <Compile Include="AI\WorkGiver_DS_WithdrawForBill.cs" />
     <Compile Include="AI\JobDriver_DS_Withdraw.cs" />
     <Compile Include="AI\WorkGiver_DS_WithdrawForConstruct.cs" />
-    <Compile Include="AI\WorkGiver_DS_StorageToCore.cs" />
     <Compile Include="AI\ConsumptionHelper.cs" />
     <Compile Include="AI\FoodScoring.cs" />
     <Compile Include="AI\JobDriver_DS_Consume.cs" />
@@ -113,7 +108,6 @@
     <Compile Include="HarmonyPatches\Patch_ResourceCounter_HaulSources.cs" />
     <Compile Include="HarmonyPatches\Patch_DesignatorBuild_ProcessInput.cs" />
     <Compile Include="HarmonyPatches\Patch_ResourceDeliverJobFor.cs" />
-    <Compile Include="HarmonyPatches\Patch_DialogFormCaravan.cs" />
     <Compile Include="HarmonyPatches\Patch_RecipeDef_MissingIngredients.cs" />
     <Compile Include="HarmonyPatches\Patch_FindBestMedicine.cs" />
     <Compile Include="HarmonyPatches\Patch_RefuelFromLedger.cs" />
@@ -121,15 +115,12 @@
     <Compile Include="HarmonyPatches\Patch_FeedFromLedger.cs" />
     <Compile Include="HarmonyPatches\Patch_DialogTrade.cs" />
     <Compile Include="HarmonyPatches\Patch_OrbitalTradeBeacon.cs" />
-    <Compile Include="HarmonyPatches\Patch_WealthWatcher.cs" />
     <Compile Include="HarmonyPatches\Patch_BufferWarehouse.cs" />
     <Compile Include="HarmonyPatches\Patch_HaulAIUtility.cs" />
     <Compile Include="HarmonyPatches\Patch_JobDriver_Equip.cs" />
     <Compile Include="UI\TradeDS_Helper.cs" />
-    <Compile Include="UI\CaravanDS_Helper.cs" />
 
     <Compile Include="Services\DigitalStorageGameComponent.cs" />
-    <Compile Include="Services\ItemRouter.cs" />
 
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />

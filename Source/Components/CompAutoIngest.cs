@@ -66,8 +66,9 @@ namespace DigitalStorage.Components
             foreach (var core in comp.GetAllCores())
             {
                 if (core == null || !core.Powered) continue;
-                if (!core.AllowsItem(t)) continue;
-                if (!core.Ledger.CanAccept(t, core.GetCapacity())) continue;
+                // 4.0：收不收由容器自己答（过滤器 + 容量 + HaulDestinationEnabled），
+                // 不再有账本白名单。Accepts 已在「东西已经在里面」时只按过滤器作答。
+                if (!core.Accepts(t)) continue;
                 if (best == null || core.storagePriority > best.storagePriority)
                     best = core;
             }
@@ -207,12 +208,41 @@ namespace DigitalStorage.Components
                 // M3: 路由基准统一为「接受该物品的最高优先级核心」
                 var best = FindBestIngestCore(map, t);
                 if (best == null) continue;
-                if (ItemRouter.RouteGroundItem(t, map, best, best.GetCapacity()))
+                if (TryIngest(best, t))
                     taken++;
             }
             // 清理引用防止 GC 泄漏
             for (int i = 0; i < bufCount; i++)
                 candidateBuffer[i] = null;
+        }
+
+        /// <summary>
+        /// 入库瞬移：把一件地面物品直接搬进容器（产品决策：全部无损隔空获取，保留瞬移）。
+        ///
+        /// 4.0 与 3.0 的差别只在"搬进哪儿"：3.0 是 <c>ledger.Ingest</c>（纯数据），
+        /// 4.0 是 <c>innerContainer.TryAdd</c>（真实 Thing）—— 也因此这批东西
+        /// 立刻能被原版看见（bill 取料 / 读数 / 出库）。
+        ///
+        /// <b>失败必须放回地面</b>，否则物品凭空消失。
+        /// </summary>
+        private static bool TryIngest(Building_StorageCore core, Thing t)
+        {
+            if (core == null || t == null || t.Destroyed) return false;
+            if (!core.Accepts(t)) return false;
+
+            Map map = core.Map;
+            if (map == null) return false;
+            IntVec3 originalPos = t.PositionHeld;
+
+            t.DeSpawn();
+            if (core.GetDirectlyHeldThings().TryAdd(t, true))
+            {
+                core.Notify_SettingsChanged();
+                return true;
+            }
+
+            GenPlace.TryPlaceThing(t, originalPos, map, ThingPlaceMode.Near);
+            return false;
         }
 
         /// <summary>
@@ -222,7 +252,9 @@ namespace DigitalStorage.Components
         private static bool CanCollect(Thing t, Map map, bool homeAreaOnly)
         {
             if (t == null || t.Destroyed) return false;
-            if (!LedgerPolicy.CanIngest(t)) return false;
+            // 4.0「全放开」：LedgerPolicy 白名单已废，只留"是不是物品"。
+            // 具体收不收由目标容器的 Accepts（过滤器 + 容量）决定 —— 见 TryIngest。
+            if (t.def == null || t.def.category != ThingCategory.Item) return false;
             if (t.IsForbidden(Faction.OfPlayer)) return false;
             if (map.reservationManager.IsReserved(t)) return false;
             if (IsRecentlyWithdrawn(t)) return false;

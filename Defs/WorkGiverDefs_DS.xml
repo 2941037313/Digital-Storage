@@ -1,115 +1,13 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
-  <!-- 阶段 4.1：搬运 → 核心（优先级高于 HaulGeneral=15） -->
-  <WorkGiverDef>
-    <defName>DigitalStorage_HaulToCore</defName>
-    <label>把物品送入数字存储核心</label>
-    <giverClass>DigitalStorage.AI.WorkGiver_DS_HaulToCore</giverClass>
-    <workType>Hauling</workType>
-    <verb>搬运</verb>
-    <gerund>搬运中</gerund>
-    <priorityInType>50</priorityInType>
-    <requiredCapacities>
-      <li>Manipulation</li>
-    </requiredCapacities>
-  </WorkGiverDef>
+  <!-- 阶段 4.3：从核心取料送蓝图/Frame（priorityInType=200 高于 DeliverResourcesToFrames=10）
 
-  <!-- 阶段 4.2：从核心取料做 bill（priorityInType=999 抢在所有 DoBillsXxx 前）。
-       每个 workType 需要一个独立 Def，因为 WorkGiver_Scanner 匹配 workType。 -->
-  <WorkGiverDef>
-    <defName>DigitalStorage_WithdrawForBill_Crafting</defName>
-    <label>从数字存储核心取料做工</label>
-    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
-    <workType>Crafting</workType>
-    <verb>做</verb>
-    <gerund>做工中</gerund>
-    <priorityInType>999</priorityInType>
-    <requiredCapacities>
-      <li>Manipulation</li>
-    </requiredCapacities>
-  </WorkGiverDef>
-
-  <WorkGiverDef>
-    <defName>DigitalStorage_WithdrawForBill_Smithing</defName>
-    <label>从数字存储核心取料做工</label>
-    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
-    <workType>Smithing</workType>
-    <verb>做</verb>
-    <gerund>做工中</gerund>
-    <priorityInType>999</priorityInType>
-    <requiredCapacities>
-      <li>Manipulation</li>
-    </requiredCapacities>
-  </WorkGiverDef>
-
-  <WorkGiverDef>
-    <defName>DigitalStorage_WithdrawForBill_Tailoring</defName>
-    <label>从数字存储核心取料做工</label>
-    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
-    <workType>Tailoring</workType>
-    <verb>做</verb>
-    <gerund>做工中</gerund>
-    <priorityInType>999</priorityInType>
-    <requiredCapacities>
-      <li>Manipulation</li>
-    </requiredCapacities>
-  </WorkGiverDef>
-
-  <WorkGiverDef>
-    <defName>DigitalStorage_WithdrawForBill_Art</defName>
-    <label>从数字存储核心取料做工</label>
-    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
-    <workType>Art</workType>
-    <verb>做</verb>
-    <gerund>做工中</gerund>
-    <priorityInType>999</priorityInType>
-    <requiredCapacities>
-      <li>Manipulation</li>
-    </requiredCapacities>
-  </WorkGiverDef>
-
-  <WorkGiverDef>
-    <defName>DigitalStorage_WithdrawForBill_Cooking</defName>
-    <label>从数字存储核心取料做工</label>
-    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
-    <workType>Cooking</workType>
-    <verb>做</verb>
-    <gerund>做工中</gerund>
-    <priorityInType>999</priorityInType>
-    <requiredCapacities>
-      <li>Manipulation</li>
-    </requiredCapacities>
-  </WorkGiverDef>
-
-  <!-- G1.5：医生手术/植入——从核心取药+植入物（priorityInType=999 抢在原版 Doctor DoBill 前） -->
-  <WorkGiverDef>
-    <defName>DigitalStorage_WithdrawForBill_Doctor</defName>
-    <label>从数字存储核心取料做手术</label>
-    <giverClass>DigitalStorage.AI.WorkGiver_DS_WithdrawForBill</giverClass>
-    <workType>Doctor</workType>
-    <verb>做</verb>
-    <gerund>做工中</gerund>
-    <priorityInType>999</priorityInType>
-    <requiredCapacities>
-      <li>Manipulation</li>
-    </requiredCapacities>
-  </WorkGiverDef>
-
-  <!-- I10.01：低级储存区物品 → 高优先级核心。原版 ThinkTree 调度。priorityInType=45 低于 HaulToCore=50 -->  <WorkGiverDef>
-    <defName>DigitalStorage_StorageToCore</defName>
-    <label>从低级储存区搬入数字存储核心</label>
-    <giverClass>DigitalStorage.AI.WorkGiver_DS_StorageToCore</giverClass>
-    <workType>Hauling</workType>
-    <verb>搬入</verb>
-    <gerund>搬入中</gerund>
-    <priorityInType>45</priorityInType>
-    <requiredCapacities>
-      <li>Manipulation</li>
-    </requiredCapacities>
-  </WorkGiverDef>
-
-  <!-- 阶段 4.3：从核心取料送蓝图/Frame（priorityInType=200 高于 DeliverResourcesToFrames=10）-->
+       4.0 批 2 起本文件只剩这一条。已删的 WorkGiverDef：
+         DigitalStorage_HaulToCore            → 入库是原生的（IHaulDestination 路径）
+         DigitalStorage_StorageToCore         → 同上
+         DigitalStorage_WithdrawForBill_* (x6)→ bill 取料是原生的（WorkGiver_DoBill:481）
+       留下的这条原版没有对应路径：GenClosest 没传 lookInHaulSources。 -->
   <WorkGiverDef>
     <defName>DigitalStorage_WithdrawForConstruction</defName>
     <label>从数字存储核心取料送建筑</label>

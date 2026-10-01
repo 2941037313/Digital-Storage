@@ -1,19 +1,5 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Defs>
-
-  <!-- 阶段 4.1：进核心方向的 Job -->
-  <JobDef>
-    <defName>DigitalStorage_IngestToCore</defName>
-    <driverClass>DigitalStorage.AI.JobDriver_DS_Ingest</driverClass>
-    <reportString>把 TargetA 送入数字存储核心。</reportString>
-  </JobDef>
-
-  <!-- 阶段 4.2：从核心取料做 bill -->
-  <JobDef>
-    <defName>DigitalStorage_WithdrawToBill</defName>
-    <driverClass>DigitalStorage.AI.JobDriver_DS_WithdrawForBill</driverClass>
-    <reportString>从数字存储核心取料为 TargetA 做工。</reportString>
-  </JobDef>
 
   <!-- 阶段 4.3：从核心取料送蓝图/Frame -->
   <JobDef>

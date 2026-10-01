@@ -30,24 +30,18 @@ namespace DigitalStorage.Components
             if (tick - lastPriorityScanTick < 60) return;
             lastPriorityScanTick = tick;
 
-            var liveCores = GetAllCores();
-            if (liveCores.Count == 0) return;
-
-            // M2: 轮转调度——从 rrIndex 开始绕一圈，每 60 tick 只处理一颗核心（保持限速），
-            // 但机会均分，不再让注册序靠前的核心永久垄断搬出
-            for (int i = 0; i < liveCores.Count; i++)
-            {
-                var core = liveCores[(rrIndex + i) % liveCores.Count];
-                if (core == null || !core.Powered) continue;
-
-                // 搬出: 核心→高级储存区（直接放进目标 zone 格）
-                // 搬入已迁移到 WorkGiver_DS_StorageToCore
-                if (ItemRouter.RouteCoreToStorage(core, map))
-                {
-                    rrIndex = (rrIndex + i + 1) % liveCores.Count;
-                    return;
-                }
-            }
+            // 4.0：这段「核心 → 高级储存区」的主动搬运已删除 —— 它现在由原版自己完成（甲-1，已实测）。
+            //
+            // 容器是 IHaulDestination，ListerHaulables.ShouldBeHaulable 通过
+            //   IsInAnyStorage() => CurrentHaulDestinationOf(t)?.Accepts(t)
+            // 判断「它还在有效存储里吗」。玩家把某类物品从过滤器去掉 ⇒ Accepts 变 false
+            // ⇒ 原版派 HaulToCell 作业把它搬到更合适的储存区。
+            //
+            // 也就是说「优先级调度」不再需要 mod 主动做：它是容器过滤器的自然结果。
+            // 搬入方向同样原生（StoreUtility.TryFindBestBetterNonSlotGroupStorageFor）。
+            //
+            // 原来用于轮转调度的 rrIndex / lastPriorityScanTick 保留字段以便将来恢复限速逻辑。
+            _ = map;
         }
 
         public void RegisterCore(Building_StorageCore core)
