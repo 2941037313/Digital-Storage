@@ -29,7 +29,8 @@ namespace DigitalStorage.Components
     /// </summary>
     [StaticConstructorOnStartup]
     public class Building_StorageCore : Building, IThingHolder, ISearchableContents,
-        IHaulSource, IHaulDestination, IApparelSource, IStoreSettingsParent, IThingHolderTickable
+        IHaulSource, IHaulDestination, IApparelSource, IStoreSettingsParent, IThingHolderTickable,
+        ISlotGroupParent
     {
         private static readonly Material LightMat = MaterialPool.MatFrom("2.0/一束光", ShaderDatabase.MoteGlow);
         private static readonly Material OrbMat = MaterialPool.MatFrom("2.0/一个球", ShaderDatabase.Cutout);
@@ -246,6 +247,43 @@ namespace DigitalStorage.Components
             if (!Spawned || MapHeld == null) return;
             MapHeld.listerHaulables?.Notify_HaulSourceChanged(this);
             MapHeld.haulDestinationManager?.Notify_HaulDestinationChangedPriority();
+        }
+
+        // ===== ISlotGroupParent（兼容层：让第三方扫描器看见内容物）=====
+        //
+        // 目的：Phinix（TradeWindow.cs:106）与 Phinix 红包（RedPacketTab.cs:157）的**默认分支**是
+        //   maps.SelectMany(m => m.haulDestinationManager.AllGroups).SelectMany(g => g.HeldThings)
+        // —— 它们不认 IHaulSource，只认 SlotGroup。核心进了 AllGroups，内容物才可能被它们看见。
+        //
+        // 【为什么是零格子】注册点在 HaulDestinationManager.AddHaulDestination:57-85：
+        //   if (!(haulDestination is ISlotGroupParent p)) return;
+        //   allGroupsInOrder.Add(p.GetSlotGroup());                 // ← 自动进 AllGroups
+        //   for (每个 cell in slotGroup.CellsList) SetCellFor(cell, slotGroup);
+        // 而 Thing.SpawnSetup:884 对**任何 IHaulDestination** 都会调它 —— 核心本来就是了。
+        // 返回空表 ⇒ 那段 SetCellFor 空转 ⇒ 组进得了 AllGroups，却不让任何格子变成储存：
+        //   StoreUtility.TryFindBestBetterStoreCellFor 取格子 ⇒ 永不入选
+        //   WorkGiver_Merge 由 t 所在格的组取 ⇒ 取不到我们
+        //   ListerHaulables.CellsCheckTick:109 显式 `if (CellsList.Count != 0)` ⇒ 零开销跳过
+        // 内容物由 Patch_SlotGroup_HeldThings 追加进 HeldThings / HeldThingsCount。
+        //
+        // 【为什么不能给真格子】给格子 = 原版搬运工会把货拉到核心脚下的地板上（变成 Spawned 物品），
+        // 和"内容物住在 ThingOwner 里"的架构直接冲突。
+        private static readonly List<IntVec3> NoSlotCells = new List<IntVec3>();
+        private SlotGroup slotGroup;
+
+        public bool IgnoreStoredThingsBeauty => true; // 内容物不在房间里，房间美观与它无关
+        public IEnumerable<IntVec3> AllSlotCells() => NoSlotCells;
+        public List<IntVec3> AllSlotCellsList() => NoSlotCells;
+        public void Notify_ReceivedThing(Thing newItem) { } // 零格子 ⇒ 原版永不调用
+        public void Notify_LostThing(Thing newItem) { }
+        public string SlotYielderLabel() => Label;
+        public string GroupingLabel => Label;
+        public int GroupingOrder => 0;
+
+        public SlotGroup GetSlotGroup()
+        {
+            if (slotGroup == null) slotGroup = new SlotGroup(this);
+            return slotGroup;
         }
 
         // ===== 对外小接口 =====
