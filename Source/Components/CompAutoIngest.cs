@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DigitalStorage.AI;
@@ -28,7 +29,7 @@ namespace DigitalStorage.Components
         private static readonly Dictionary<int, int> withdrawnUntil = new Dictionary<int, int>();
         private static Thing[] candidateBuffer = new Thing[30];
         private static int lastSweepTick = -1;
-        private static int lastZoneScanTick = -1; // zone 内物品收集的 60tick 节流
+        private static readonly ScanWindow scanWindow = new ScanWindow();
 
         public static void MarkWithdrawn(Thing t)
         {
@@ -150,49 +151,41 @@ namespace DigitalStorage.Components
 
             bool homeAreaOnly = DigitalStorage.Settings.DigitalStorageSettings.autoIngestHomeAreaOnly;
 
-            // 收集 1: 地面散落物品（listerHaulables）
-            // 社区反馈「老远处的石块被瞬移」：这类没有玩家意图的物品默认只处理活动区内，
-            // 防止地图边缘/远矿裸地物品被隔空吸走。
-            var haulables = map.listerHaulables.ThingsPotentiallyNeedingHauling();
-            foreach (var t in haulables)
+            // 候选来源：map.listerThings.ThingsInGroup(HaulableEver)——**不用**原版的
+            // listerHaulables.ThingsPotentiallyNeedingHauling()。
+            //
+            // 原版那张表是"待搬"判定：ListerHaulables.ShouldBeHaulable（ListerHaulables.cs:194）
+            // 会把**已经位于其最优储存位置**的东西剔掉（:211 `IsInValidBestStorage()`）。
+            // 而我们的产品语义恰恰要收"正躺在储存区里"的东西 —— 交易赚来的白银由
+            // Pawn_TraderTracker.GiveSoldThingToPlayer:194 掉在**商人脚下的那格**上，
+            // 若那格在储存区内，原版认为"已经放好了"，我们从那张表里就再也看不见它，
+            // 表现就是"有的物品收得进、有的收不进"。
+            //
+            // 参考 Manipulator Beam Emitter（workshop 3683998684）的做法，
+            // BeamManipulatorUtility.cs:110-111 的注释写得很准：
+            //   「直接使用地图维护的可搬物列表，包含已经入库的物品；不等待原版逐格重算待搬状态。」
+            //
+            // 窗口轮转（同款 BeamScanWindow）：这张表可能上千项。若每轮都从表头扫、
+            // 收满缓冲就 break，表尾会被**永久遮蔽**（而新物品恰恰是 append 到表尾的，
+            // 最该被看见的正是它们）。所以每轮只扫一个预算窗口，游标持续前进并绕圈。
+            List<Thing> all = map.listerThings.ThingsInGroup(ThingRequestGroup.HaulableEver);
+            if (all.Count > 0)
             {
-                if (bufCount >= bufSize) break;
-                if (!CanCollect(t, map, homeAreaOnly)) continue;
-                candidateBuffer[bufCount++] = t;
-            }
-
-            // 收集 2: 优先级 ≤ 全图最高核心 的 zone 内物品（用户 7.31 拍板——
-            // 自动收纳也要处理 zone 物品：路由到更高 zone 或吸进核心）。
-            // 60 tick 节流：zone 全扫比 listerHaulables 贵，不用 15 tick 节奏。
-            // 注意：zone 是玩家主动划定的意图，不受「仅活动区」限制（矿区营地照常工作）。
-            if (bufCount < bufSize && tick - lastZoneScanTick >= 60)
-            {
-                lastZoneScanTick = tick;
                 StoragePriority maxPrio = StoragePriority.Unstored;
                 foreach (Building_StorageCore c in CoreFinder.AllUsableCores(map))
                     if (c.storagePriority > maxPrio)
                         maxPrio = c.storagePriority;
-                if (maxPrio > StoragePriority.Unstored)
+
+                int budget = rate * 16;
+                if (budget < 64) budget = 64;
+                int start = scanWindow.Take(all.Count, budget);
+                for (int step = 0; step < scanWindow.Count; step++)
                 {
-                    var groups = map.haulDestinationManager.AllGroupsListInPriorityOrder;
-                    foreach (var group in groups)
-                    {
-                        if (bufCount >= bufSize) break;
-                        // 4.0：缓冲仓库特性已整体删除，原先这里跳过它以免补货/收纳乒乓的逻辑作废。
-                        if (group.Settings.Priority > maxPrio) continue; // 严格高于最高核心 → 不动
-                        foreach (var cell in group.CellsList)
-                        {
-                            if (bufCount >= bufSize) break;
-                            var things = map.thingGrid.ThingsListAt(cell);
-                            for (int i = 0; i < things.Count; i++)
-                            {
-                                if (bufCount >= bufSize) break;
-                                var t = things[i];
-                                if (!CanCollect(t, map, false)) continue;
-                                candidateBuffer[bufCount++] = t;
-                            }
-                        }
-                    }
+                    Thing t = all[(start + step) % all.Count];
+                    if (!CanCollect(t, map, maxPrio, homeAreaOnly)) continue;
+                    // 缓冲满了也把窗口推完（否则前段会永久遮蔽后段），只是不再收。
+                    if (bufCount >= bufSize) continue;
+                    candidateBuffer[bufCount++] = t;
                 }
             }
 
@@ -242,25 +235,74 @@ namespace DigitalStorage.Components
         }
 
         /// <summary>
-        /// 自动收纳候选的统一过滤：可收纳、未禁止、未预订、保护窗口外、可选活动区。
-        /// 不含 zone 判断（地面与 zone 内物品都处理，用户 7.31 拍板）。
+        /// 自动收纳候选的统一过滤：可收纳、未禁止、未预订、保护窗口外、不在更高优先级的储存里、
+        /// 可选活动区。**取代了原来"地面 / zone 两趟收集"的两套过滤**（见 CompTick 里的类注释）。
         /// </summary>
-        private static bool CanCollect(Thing t, Map map, bool homeAreaOnly)
+        private static bool CanCollect(Thing t, Map map, StoragePriority maxCorePrio, bool homeAreaOnly)
         {
             if (t == null || t.Destroyed) return false;
             // 4.0「全放开」：LedgerPolicy 白名单已废，只留"是不是物品"。
             // 具体收不收由目标容器的 Accepts（过滤器 + 容量）决定 —— 见 TryIngest。
             if (t.def == null || t.def.category != ThingCategory.Item) return false;
+
+            // 未开采的矿脉/岩石同样是 Item 类别。原版 listerHaulables 是靠
+            // "Mineable 的 alwaysHaulable 为 false ⇒ 没有搬运标记就不入表"顺带挡住它们的；
+            // 我们改用 HaulableEver 之后它们会全部进来。社区反馈过「老远处的石块被瞬移」，
+            // 旧实现用"仅活动区"兜（既不精确，又挡不住营地内挖的矿），这里直接按类型挡。
+            if (t is Mineable) return false;
+
             if (t.IsForbidden(Faction.OfPlayer)) return false;
             if (map.reservationManager.IsReserved(t)) return false;
             if (IsRecentlyWithdrawn(t)) return false;
-            // 社区反馈「老远处的石块被瞬移」：默认只处理活动区内的物品。
-            if (homeAreaOnly)
+
+            // 玩家主动把东西放在**更高优先级**的储存里 → 不动它（用户 7.31 拍板的路由规则，
+            // 旧实现写在 zone 全扫那一段，现在统一到这一个过滤器）。
+            SlotGroup slotGroup = map.haulDestinationManager.SlotGroupAt(t.PositionHeld);
+            if (slotGroup != null && slotGroup.Settings.Priority > maxCorePrio) return false;
+
+            // 活动区限制只作用于"完全没有储存归属"的散落物：
+            // 有储存归属（zone/货架/容器）的东西本身就是玩家划定的意图，不该被活动区挡住，
+            // 否则交易掉在仓区里的白银、或区外营地的产出就永远收不进来。
+            if (homeAreaOnly && slotGroup == null)
             {
                 var home = map.areaManager?.Home;
-                if (home != null && !home[t.Position]) return false;
+                if (home != null && !home[t.PositionHeld]) return false;
             }
             return true;
+        }
+
+        /// <summary>
+        /// 跨轮继续的小窗口扫描器：游标不因空闲、暂停或列表长度变化而重置，不写存档。
+        /// 抄自 Manipulator Beam Emitter 的 <c>BeamScanWindow.cs</c>
+        /// （用法同 <c>BeamManipulatorUtility.cs:110-125</c>）：全表轮转 + 每轮预算，
+        /// 避免"每轮都从表头扫、收满就 break"把表尾永久遮蔽。
+        /// </summary>
+        private sealed class ScanWindow
+        {
+            private int cursor;
+            private int remaining;
+
+            public int Count { get; private set; }
+
+            public int Take(int itemCount, int budget)
+            {
+                if (itemCount <= 0 || budget <= 0)
+                {
+                    Count = 0;
+                    remaining = 0;
+                    return 0;
+                }
+                cursor %= itemCount;
+                if (remaining <= 0 || remaining > itemCount)
+                {
+                    remaining = itemCount;
+                }
+                int start = cursor;
+                Count = Math.Min(budget, remaining);
+                cursor = (cursor + Count) % itemCount;
+                remaining -= Count;
+                return start;
+            }
         }
 
         public override void PostExposeData()
