@@ -68,14 +68,18 @@ namespace DigitalStorage.Backpack
 
                 // 没背包（非玩家阵营 / 未植入 hediff）⇒ 原版流程一字不改
                 HediffComp_Backpack bag = HediffComp_Backpack.For(actor);
-                if (bag == null) return;
-
                 Job job = (actor.jobs == null) ? null : actor.jobs.curJob;
-                if (job == null) return;
+                List<LocalTargetInfo> queue = (job == null) ? null : job.GetTargetQueue(TargetIndex.B);
+                List<int> counts = (job == null) ? null : job.countQueue;
 
-                List<LocalTargetInfo> queue = job.GetTargetQueue(TargetIndex.B);
-                if (queue.NullOrEmpty()) return;
-                List<int> counts = job.countQueue;
+                // 【临时诊断】用户报"还是走到核心"时靠这几行定位是哪道门（定位完删）
+                BackpackDiag.Say("取料 toil 执行：pawn=" + actor.LabelShortCap
+                    + " 有背包=" + (bag != null)
+                    + " job=" + (job == null ? "null" : job.def.defName)
+                    + " queue=" + (queue == null ? "null" : queue.Count.ToString())
+                    + " counts=" + (counts == null ? "null" : counts.Count.ToString()));
+
+                if (bag == null || job == null || queue.NullOrEmpty()) return;
 
                 // 已经在工作台内胆里的料，原版有 JumpIfTargetInsideBillGiver 直接跳过取料
                 // （JobDriver_DoBill.cs:145）—— 别把它拽出来，反而打乱原版路径。
@@ -87,7 +91,12 @@ namespace DigitalStorage.Backpack
                     Thing t = queue[i].Thing;
                     if (t == null || t.Destroyed) continue;
                     if (t.Spawned) continue;                              // 地上的：原版自己会走过去
-                    if (!(t.ParentHolder is Building_StorageCore)) continue; // 只管核心内容物
+                    if (!(t.ParentHolder is Building_StorageCore))        // 只管核心内容物
+                    {
+                        BackpackDiag.Say("  #" + i + " 容器不是核心 ⇒ 不搬："
+                            + (t.ParentHolder == null ? "null" : t.ParentHolder.GetType().Name));
+                        continue;
+                    }
                     if (giverInner != null && giverInner.Contains(t)) continue;
 
                     // 数量未知就**不动**（宁可不取，也不能超量）：countQueue 由原版
@@ -95,9 +104,15 @@ namespace DigitalStorage.Backpack
                     // 若某个第三方建的 DoBill 作业缺 countQueue，回退成"整堆"会搬出比
                     // curJob.count 更多的东西，之后 StartCarryThing 的
                     // failIfStackCountLessThanJobCount 判定就失去意义。
-                    if (counts == null || i >= counts.Count) continue;
+                    if (counts == null || i >= counts.Count)
+                    {
+                        BackpackDiag.Say("  #" + i + " countQueue 对不上 ⇒ 不搬");
+                        continue;
+                    }
 
-                    bag.TryAbsorb(t, counts[i]);
+                    int got = bag.TryAbsorb(t, counts[i]);
+                    BackpackDiag.Say("  #" + i + " " + t.LabelShort + " 需要 " + counts[i]
+                        + " → 实际取到 " + got);
                 }
             };
             return toil;

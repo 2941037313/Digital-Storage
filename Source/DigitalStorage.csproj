@@ -79,6 +79,7 @@
     <Compile Include="Backpack\HediffComp_Backpack.cs" />
     <Compile Include="Backpack\Patch_AutoImplantBackpack.cs" />
     <Compile Include="Backpack\Patch_JobDriver_DoBill_LoadIngredients.cs" />
+    <Compile Include="Backpack\BackpackDiag.cs" />
 
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
