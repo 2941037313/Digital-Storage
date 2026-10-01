@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using DigitalStorage.AI;
 using DigitalStorage.Core;
 using DigitalStorage.Services;
 using RimWorld;
@@ -8,7 +9,8 @@ using Verse;
 namespace DigitalStorage.Components
 {
     /// <summary>
-    /// I5a+I5b: 自动收纳。Tick 扫 listerHaulables → 过滤 → 吸入自身账本。
+    /// I5a+I5b: 自动收纳。Tick 扫 listerHaulables → 过滤 → 吸入自身**容器**。
+    /// （3.0 是吸入账本；4.0 改投真实容器，见 TryIngest。两者都保留"入库瞬移"的产品决策。）
     /// I5b: 研究解锁 + Gizmo 开关 + 电力检查。
     /// I5c: 多级速率。
     /// </summary>
@@ -60,10 +62,11 @@ namespace DigitalStorage.Components
         /// </summary>
         private static Building_StorageCore FindBestIngestCore(Map map, Thing t)
         {
-            var comp = DigitalStorageMapComponent.For(map);
-            if (comp == null) return null;
             Building_StorageCore best = null;
-            foreach (var core in comp.GetAllCores())
+            // 直接枚举 haul source（不再走 DigitalStorageMapComponent 注册表 ——
+            // 那个注册表自批 1 起无人写入，导致这里恒返回 null、自动收纳静默失效。
+            // 详见 CoreFinder 类注释里的 bug 记录。）
+            foreach (Building_StorageCore core in CoreFinder.AllUsableCores(map))
             {
                 if (core == null || !core.Powered) continue;
                 // 4.0：收不收由容器自己答（过滤器 + 容量 + HaulDestinationEnabled），
@@ -166,14 +169,10 @@ namespace DigitalStorage.Components
             if (bufCount < bufSize && tick - lastZoneScanTick >= 60)
             {
                 lastZoneScanTick = tick;
-                var comp = DigitalStorageMapComponent.For(map);
                 StoragePriority maxPrio = StoragePriority.Unstored;
-                if (comp != null)
-                {
-                    foreach (var c in comp.GetAllCores())
-                        if (c != null && c.Powered && c.storagePriority > maxPrio)
-                            maxPrio = c.storagePriority;
-                }
+                foreach (Building_StorageCore c in CoreFinder.AllUsableCores(map))
+                    if (c.storagePriority > maxPrio)
+                        maxPrio = c.storagePriority;
                 if (maxPrio > StoragePriority.Unstored)
                 {
                     var groups = map.haulDestinationManager.AllGroupsListInPriorityOrder;
