@@ -7,8 +7,13 @@
     Other/OrbitalBeam、Other/OrbitalBeamEnd），所以下面这个 graphicData
     只是为了满足 ThingDef 的校验，永远不会被画 —— texPath 给一个确定存在的原版贴图即可。
 
-    时长与淡入淡出就在这里调（基类 Mote.Alpha / EndOfLife 自己读这些字段）：
-    fadeInTime 0.1 + solidTime 0.4 + fadeOutTime 0.25 = lifespan 0.75 秒（45 tick）。
+    时长与淡入淡出就在这里调：三者之**和**就是基类读的
+    MoteProperties.Lifespan —— 它是只读计算属性（MoteProperties.cs:54
+    `public float Lifespan => fadeInTime + solidTime + fadeOutTime;`），
+    **不能**在 XML 里写 <lifespan>，否则启动即报
+    "doesn't correspond to any field in type MoteProperties"。
+
+    当前 0.1 + 0.4 + 0.25 = 0.75 秒 = 45 tick。
   -->
   <ThingDef ParentName="MoteBase">
     <defName>DS_IngestBeam</defName>
@@ -25,7 +30,6 @@
       <fadeInTime>0.1</fadeInTime>
       <solidTime>0.4</solidTime>
       <fadeOutTime>0.25</fadeOutTime>
-      <lifespan>0.75</lifespan>
     </mote>
   </ThingDef>
 </Defs>
