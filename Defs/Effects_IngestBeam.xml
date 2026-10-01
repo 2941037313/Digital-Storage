@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
   <!--
-    自动收纳的"收纳光束"（纯视觉物）。thingClass 是我们自己的 Mote 子类：
-    光束消散的那一刻才真正把物品搬进核心，即"一阵光束后物品消失"。
+    自动收纳的"收纳光束"余像（纯视觉物，不做任何逻辑：物品在它出现之前就已经进核心了）。
 
     外观完全靠 DrawAt 里的 Graphics.DrawMesh 自绘（贴图/着色器都是原版打包资源
     Other/OrbitalBeam、Other/OrbitalBeamEnd），所以下面这个 graphicData
     只是为了满足 ThingDef 的校验，永远不会被画 —— texPath 给一个确定存在的原版贴图即可。
+
+    时长与淡入淡出就在这里调（基类 Mote.Alpha / EndOfLife 自己读这些字段）：
+    fadeInTime 0.1 + solidTime 0.4 + fadeOutTime 0.25 = lifespan 0.75 秒（45 tick）。
   -->
   <ThingDef ParentName="MoteBase">
     <defName>DS_IngestBeam</defName>
@@ -20,12 +22,10 @@
     </graphicData>
     <altitudeLayer>MoteOverhead</altitudeLayer>
     <mote>
-      <fadeInTime>0</fadeInTime>
-      <solidTime>1</solidTime>
-      <fadeOutTime>0</fadeOutTime>
-      <!-- lifespan 只是兜底：Mote_DS_IngestBeam 覆写了 EndOfLife => false，
-           销毁时机由它自己的 Finish() 掌握。 -->
-      <lifespan>120</lifespan>
+      <fadeInTime>0.1</fadeInTime>
+      <solidTime>0.4</solidTime>
+      <fadeOutTime>0.25</fadeOutTime>
+      <lifespan>0.75</lifespan>
     </mote>
   </ThingDef>
 </Defs>

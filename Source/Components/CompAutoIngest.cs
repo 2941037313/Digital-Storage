@@ -4,6 +4,7 @@ using System.Linq;
 using DigitalStorage.AI;
 using DigitalStorage.Core;
 using DigitalStorage.Effects;
+using UnityEngine;
 using RimWorld;
 using Verse;
 
@@ -32,13 +33,6 @@ namespace DigitalStorage.Components
         private static int lastSweepTick = -1;
         private static readonly ScanWindow scanWindow = new ScanWindow();
 
-        /// <summary>
-        /// 已经有光束打在其上的物品。入库被推迟到光束消散（见 Mote_DS_IngestBeam），
-        /// 这期间必须把它从候选里排除，否则 15 tick 一轮的扫描会在光束结束前重复起光束。
-        /// 纯静态、不入存档 —— 光束本身也不入存档，两者生命周期一致（一起丢，一起干净）。
-        /// </summary>
-        private static readonly HashSet<Thing> beaming = new HashSet<Thing>();
-
         public static void MarkWithdrawn(Thing t)
         {
             if (t != null)
@@ -62,8 +56,6 @@ namespace DigitalStorage.Components
                 if (tick >= kv.Value) expired.Add(kv.Key);
             for (int i = 0; i < expired.Count; i++)
                 withdrawnUntil.Remove(expired[i]);
-            // 光束被外力打断（地图卸载、存档回滚）时清掉残留标记，避免引用泄漏。
-            beaming.RemoveWhere(x => x == null || x.Destroyed || !x.Spawned);
         }
 
         /// <summary>
@@ -207,10 +199,15 @@ namespace DigitalStorage.Components
                 // M3: 路由基准统一为「接受该物品的最高优先级核心」
                 var best = FindBestIngestCore(map, t);
                 if (best == null) continue;
-                // 不再是"瞬间入库"：先起一束光，光束消散的那一刻才真正搬进去
-                // （Mote_DS_IngestBeam 收尾时回调 TryIngest）。
-                if (StartBeamIngest(best, t))
+                // 立刻入库（零延迟的产品决策不变）。光束只是**余像**：物品此刻已经进核心，
+                // 所以在它被搬走之前先把原来的格子和绘制位置记下来交给光束。
+                IntVec3 beamCell = t.PositionHeld;
+                Vector3 beamPos = t.DrawPos;
+                if (TryIngest(best, t))
+                {
                     taken++;
+                    SpawnIngestBeam(map, beamCell, beamPos);
+                }
             }
             // 清理引用防止 GC 泄漏
             for (int i = 0; i < bufCount; i++)
@@ -218,58 +215,32 @@ namespace DigitalStorage.Components
         }
 
         /// <summary>
-        /// 起一束收纳光束：真正的入库被推迟到光束消散的那一刻（见
-        /// <c>Mote_DS_IngestBeam</c>），"一阵光束后物品消失"就是这么来的。
-        ///
-        /// <b>光束只是装饰，绝不能变成功能依赖</b>：拿不到 Def 或生成失败时
-        /// 直接退回原来的瞬移入库。
+        /// 在物品**原来站的那一格**留一道收纳光束（纯余像）。物品这一刻已经进核心了，
+        /// 光束<b>不承载任何逻辑</b>：拿不到 Def 或生成失败就直接没有任何效果，不影响功能。
+        /// 由 <c>Mote_DS_IngestBeam</c>（Mote 子类）自己按 Def 的 mote 字段播完消失。
         /// </summary>
-        private static bool StartBeamIngest(Building_StorageCore core, Thing t)
+        private static void SpawnIngestBeam(Map map, IntVec3 cell, Vector3 drawPos)
         {
-            if (core == null || t == null || t.Destroyed || !t.Spawned) return false;
-            if (!core.Accepts(t)) return false;
-            Map map = core.Map;
-            if (map == null) return false;
-
             ThingDef beamDef = DefDatabase<ThingDef>.GetNamedSilentFail("DS_IngestBeam");
-            if (beamDef != null)
-            {
-                Mote_DS_IngestBeam mote = GenSpawn.Spawn(beamDef, t.PositionHeld, map) as Mote_DS_IngestBeam;
-                if (mote != null)
-                {
-                    mote.exactPosition = t.DrawPos;
-                    mote.Init(core, t, Rand.Range(0f, 360f));
-                    beaming.Add(t);
-                    return true;
-                }
-            }
-            return TryIngest(core, t);
-        }
+            if (beamDef == null) return;
 
-        private static bool IsBeingBeamed(Thing t)
-        {
-            return t != null && beaming.Contains(t);
-        }
+            Mote_DS_IngestBeam mote = GenSpawn.Spawn(beamDef, cell, map) as Mote_DS_IngestBeam;
+            if (mote == null) return;
 
-        /// <summary>由光束收尾时回调（内部）。</summary>
-        internal static void ClearBeaming(Thing t)
-        {
-            if (t != null) beaming.Remove(t);
+            mote.exactPosition = drawPos;
+            mote.Init(Rand.Range(0f, 360f));
         }
 
         /// <summary>
-        /// 入库瞬移：把一件地面物品直接搬进容器（产品决策：全部无损隔空获取，保留瞬移）。
+        /// 入库瞬移：把一件地面物品直接搬进容器（产品决策：全部无损隔空获取，保留瞬移、零延迟）。
         ///
         /// 4.0 与 3.0 的差别只在"搬进哪儿"：3.0 是 <c>ledger.Ingest</c>（纯数据），
         /// 4.0 是 <c>innerContainer.TryAdd</c>（真实 Thing）—— 也因此这批东西
         /// 立刻能被原版看见（bill 取料 / 读数 / 出库）。
         ///
         /// <b>失败必须放回地面</b>，否则物品凭空消失。
-        ///
-        /// 4.0 起它由 <c>Mote_DS_IngestBeam</c> 在光束消散时回调（internal），
-        /// 不再是候选循环里的第一动作。
         /// </summary>
-        internal static bool TryIngest(Building_StorageCore core, Thing t)
+        private static bool TryIngest(Building_StorageCore core, Thing t)
         {
             if (core == null || t == null || t.Destroyed) return false;
             if (!core.Accepts(t)) return false;
@@ -309,8 +280,6 @@ namespace DigitalStorage.Components
             if (t.IsForbidden(Faction.OfPlayer)) return false;
             if (map.reservationManager.IsReserved(t)) return false;
             if (IsRecentlyWithdrawn(t)) return false;
-            // 已经有光束打在这件东西上 ⇒ 别重复起光束（入库在光束结束时才发生）。
-            if (IsBeingBeamed(t)) return false;
 
             // 玩家主动把东西放在**更高优先级**的储存里 → 不动它（用户 7.31 拍板的路由规则，
             // 旧实现写在 zone 全扫那一段，现在统一到这一个过滤器）。

@@ -1,12 +1,11 @@
-using System;
-using DigitalStorage.Components;
 using UnityEngine;
 using Verse;
 
 namespace DigitalStorage.Effects
 {
     /// <summary>
-    /// 自动收纳的"光束"特效：物品上打下一道光柱 → 光柱消散时物品才真正消失（入库）。
+    /// 自动收纳的"光束"**余像**：物品在这束光出现之前**已经进了核心**，
+    /// 这里只是把它原来站的那一格点亮一下。
     ///
     /// <para><b>外观抄自米莉拉（Milira Race）的米莉安空降</b>
     /// （<c>Milira/CompLightBeam.cs</c>）：同样用原版打包贴图
@@ -16,9 +15,8 @@ namespace DigitalStorage.Effects
     /// <b>没有引入任何第三方素材</b>（那两张贴图是原版资源，米莉拉自己也没带）。</para>
     ///
     /// <para><b>与米莉拉的差别</b>：它画的是一条<b>贴地平扫到地图边缘</b>的长光束
-    /// （空降建筑用），我们画的是<b>立在物品上方的光柱</b>（十字交叉两片，从任意角度看都像柱体）
-    /// 加地面落点光斑 —— "被吸走"这个语义更直白。想要它那种贴地长光束，
-    /// 改 <c>DrawAt</c> 里的旋转与偏移即可。</para>
+    /// （空降建筑用），我们画的是<b>立在原地的一根十字光柱</b>（从任意角度看都像柱体）
+    /// 加地面落点光斑。想要它那种贴地长光束，改 <c>DrawAt</c> 里的旋转与偏移即可。</para>
     ///
     /// <para><b>为什么用 Mote 而不是 Thing+Comp</b>：<c>ListerThings.EverListable</c>
     /// 明确<b>不登记</b> <c>ThingCategory.Mote</c>（<c>ListerThings.cs:300</c>）⇒ 它不进
@@ -26,23 +24,18 @@ namespace DigitalStorage.Effects
     /// <c>ThingsInGroup(HaulableEver)</c> 扫到、也不参与任何容器语义。
     /// 纯装饰物必须待在这个真空区里。</para>
     ///
-    /// <para><b>⚠️ 正确性：入库是延后执行的，所以必须能安全放弃。</b>
-    /// 物品在光束期间**仍留在地上**（视觉上就是"光束打下来 → 然后消失"），
-    /// 因此它可能被小人搬走、被吃掉、被烧掉。收尾时只在
-    /// <c>target.Spawned &amp;&amp; ParentHolder == null</c>（还在原地、仍是地图上的散落物）
-    /// 才入库；否则放弃本次 —— <b>物品绝不会丢</b>，下一轮扫描会再收。</para>
+    /// <para><b>关于副作用</b>：本类<b>不做任何逻辑</b> —— 入库在 <c>CompAutoIngest</c> 里
+    /// 已经当场完成了。所以它被打断、被卸载、存档时消失，都不影响正确性；
+    /// 时长与淡入淡出也全部交给 Def 的 <c>mote</c> 字段（基类 <c>Mote.Alpha</c> /
+    /// <c>EndOfLife</c> 自己处理），本类只负责画。
+    /// 这与"把入库推迟到光束结束"相比省掉了整套防护（目标中途被搬走/销毁就只能放弃）。
+    /// </para>
     /// </summary>
     [StaticConstructorOnStartup]
     public class Mote_DS_IngestBeam : Mote
     {
-        /// <summary>整个特效的时长（tick）。消散完成后才入库。</summary>
-        public const int TotalDuration = 45;
-
-        /// <summary>结束时的淡出时长。</summary>
-        private const int FadeOutDuration = 18;
-
-        /// <summary>光柱拔起的时长。</summary>
-        private const int GrowTicks = 12;
+        /// <summary>光柱拔起所需秒数（纯观感）。</summary>
+        private const float GrowSeconds = 0.2f;
 
         private const float MaxHeight = 8f;
         private const float BeamWidth = 0.4f;
@@ -58,76 +51,24 @@ namespace DigitalStorage.Effects
 
         private static readonly Color BeamColor = new Color(0.55f, 0.9f, 1f, 0.85f);
 
-        private Thing target;
-        private Building_StorageCore core;
-        private int startTick;
         private float angle;
-        private bool finished;
 
-        public void Init(Building_StorageCore core, Thing target, float angle)
+        public void Init(float angle)
         {
-            this.core = core;
-            this.target = target;
             this.angle = angle;
-            startTick = Find.TickManager.TicksGame;
-        }
-
-        private int TicksPassed => Find.TickManager.TicksGame - startTick;
-
-        private int TicksLeft => TotalDuration - TicksPassed;
-
-        /// <summary>销毁时机完全由 <see cref="Finish"/> 掌握，不看 Def 的 lifespan
-        /// （基类 <c>Mote.TimeInterval</c> 一旦判定 EndOfLife 就会直接 Destroy，
-        /// 那样就没有机会执行入库了）。</summary>
-        protected override bool EndOfLife => false;
-
-        protected override void Tick()
-        {
-            if (finished)
-            {
-                if (!Destroyed) Destroy();
-                return;
-            }
-            base.Tick();
-            if (TicksPassed >= TotalDuration) Finish();
-        }
-
-        private void Finish()
-        {
-            finished = true;
-            try
-            {
-                // 只在"还在原地、仍是地图上的散落物"时才入库。
-                // 半路被小人搬走 / 被吃掉 / 被烧掉 ⇒ 放弃本次（物品不丢，下轮再收）。
-                if (target != null && !target.Destroyed && target.Spawned && target.ParentHolder == null
-                    && core != null && !core.Destroyed)
-                {
-                    CompAutoIngest.TryIngest(core, target);
-                }
-            }
-            catch (Exception e)
-            {
-                Log.ErrorOnce("[DigitalStorage] 收纳光束收尾时入库失败（物品留在原地）: " + e, 0x5D51B);
-            }
-            finally
-            {
-                CompAutoIngest.ClearBeaming(target);
-                if (!Destroyed) Destroy();
-            }
         }
 
         protected override void DrawAt(Vector3 drawLoc, bool flip = false)
         {
-            if (TicksLeft <= 0 || Find.UIRoot.HideMotes) return;
+            if (Destroyed || Find.UIRoot.HideMotes) return;
 
-            float grow = Mathf.Clamp01((float)TicksPassed / GrowTicks);
+            float grow = Mathf.Clamp01(AgeSecs / GrowSeconds);
             float height = MaxHeight * grow;
 
-            float alpha = 0.92f + Mathf.Sin((float)TicksPassed * 0.35f) * 0.08f;
-            if (TicksLeft < FadeOutDuration)
-            {
-                alpha *= (float)TicksLeft / FadeOutDuration;
-            }
+            // 淡入/淡出/稳定期全部由 Def 的 mote 字段驱动（基类 Alpha 已经算好）。
+            float alpha = Alpha * (0.92f + Mathf.Sin(AgeSecs * 18f) * 0.08f);
+            if (alpha <= 0.01f) return;
+
             Color color = BeamColor;
             color.a *= alpha;
             MatPropertyBlock.SetColor(ShaderPropertyIDs.Color, color);
@@ -159,15 +100,7 @@ namespace DigitalStorage.Effects
         public override void ExposeData()
         {
             base.ExposeData();
-            Scribe_References.Look(ref target, "dsBeamTarget");
-            Scribe_References.Look(ref core, "dsBeamCore");
-            Scribe_Values.Look(ref startTick, "dsBeamStart", 0);
             Scribe_Values.Look(ref angle, "dsBeamAngle", 0f);
-            if (Scribe.mode == LoadSaveMode.PostLoadInit && (target == null || core == null))
-            {
-                // 装饰物而已，目标没了就自我了断（入库的那件东西还在原地，不受影响）。
-                finished = true;
-            }
         }
     }
 }
