@@ -59,6 +59,49 @@ namespace DigitalStorage.HarmonyPatches
         }
     }
 
+    /// <summary>
+    /// 诊断：为什么 <see cref="Patch_TakeDrugs"/> 的 postfix 从来没被调用过？
+    ///
+    /// 因为 <c>ThinkNode_PrioritySorter</c> 按 <c>GetPriority</c> 决定要不要请这个节点出作业 ——
+    /// 原版 <c>GetPriority</c> 里有 <c>if (pawn.drugs.ShouldTryToTakeScheduledNow(...)) return 7.5f;</c>，
+    /// 一个都不想服就返回 0 ⇒ 节点被跳过 ⇒ <c>TryGiveJob</c> 不被调用 ⇒ 我们的 postfix 跑不到
+    /// ⇒ 一条日志都没有。这正是「postfix entered」在 GetFood 有、在 TakeDrugs 没有的原因。
+    ///
+    /// 所以必须在优先级这一层看：到底是 pawn 不想服（游戏状态问题），还是别的。
+    /// </summary>
+    [HarmonyPatch(typeof(JobGiver_TakeDrugsForDrugPolicy), "GetPriority")]
+    internal static class Patch_TakeDrugs_Priority
+    {
+        [HarmonyPostfix]
+        internal static void Postfix(Pawn pawn, ref float __result)
+        {
+            if (!DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog) return;
+            if (!ConsumePatchUtil.ShouldLog("TakeDrugsPriority")) return;
+
+            DrugPolicy policy = pawn.drugs?.CurrentPolicy;
+            if (policy == null)
+            {
+                Log.Warning("[DS] TakeDrugs: GetPriority=" + __result + " policy=null");
+                return;
+            }
+
+            int wantCount = 0;
+            string wants = "";
+            for (int i = 0; i < policy.Count; i++)
+            {
+                ThingDef d = policy[i].drug;
+                if (d == null) continue;
+                if (pawn.drugs.ShouldTryToTakeScheduledNow(d))
+                {
+                    wantCount++;
+                    if (wantCount <= 5) wants += d.defName + " ";
+                }
+            }
+            Log.Warning("[DS] TakeDrugs: GetPriority=" + __result
+                + " policyCount=" + policy.Count + " wantCount=" + wantCount + " wants=" + wants);
+        }
+    }
+
     // ---- 4.6.3：成瘾品 ----
     [HarmonyPatch(typeof(JobGiver_TakeDrugsForDrugPolicy), "TryGiveJob")]
     static class Patch_TakeDrugs
