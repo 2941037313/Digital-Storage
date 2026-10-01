@@ -56,7 +56,7 @@ namespace DigitalStorage.Core
             return false;
         }
 
-        /// <summary>把本图所有容器内容物收集进 <paramref name="outThings"/>（先清空）。</summary>
+        /// <summary>把本图所有容器内容物**递归**收集进 <paramref name="outThings"/>（先清空）。</summary>
         public static void GatherAll(Map map, List<Thing> outThings)
         {
             outThings.Clear();
@@ -72,6 +72,35 @@ namespace DigitalStorage.Core
                 }
             }
             tmpThings.Clear();
+        }
+
+        /// <summary>
+        /// 收集容器的**直接**内容物（**不**递归进嵌套 holder）。
+        ///
+        /// <para>与 <see cref="GatherAll"/> 的区别很重要，用错会出真问题：
+        /// <c>GatherAll</c> 走 <c>ThingOwnerUtility.GetAllThingsRecursively</c>，会递归进嵌套 holder
+        /// —— 于是一个 <c>Corpse</c> 会连它里面的 <c>Pawn</c> 一起被交出来、一个
+        /// <c>MinifiedThing</c> 会把里面的 <c>Building</c> 交出来。</para>
+        ///
+        /// <para>对"工作台找原料 / 建造选材"这类场景，递归是**对的**（原版
+        /// <c>WorkGiver_DoBill:487</c> 也用递归）。但**交易列表不能这样**：原版自己的容器分支
+        /// （<c>Building_Bookcase.HeldBooks</c> / <c>Building_OutfitStand.HeldItems</c>）
+        /// 都只取**直接**内容物，绝不会把尸体里的 pawn 当成可交易物。</para>
+        /// </summary>
+        public static void CollectDirect(Map map, List<Thing> outThings)
+        {
+            outThings.Clear();
+            List<IHaulSource> sources = EnabledSources(map);
+            for (int i = 0; i < sources.Count; i++)
+            {
+                ThingOwner held = sources[i].GetDirectlyHeldThings();
+                if (held == null) continue;
+                for (int j = 0; j < held.Count; j++)
+                {
+                    Thing t = held[j];
+                    if (t != null && !t.Destroyed) outThings.Add(t);
+                }
+            }
         }
 
         /// <summary>
