@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using DigitalStorage.AI;
 using DigitalStorage.Core;
 using DigitalStorage.Effects;
 using UnityEngine;
@@ -31,7 +29,6 @@ namespace DigitalStorage.Components
         private static readonly Dictionary<int, int> withdrawnUntil = new Dictionary<int, int>();
         private static Thing[] candidateBuffer = new Thing[30];
         private static int lastSweepTick = -1;
-        private static readonly ScanWindow scanWindow = new ScanWindow();
 
         public static void MarkWithdrawn(Thing t)
         {
@@ -56,28 +53,6 @@ namespace DigitalStorage.Components
                 if (tick >= kv.Value) expired.Add(kv.Key);
             for (int i = 0; i < expired.Count; i++)
                 withdrawnUntil.Remove(expired[i]);
-        }
-
-        /// <summary>
-        /// M3: 找接受该物品的「最高优先级」核心——路由决策基准。
-        /// 多核心并存时物品去向不再取决于谁先 tick（旧实现各核心用自己的优先级独立决策）。
-        /// </summary>
-        internal static Building_StorageCore FindBestIngestCore(Map map, Thing t)
-        {
-            Building_StorageCore best = null;
-            // 直接枚举 haul source（不再走 DigitalStorageMapComponent 注册表 ——
-            // 那个注册表自批 1 起无人写入，导致这里恒返回 null、自动收纳静默失效。
-            // 详见 CoreFinder 类注释里的 bug 记录。）
-            foreach (Building_StorageCore core in CoreFinder.AllUsableCores(map))
-            {
-                if (core == null || !core.Powered) continue;
-                // 4.0：收不收由容器自己答（过滤器 + 容量 + HaulDestinationEnabled），
-                // 不再有账本白名单。Accepts 已在「东西已经在里面」时只按过滤器作答。
-                if (!core.Accepts(t)) continue;
-                if (best == null || core.storagePriority > best.storagePriority)
-                    best = core;
-            }
-            return best;
         }
 
         public bool Enabled
@@ -152,42 +127,24 @@ namespace DigitalStorage.Components
             int bufCount = 0;
 
 
-            // 候选来源：map.listerThings.ThingsInGroup(HaulableEver)——**不用**原版的
-            // listerHaulables.ThingsPotentiallyNeedingHauling()。
+            // 候选来源：**原版自己的"待搬"表** —— `WorkGiver_Haul.PotentialWorkThingsGlobal`
+            // 用的就是它（WorkGiver_Haul.cs:16）。于是"禁止 / 不可搬 / 已经在最优储存位置"
+            // 全部由原版判定（`ListerHaulables.ShouldBeHaulable` → `StoreUtility.IsInValidBestStorage`），
+            // 我们一行都不用重写；未开采的矿脉也天然不在表里（Mineable 的 alwaysHaulable 为
+            // false ⇒ 没有搬运标记就不入表），所以连 `t is Mineable` 这种特例都不需要。
             //
-            // 原版那张表是"待搬"判定：ListerHaulables.ShouldBeHaulable（ListerHaulables.cs:194）
-            // 会把**已经位于其最优储存位置**的东西剔掉（:211 `IsInValidBestStorage()`）。
-            // 而我们的产品语义恰恰要收"正躺在储存区里"的东西 —— 交易赚来的白银由
-            // Pawn_TraderTracker.GiveSoldThingToPlayer:194 掉在**商人脚下的那格**上，
-            // 若那格在储存区内，原版认为"已经放好了"，我们从那张表里就再也看不见它，
-            // 表现就是"有的物品收得进、有的收不进"。
-            //
-            // 参考 Manipulator Beam Emitter（workshop 3683998684）的做法，
-            // BeamManipulatorUtility.cs:110-111 的注释写得很准：
-            //   「直接使用地图维护的可搬物列表，包含已经入库的物品；不等待原版逐格重算待搬状态。」
-            //
-            // 窗口轮转（同款 BeamScanWindow）：这张表可能上千项。若每轮都从表头扫、
-            // 收满缓冲就 break，表尾会被**永久遮蔽**（而新物品恰恰是 append 到表尾的，
-            // 最该被看见的正是它们）。所以每轮只扫一个预算窗口，游标持续前进并绕圈。
-            List<Thing> all = map.listerThings.ThingsInGroup(ThingRequestGroup.HaulableEver);
-            if (all.Count > 0)
+            // 【曾走过的弯路，勿重蹈】一度换成 `listerThings.ThingsInGroup(HaulableEver)`，
+            // 理由是"原版待搬表漏掉了躺在仓区里的交易白银"。那个判断是**错的**：
+            // `IsInValidBestStorage` 用 `faction: Faction.OfPlayer` 去找"有没有更好的去处"，
+            // 而核心走的是 `TryFindBestBetterNonSlotGroupStorageFor` 那条腿
+            // （StoreUtility.cs:144 / :242），只要核心比当前储存更优，物品本来就在待搬表里。
+            // 真正的元凶是当时那条活动区闸门（已删）。
+            var haulables = map.listerHaulables.ThingsPotentiallyNeedingHauling();
+            foreach (Thing t in haulables)
             {
-                StoragePriority maxPrio = StoragePriority.Unstored;
-                foreach (Building_StorageCore c in CoreFinder.AllUsableCores(map))
-                    if (c.storagePriority > maxPrio)
-                        maxPrio = c.storagePriority;
-
-                int budget = rate * 16;
-                if (budget < 64) budget = 64;
-                int start = scanWindow.Take(all.Count, budget);
-                for (int step = 0; step < scanWindow.Count; step++)
-                {
-                    Thing t = all[(start + step) % all.Count];
-                    if (!CanCollect(t, map, maxPrio)) continue;
-                    // 缓冲满了也把窗口推完（否则前段会永久遮蔽后段），只是不再收。
-                    if (bufCount >= bufSize) continue;
-                    candidateBuffer[bufCount++] = t;
-                }
+                if (bufCount >= bufSize) break;
+                if (!CanCollect(t, map)) continue;
+                candidateBuffer[bufCount++] = t;
             }
 
             for (int i = 0; i < bufCount && taken < rate; i++)
@@ -195,14 +152,16 @@ namespace DigitalStorage.Components
                 var t = candidateBuffer[i];
                 if (t.Destroyed) continue;
 
-                // M3: 路由基准统一为「接受该物品的最高优先级核心」
-                var best = FindBestIngestCore(map, t);
-                if (best == null) continue;
+                // 路由判据：**原版自己会不会把它搬进核心**（见 WouldVanillaHaulIntoCore）。
+                // 优先级比较、过滤器、容量全部由原版回答，不再由本 mod 复述一遍。
+                Building_StorageCore dest = WouldVanillaHaulIntoCore(map, t);
+                if (dest == null) continue;
+
                 // 立刻入库（零延迟的产品决策不变）。光束只是**余像**：物品此刻已经进核心，
                 // 所以在它被搬走之前先把原来的格子和绘制位置记下来交给光束。
                 IntVec3 beamCell = t.PositionHeld;
                 Vector3 beamPos = t.DrawPos;
-                if (TryIngest(best, t))
+                if (TryIngest(dest, t))
                 {
                     taken++;
                     SpawnIngestBeam(map, beamCell, beamPos);
@@ -260,93 +219,84 @@ namespace DigitalStorage.Components
         }
 
         /// <summary>
-        /// 候选被拒的原因。**过滤与诊断共用这一份判定**
+        /// 候选被拒的原因（<b>只保留原版不回答的那两件事</b>）。过滤与诊断共用这一份判定
         /// （<see cref="RejectReason"/>），诊断绝不另写一套近似逻辑 —— 那样两边会漂移，
         /// 出现"诊断全绿但就是不收"的假象（这个坑本 mod 已经踩过一次）。
+        ///
+        /// <para>其余判据**全部交还原版**：禁止 / 不可搬 / 已在最优储存 → 由
+        /// <c>listerHaulables</c> 的准入（<c>ShouldBeHaulable</c>）回答；
+        /// 未开采矿脉 → 同上（Mineable 不入表）；优先级与容量 → 由
+        /// <see cref="WouldVanillaHaulIntoCore"/> 里的原版目的地搜索回答。
+        /// 本 mod 不再复述任何一条，也就不会和原版漂移。</para>
         /// </summary>
         internal enum Reject
         {
             None = 0,
             NullOrDestroyed,
-            NotItem,
-            Mineable,
-            Forbidden,
+            /// <summary>不在图上（在别人背包里 / 在某个容器里）—— 绝不能对它们 DeSpawn。</summary>
+            NotOnMap,
             Reserved,
-            RecentlyWithdrawn,
-            HigherPriorityStorage
+            RecentlyWithdrawn
         }
 
         /// <summary>
-        /// 自动收纳候选的统一过滤：是不是物品、不是未开采矿脉、未禁止、未预订、保护窗口外、
-        /// 不在更高优先级的储存里。
+        /// 候选过滤：只做两件原版不替我们回答的事 —— **只读的预订检查**（不碰
+        /// <c>ReservationManager.Reserve</c>，与 MoreOrgans 的劳务手同款）与
+        /// **"刚被取出"保护窗口**（防止玩家取出后立刻被吸回去），外加一条
+        /// <b>必须在地图上</b>的守卫：<c>listerHaulables</c> 里会出现"因过滤器变更而要从
+        /// 核心里搬出去"的内容物（甲-1 的机制），对容器里的东西 <c>DeSpawn</c> 是错的。
         ///
-        /// <para><b>活动区（Home）闸门已于 4.0 删除</b>：它原本是社区反馈
-        /// 「老远处的石块被瞬移」的兜底，但那个问题的真凶是"未开采的矿脉也是 Item 类别"，
-        /// 现在由 <see cref="Reject.Mineable"/> 精确挡住；而活动区闸门误伤极大 ——
-        /// 挖矿出来的钢铁、开发者模式拆建筑掉的材料、交易掉在区外的白银全在活动区之外，
-        /// 表现就是"有些物品收得进、有些死活收不进"。
-        /// 用户定的方向本来就是「不加任何限制、任何位置隔空取放」。</para>
+        /// <para>活动区闸门已于 4.0 删除：它误伤极大（挖矿掉落、拆建筑材料、交易掉在区外的
+        /// 白银全在 Home 区之外），而它想防的"老远处石块"其实是未开采矿脉，现已由原版
+        /// 待搬表天然挡住。用户既定方向是「不加任何限制、任何位置隔空取放」。</para>
         /// </summary>
-        internal static Reject RejectReason(Thing t, Map map, StoragePriority maxCorePrio)
+        internal static Reject RejectReason(Thing t, Map map)
         {
             if (t == null || t.Destroyed) return Reject.NullOrDestroyed;
-            // 4.0「全放开」：LedgerPolicy 白名单已废，只留"是不是物品"。
-            // 具体收不收由目标容器的 Accepts（过滤器 + 容量）决定 —— 见 TryIngest。
-            if (t.def == null || t.def.category != ThingCategory.Item) return Reject.NotItem;
-
-            // 未开采的矿脉/岩石同样是 Item 类别。原版 listerHaulables 是靠
-            // "Mineable 的 alwaysHaulable 为 false ⇒ 没有搬运标记就不入表"顺带挡住它们的；
-            // 我们改用 HaulableEver 之后它们会全部进来，所以必须显式挡。
-            if (t is Mineable) return Reject.Mineable;
-
-            if (t.IsForbidden(Faction.OfPlayer)) return Reject.Forbidden;
+            if (!t.Spawned || t.ParentHolder != null) return Reject.NotOnMap;
             if (map.reservationManager.IsReserved(t)) return Reject.Reserved;
             if (IsRecentlyWithdrawn(t)) return Reject.RecentlyWithdrawn;
-
-            // 玩家主动把东西放在**更高优先级**的储存里 → 不动它（用户 7.31 拍板的路由规则）。
-            SlotGroup slotGroup = map.haulDestinationManager.SlotGroupAt(t.PositionHeld);
-            if (slotGroup != null && slotGroup.Settings.Priority > maxCorePrio) return Reject.HigherPriorityStorage;
-
             return Reject.None;
         }
 
-        private static bool CanCollect(Thing t, Map map, StoragePriority maxCorePrio)
+        private static bool CanCollect(Thing t, Map map)
         {
-            return RejectReason(t, map, maxCorePrio) == Reject.None;
+            return RejectReason(t, map) == Reject.None;
         }
 
         /// <summary>
-        /// 跨轮继续的小窗口扫描器：游标不因空闲、暂停或列表长度变化而重置，不写存档。
-        /// 抄自 Manipulator Beam Emitter 的 <c>BeamScanWindow.cs</c>
-        /// （用法同 <c>BeamManipulatorUtility.cs:110-125</c>）：全表轮转 + 每轮预算，
-        /// 避免"每轮都从表头扫、收满就 break"把表尾永久遮蔽。
+        /// <b>收纳判据：原版自己会不会把这件东西搬进我们的核心。</b>
+        ///
+        /// <para>调用的是原版 <c>StoreUtility.TryFindBestBetterStorageFor</c>
+        /// （<c>StoreUtility.cs:144</c>）：它同时搜"格子型储存"与"非格子型储存"，
+        /// 后者（<c>TryFindBestBetterNonSlotGroupStorageFor</c>，<c>:242</c>）正是我们的核心
+        /// 所在的那条腿（只跳过 <c>ISlotGroupParent</c> / <c>Building_Grave</c> /
+        /// <c>!HaulDestinationEnabled</c>）。返回的目的地就是我们的核心时才插手
+        /// —— <b>"原版本来就要把它搬进核心"，我们只是把这段搬运改成瞬时完成。</b></para>
+        ///
+        /// <para><b>为什么可以传 <c>carrier: null</c></b>：原版自己就这么调
+        /// （<c>IsInValidBestStorage</c>，<c>StoreUtility.cs:67</c>，连
+        /// <c>needAccurateResult: false</c> 也一样），它是个常年跑的路径，空 carrier 是被支持的。
+        /// <b>这也正是我们要的</b>：不借任何殖民者 ⇒ <c>p.health.capacities</c>、
+        /// <c>p.CanReserve</c>、可达性都不会渗进结论，某个小人倒地/断手也不会让核心静默停工
+        /// （"殖民者状态不影响核心的工作"）。距离只用于同为格子型储存之间的决胜，
+        /// 永远不会成为挡住核心的闸门。</para>
         /// </summary>
-        private sealed class ScanWindow
+        internal static Building_StorageCore WouldVanillaHaulIntoCore(Map map, Thing t)
         {
-            private int cursor;
-            private int remaining;
+            if (map == null || t == null || t.Destroyed) return null;
 
-            public int Count { get; private set; }
-
-            public int Take(int itemCount, int budget)
+            StoragePriority currentPriority = StoreUtility.CurrentStoragePriorityOf(t);
+            if (!StoreUtility.TryFindBestBetterStorageFor(t, null, map, currentPriority,
+                    Faction.OfPlayer, out IntVec3 _, out IHaulDestination dest, needAccurateResult: false))
             {
-                if (itemCount <= 0 || budget <= 0)
-                {
-                    Count = 0;
-                    remaining = 0;
-                    return 0;
-                }
-                cursor %= itemCount;
-                if (remaining <= 0 || remaining > itemCount)
-                {
-                    remaining = itemCount;
-                }
-                int start = cursor;
-                Count = Math.Min(budget, remaining);
-                cursor = (cursor + Count) % itemCount;
-                remaining -= Count;
-                return start;
+                return null; // 原版没有更好的去处（已经放好了 / 没地方放）
             }
+
+            Building_StorageCore core = dest as Building_StorageCore;
+            if (core == null || core.Destroyed) return null;
+            if (!core.Powered) return null;  // 断电的核心原版也不会搬进去（没有电力它就不可用）
+            return core;
         }
 
         public override void PostExposeData()
