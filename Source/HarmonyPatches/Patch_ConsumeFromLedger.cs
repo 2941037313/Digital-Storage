@@ -22,7 +22,7 @@ namespace DigitalStorage.HarmonyPatches
             if (!ConsumePatchUtil.ShouldTry(pawn)) return;
             if (!CanUseCoreFood(pawn)) return;
             __result = ConsumptionHelper.TryCreateJob(pawn,
-                key => key.def.IsNutritionGivingIngestible);
+                t => t.def.IsNutritionGivingIngestible);
         }
 
         private static bool CanUseCoreFood(Pawn pawn)
@@ -53,7 +53,7 @@ namespace DigitalStorage.HarmonyPatches
             {
                 var drugDef = policy[i].drug;
                 if (!pawn.drugs.ShouldTryToTakeScheduledNow(drugDef)) continue;
-                var job = ConsumptionHelper.TryCreateJob(pawn, key => key.def == drugDef);
+                var job = ConsumptionHelper.TryCreateJob(pawn, t => t.def == drugDef);
                 if (job != null) { __result = job; return; }
             }
         }
@@ -73,7 +73,7 @@ namespace DigitalStorage.HarmonyPatches
                 if (def.thingDefs == null) continue;
                 foreach (var td in def.thingDefs)
                 {
-                    var job = ConsumptionHelper.TryCreateJob(pawn, key => key.def == td);
+                    var job = ConsumptionHelper.TryCreateJob(pawn, t => t.def == td);
                     if (job != null) { __result = job; return; }
                 }
             }
