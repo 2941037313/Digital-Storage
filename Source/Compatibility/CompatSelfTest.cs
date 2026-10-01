@@ -47,22 +47,44 @@ namespace DigitalStorage.Compatibility
                     + "  Spawned=" + core.Spawned);
 
                 HaulDestinationManager mgr = map == null ? null : map.haulDestinationManager;
-                SlotGroup group = core.GetSlotGroup();
 
-                sb.AppendLine("  ① GetSlotGroup()=" + (group == null ? "null" : "非 null")
-                    + "   group.parent 就是本核心=" + (group != null && ReferenceEquals(group.parent, core))
-                    + "   CellsList.Count=" + (group == null ? -1 : group.CellsList.Count) + "（应为 0）");
+                // ① 核心**绝不能**自己实现 ISlotGroupParent（那会让原版容器腿跳过它）
+                bool coreIsSgp = core is ISlotGroupParent;
+                sb.AppendLine("  ① 核心自己是 ISlotGroupParent=" + coreIsSgp
+                    + (coreIsSgp ? "  ★★ 错！原版容器腿(StoreUtility:252)会跳过核心 ⇒ 收纳/入库全废" : "（应为 False）"));
 
-                if (mgr == null)
+                CoreSlotGroupAdapter adapter = core.CompatSlotGroup;
+                SlotGroup group = adapter == null ? null : adapter.GetSlotGroup();
+                sb.AppendLine("     替身：已注册=" + core.CompatSlotGroupRegistered
+                    + "  CellsList.Count=" + (group == null ? -1 : group.CellsList.Count) + "（应为 0）"
+                    + "  替身的组在 AllGroups 里=" + (mgr != null && mgr.AllGroupsListForReading.Contains(group))
+                    + "  AllGroups 总数=" + (mgr == null ? -1 : mgr.AllGroupsListForReading.Count));
+
+                // ② 回归探针：原版容器腿还找得到核心吗（今天这个 bug 就是这条断的）
+                string containerLeg;
+                if (core.GetDirectlyHeldThings().Count == 0)
                 {
-                    sb.AppendLine("  ② 无 haulDestinationManager（不在图上）");
+                    containerLeg = "核心是空的，跳过（先放点东西再测）";
                 }
                 else
                 {
-                    sb.AppendLine("  ② AllGroups 总数=" + mgr.AllGroupsListForReading.Count
-                        + "   本核心的组在表里=" + mgr.AllGroupsListForReading.Contains(group)
-                        + "   核心在 AllHaulDestinations 里=" + mgr.AllHaulDestinationsListForReading.Contains(core));
+                    Thing sample = core.GetDirectlyHeldThings()[0];
+                    try
+                    {
+                        bool found = StoreUtility.TryFindBestBetterNonSlotGroupStorageFor(
+                            sample, null, map, StoragePriority.Unstored, Faction.OfPlayer,
+                            out IHaulDestination dest, acceptSamePriority: false, requiresDestReservation: false);
+                        containerLeg = found
+                            ? ("找到目的地 = " + (dest == null ? "null" : dest.GetType().Name)
+                               + "   是本核心=" + ReferenceEquals(dest, core))
+                            : "**没找到目的地** ⇒ 自动收纳与入库都会失效";
+                    }
+                    catch (Exception e)
+                    {
+                        containerLeg = "探针抛异常：" + e.GetType().Name + " " + e.Message;
+                    }
                 }
+                sb.AppendLine("  ② 原版容器腿（TryFindBestBetterNonSlotGroupStorageFor）" + containerLeg);
 
                 int total = 0, unspawned = 0;
                 if (group != null)
@@ -80,8 +102,8 @@ namespace DigitalStorage.Compatibility
                         sb.AppendLine("  ★ HeldThings 枚举抛异常：" + e.GetType().Name + " " + e.Message);
                     }
                 }
-                sb.AppendLine("  ③ HeldThings 枚举出 " + total + " 件（其中未 Spawn = 容器内容物 " + unspawned
-                    + " 件）   HeldThingsCount=" + (group == null ? -1 : group.HeldThingsCount));
+                sb.AppendLine("  ③ 替身的组 HeldThings 枚举出 " + total + " 件（其中未 Spawn = 容器内容物 "
+                    + unspawned + " 件）   HeldThingsCount=" + (group == null ? -1 : group.HeldThingsCount));
 
                 MethodInfo getter = AccessTools.PropertyGetter(typeof(SlotGroup), "HeldThings");
                 int all = 0;

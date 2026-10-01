@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DigitalStorage.Components;
 using HarmonyLib;
 using RimWorld;
 using Verse;
@@ -49,7 +50,13 @@ namespace DigitalStorage.HarmonyPatches
                 if (source == null || !source.HaulSourceEnabled) continue;
 
                 // 已经由原版 SlotGroup 循环计过的，不要重复加。
+                // ① 本身是 ISlotGroupParent 的（VMF Building_Hatch、ASF ThingClass 等）
+                // ② 我们的核心：内容物由「惰性替身」的零格子 SlotGroup 被原版算进去
+                //    （见 Compatibility/CoreSlotGroupAdapter —— 核心自己**不**实现 ISlotGroupParent，
+                //     所以下面那道 `source is ISlotGroupParent` 判不到它，必须显式补这一条，
+                //     否则资源读数会翻倍）
                 if (source is ISlotGroupParent) continue;
+                if (source is Building_StorageCore core && core.CompatSlotGroupRegistered) continue;
 
                 ThingOwner held = source.GetDirectlyHeldThings();
                 if (held == null) continue;

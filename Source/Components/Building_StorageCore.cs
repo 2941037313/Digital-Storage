@@ -29,8 +29,7 @@ namespace DigitalStorage.Components
     /// </summary>
     [StaticConstructorOnStartup]
     public class Building_StorageCore : Building, IThingHolder, ISearchableContents,
-        IHaulSource, IHaulDestination, IApparelSource, IStoreSettingsParent, IThingHolderTickable,
-        ISlotGroupParent
+        IHaulSource, IHaulDestination, IApparelSource, IStoreSettingsParent, IThingHolderTickable
     {
         private static readonly Material LightMat = MaterialPool.MatFrom("2.0/一束光", ShaderDatabase.MoteGlow);
         private static readonly Material OrbMat = MaterialPool.MatFrom("2.0/一个球", ShaderDatabase.Cutout);
@@ -249,41 +248,54 @@ namespace DigitalStorage.Components
             MapHeld.haulDestinationManager?.Notify_HaulDestinationChangedPriority();
         }
 
-        // ===== ISlotGroupParent（兼容层：让第三方扫描器看见内容物）=====
+        // ===== 兼容层：惰性替身（让第三方扫描器看见内容物）=====
         //
         // 目的：Phinix（TradeWindow.cs:106）与 Phinix 红包（RedPacketTab.cs:157）的**默认分支**是
         //   maps.SelectMany(m => m.haulDestinationManager.AllGroups).SelectMany(g => g.HeldThings)
-        // —— 它们不认 IHaulSource，只认 SlotGroup。核心进了 AllGroups，内容物才可能被它们看见。
+        // —— 它们不认 IHaulSource，只认 SlotGroup。核心得先进 AllGroups。
         //
-        // 【为什么是零格子】注册点在 HaulDestinationManager.AddHaulDestination:57-85：
-        //   if (!(haulDestination is ISlotGroupParent p)) return;
-        //   allGroupsInOrder.Add(p.GetSlotGroup());                 // ← 自动进 AllGroups
-        //   for (每个 cell in slotGroup.CellsList) SetCellFor(cell, slotGroup);
-        // 而 Thing.SpawnSetup:884 对**任何 IHaulDestination** 都会调它 —— 核心本来就是了。
-        // 返回空表 ⇒ 那段 SetCellFor 空转 ⇒ 组进得了 AllGroups，却不让任何格子变成储存：
-        //   StoreUtility.TryFindBestBetterStoreCellFor 取格子 ⇒ 永不入选
-        //   WorkGiver_Merge 由 t 所在格的组取 ⇒ 取不到我们
-        //   ListerHaulables.CellsCheckTick:109 显式 `if (CellsList.Count != 0)` ⇒ 零开销跳过
-        // 内容物由 Patch_SlotGroup_HeldThings 追加进 HeldThings / HeldThingsCount。
-        //
-        // 【为什么不能给真格子】给格子 = 原版搬运工会把货拉到核心脚下的地板上（变成 Spawned 物品），
-        // 和"内容物住在 ThingOwner 里"的架构直接冲突。
-        private static readonly List<IntVec3> NoSlotCells = new List<IntVec3>();
-        private SlotGroup slotGroup;
+        // 【⚠️ 绝不能由核心自己实现 ISlotGroupParent】2026-10-02 实测事故：
+        //   StoreUtility.cs:252  if (haulDestination2 is ISlotGroupParent || ...) continue;   // 容器腿
+        // 核心自己实现该接口 ⇒ 被当"格子型储存"跳过 ⇒ 自动收纳停摆 / pawn 不往核心搬货 /
+        // 右键报"无可用存储区"（HaulAIUtility:129、Pawn_JobTracker:710,733 还会当格子目的地建作业）。
+        // 改成**惰性替身**：替身进 AllGroups，但 HaulDestinationEnabled=false + Accepts=false +
+        // 零格子 ⇒ 容器腿两次判断都跳过它，对原版管线完全透明。详见 CoreSlotGroupAdapter。
+        private Compatibility.CoreSlotGroupAdapter compatSlotGroup;
 
-        public bool IgnoreStoredThingsBeauty => true; // 内容物不在房间里，房间美观与它无关
-        public IEnumerable<IntVec3> AllSlotCells() => NoSlotCells;
-        public List<IntVec3> AllSlotCellsList() => NoSlotCells;
-        public void Notify_ReceivedThing(Thing newItem) { } // 零格子 ⇒ 原版永不调用
-        public void Notify_LostThing(Thing newItem) { }
-        public string SlotYielderLabel() => Label;
-        public string GroupingLabel => Label;
-        public int GroupingOrder => 0;
+        /// <summary>替身是否已注册进 <c>haulDestinationManager</c>（资源计数防双算要用）。</summary>
+        public bool CompatSlotGroupRegistered { get; private set; }
 
-        public SlotGroup GetSlotGroup()
+        internal Compatibility.CoreSlotGroupAdapter CompatSlotGroup
         {
-            if (slotGroup == null) slotGroup = new SlotGroup(this);
-            return slotGroup;
+            get
+            {
+                if (compatSlotGroup == null) compatSlotGroup = new Compatibility.CoreSlotGroupAdapter(this);
+                return compatSlotGroup;
+            }
+        }
+
+        private void RegisterCompatSlotGroup()
+        {
+            Map map = Map;
+            HaulDestinationManager mgr = (map == null) ? null : map.haulDestinationManager;
+            if (mgr == null) return;
+
+            Compatibility.CoreSlotGroupAdapter adapter = CompatSlotGroup;
+            if (mgr.AllHaulDestinationsListForReading.Contains(adapter)) { CompatSlotGroupRegistered = true; return; }
+
+            mgr.AddHaulDestination(adapter); // 内部会对 ISlotGroupParent 调 GetSlotGroup() 并加进 allGroupsInOrder
+            CompatSlotGroupRegistered = true;
+        }
+
+        private void UnregisterCompatSlotGroup()
+        {
+            Map map = Map;
+            HaulDestinationManager mgr = (map == null) ? null : map.haulDestinationManager;
+            if (mgr == null || compatSlotGroup == null) { CompatSlotGroupRegistered = false; return; }
+
+            if (mgr.AllHaulDestinationsListForReading.Contains(compatSlotGroup))
+                mgr.RemoveHaulDestination(compatSlotGroup); // 会连带把 SlotGroup 从 allGroupsInOrder 摘掉
+            CompatSlotGroupRegistered = false;
         }
 
         // ===== 对外小接口 =====
@@ -335,6 +347,9 @@ namespace DigitalStorage.Components
             // 「开发者 → 生成 → 建筑」是裸 GenSpawn 不设阵营 → 会被静默跳过。补上。
             if (Faction == null && def != null && def.CanHaveFaction)
                 SetFaction(Faction.OfPlayer);
+
+            // 兼容层：注册惰性替身（只为了让核心进 AllGroups 供第三方扫描器枚举）
+            RegisterCompatSlotGroup();
         }
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
@@ -342,6 +357,9 @@ namespace DigitalStorage.Components
             // 拆/毁时把内容物全部落地，避免随建筑一起消失（物品丢失）。
             if (mode == DestroyMode.Deconstruct || mode == DestroyMode.KillFinalize)
                 DropAllContents();
+
+            // 注销替身要在 base.DeSpawn 之前（那时 Map 还在），否则 allGroupsInOrder 会留一个僵尸组
+            UnregisterCompatSlotGroup();
 
             base.DeSpawn(mode);
         }
