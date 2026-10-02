@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using DigitalStorage.AI;
+using DigitalStorage.Effects;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
@@ -35,6 +36,12 @@ namespace DigitalStorage.Components
 
         /// <summary>干活时目标"底下"的黄色进度条（原版同款 effecter，见 <see cref="UpdateProgressBar"/>）。</summary>
         private Effecter progressBar;
+
+        /// <summary>干活时趴在目标上的那只手（纯表现 Mote，见 <see cref="UpdateWorkHand"/>）。</summary>
+        private Mote_DS_WorkHand workHand;
+
+        /// <summary>上一次看到的"干活步数"，用来判断该不该让手挥一下。</summary>
+        private int lastSeenStrikes;
 
         /// <summary>候选集遍历上限（防某个 lister 把一帧吃光）。</summary>
         private const int MaxIterate = 4000;
@@ -140,8 +147,57 @@ namespace DigitalStorage.Components
             }
 
             UpdateProgressBar();
+            UpdateWorkHand(map);
 
             if (task != null && task.Finished) Release();
+        }
+
+        /// <summary>
+        /// 把"干活的那只手"摆到当前目标上，并在每次干完一步时让它挥一下。
+        ///
+        /// <para>位置直接取 <c>target.DrawPos</c>（所以矿物、植株、框架、污物都能用同一套），
+        /// 略微朝镜头一点压在目标正面。手的生死由它自己的 <c>Maintain()</c> 自愈机制兜底：
+        /// 我们一旦不再调 <c>Maintain()</c>，它 1 秒后自己消失。</para>
+        /// </summary>
+        private void UpdateWorkHand(Map map)
+        {
+            if (task == null || task.target == null || task.target.Destroyed || !task.target.Spawned)
+            {
+                ReleaseWorkHand();
+                return;
+            }
+
+            if (workHand == null || workHand.Destroyed || !workHand.Spawned)
+            {
+                ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail(task.HandMoteDefName);
+                if (def == null) return;
+                Mote_DS_WorkHand m = ThingMaker.MakeThing(def) as Mote_DS_WorkHand;
+                if (m == null) return;
+                GenSpawn.Spawn(m, task.target.Position, map);
+                workHand = m;
+            }
+
+            Vector3 pos = task.target.DrawPos;
+            pos.y = 0f;          // y 由 Mote.DrawMote 按 altitudeLayer 每帧重设
+            pos.z += 0.15f;      // 略微朝镜头，压在目标正面
+            workHand.exactPosition = pos;
+            workHand.Maintain();
+
+            if (task.StrikeCount != lastSeenStrikes)
+            {
+                lastSeenStrikes = task.StrikeCount;
+                workHand.Strike();
+            }
+        }
+
+        private void ReleaseWorkHand()
+        {
+            if (workHand != null && !workHand.Destroyed)
+            {
+                workHand.Destroy();
+            }
+            workHand = null;
+            lastSeenStrikes = 0;
         }
 
         /// <summary>
@@ -257,7 +313,7 @@ namespace DigitalStorage.Components
             }
         }
 
-        /// <summary>放手：清认领表 + 丢任务 + 收掉 effecter。断电/拆除/目标失效/干完都走这里。</summary>
+        /// <summary>放手：清认领表 + 丢任务 + 收掉 effecter/手。断电/拆除/目标失效/干完都走这里。</summary>
         public void Release()
         {
             DigitalWorkerClaims.ReleaseAll(this);
@@ -267,6 +323,7 @@ namespace DigitalStorage.Components
                 task = null;
             }
             CleanupProgressBar();
+            ReleaseWorkHand();
         }
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)

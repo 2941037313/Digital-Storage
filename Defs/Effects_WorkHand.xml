@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <!--
+    代理建筑干活时趴在被加工目标上的那只手（纯视觉 Mote，零机制）。
+    贴图复用「劳务外包手」的爪子（More Organs 项目，同作者）⇒ Textures/2.0/工作手.png。
+
+    为什么是 Mote、以及 solidTime 为什么给极大值：
+      · Mote 不进 listerThings、不进存档（ThingCategory.Mote 被排除）—— 纯装饰物该待的真空区；
+      · needsMaintenance + fadeOutUnmaintained + fadeOutTime = 自愈：comp 每 tick 调 Maintain()，
+        没人维护（建筑被拆/断电/存档孤儿）就 1 秒后自己 Destroy，绝不留下永久的手；
+      · solidTime 必须极大：Alpha 在 fadeInTime+SolidTime 之后会开始淡出，
+        太小的话即使一直被 Maintain 也会消失。
+    其余（Graphic_Mote / Mote shader / tickerType / useHitPoints / isSaveable / rotatable）
+    都由原版 MoteBase 提供。
+
+    拓展到种植/建造/清洁时：加一个同结构的 def（换贴图），
+    并在对应 DigitalTask 里重写 HandMoteDefName 指过去即可（见 DigitalTask 的注释）。
+  -->
+  <ThingDef ParentName="MoteBase">
+    <defName>DS_WorkHand</defName>
+    <label>数字工人之手</label>
+    <thingClass>DigitalStorage.Effects.Mote_DS_WorkHand</thingClass>
+    <graphicData>
+      <texPath>2.0/工作手</texPath>
+      <drawSize>0.9</drawSize>
+    </graphicData>
+    <altitudeLayer>MoteOverhead</altitudeLayer>
+    <mote>
+      <fadeInTime>0.1</fadeInTime>
+      <solidTime>99999</solidTime>
+      <fadeOutTime>1</fadeOutTime>
+      <needsMaintenance>true</needsMaintenance>
+      <fadeOutUnmaintained>true</fadeOutUnmaintained>
+    </mote>
+  </ThingDef>
+</Defs>

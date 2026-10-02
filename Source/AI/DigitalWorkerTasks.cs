@@ -24,6 +24,21 @@ namespace DigitalStorage.AI
         public Thing target;
         public CompDigitalWorker comp;
 
+        /// <summary>
+        /// "干完一步"的计数（挖一镐 / 砍一刀 / 建一点）。comp 靠它决定要不要让手上那只手挥一下。
+        /// 没有离散步骤的工作（例如将来的连续推进类）让它保持 0 即可，手就只待机呼吸。
+        /// </summary>
+        public int StrikeCount;
+
+        /// <summary>
+        /// 这类活趴在被加工目标上的是哪只手（Mote defName）。
+        /// 拓展到种植/建造/清洁时：加一个换贴图的 Mote def，在对应适配器里重写本属性指过去即可。
+        /// </summary>
+        public virtual string HandMoteDefName
+        {
+            get { return "DS_WorkHand"; }
+        }
+
         /// <summary>面板/调试用的活名（挖掘 / 建造 / …）。</summary>
         public abstract string Label { get; }
 
@@ -221,6 +236,8 @@ namespace DigitalStorage.AI
                 effecter = EffecterDefOf.Mine.Spawn();
             }
             effecter.Trigger(pawn, target);
+
+            StrikeCount++;   // 让"干活的那只手"挥一下
 
             DoDamage(pawn, map);
 
