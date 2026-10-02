@@ -320,7 +320,7 @@ namespace DigitalStorage.Components
                 {
                     CraftLine line = plan.lines[i];
                     Thing b = line.Bench;
-                    if (!plan.Active || b == null || b.Destroyed || !b.Spawned
+                    if (!plan.Maintained || b == null || b.Destroyed || !b.Spawned
                         || !BenchUsable(b) || !CanCraft(b, plan.recipe))
                     {
                         ReleaseLine(plan, i);
@@ -342,7 +342,12 @@ namespace DigitalStorage.Components
             for (int p = 0; p < plans.Count && free > 0; p++)
             {
                 CraftPlan plan = plans[p];
-                if (!plan.Active) continue;
+                if (!plan.Maintained) continue;
+
+                // 维持数量模式：先按原版计数器数一遍，决定这一轮要不要开新活
+                //（达标 ⇒ wantsWork=false ⇒ 不再配新线；**在产的那几件照做**，与原版 paused 语义一致）
+                RefreshTargetStateIfStale(plan, map);
+                if (!plan.CanStartNewWork) continue;
 
                 int want = FreeBenchCountFor(plan.recipe);
                 for (int i = plan.lines.Count; i < want && free > 0; i++)
@@ -572,7 +577,9 @@ namespace DigitalStorage.Components
         /// <summary>这条线这一轮还作不作数（台子 / 电量 / 配方解锁 / 原料都还在）。</summary>
         private static bool StillValid(CraftPlan plan, CraftLine line, Map map)
         {
-            if (plan == null || !plan.Active) return false;
+            // 用 Maintained 而不是 CanStartNewWork：维持数量模式"达标暂停"时，
+            // **在产的那几件要让它做完**（原版 paused 也只挡"开始新活"，不打断已开工的）。
+            if (plan == null || !plan.Maintained) return false;
             if (!BenchUsable(line.Bench)) return false;
 
             // 真人接手了这台 ⇒ 让
@@ -597,7 +604,8 @@ namespace DigitalStorage.Components
             for (int p = 0; p < plans.Count && probes > 0; p++)
             {
                 CraftPlan plan = plans[p];
-                if (!plan.Active) continue;
+                if (!plan.Maintained) continue;
+                if (!plan.CanStartNewWork) continue;   // 维持数量：达标了就别开新活（在产的照做）
 
                 for (int i = 0; i < plan.lines.Count && probes > 0; i++)
                 {
@@ -633,6 +641,133 @@ namespace DigitalStorage.Components
                 worker = DigitalWorkerFactory.Create(Props.skillLevel, "数字制作工", "Craft" + Props.skillLevel);
                 return worker;
             }
+        }
+
+        // ===================================================================
+        // 维持数量（原版 TargetCount）
+        // ===================================================================
+
+        /// <summary>
+        /// 维持数量模式用的**计数 bill**：挂在任意一张能做该配方的工作台上 ——
+        /// 只为让 <c>Bill.Map</c> 有值（原版计数器要读 <c>bill.Map.resourceCounter</c> /
+        /// <c>listerThings</c> / haul source 表）。它**不参与生产**，只是递给
+        /// <c>recipe.WorkerCounter.CountProducts</c> 当参数。
+        ///
+        /// <para>为什么敢直接复用原版计数器：<c>RecipeWorkerCounter.CountProducts</c> 自己就遍历
+        /// <c>AllHaulSourcesListForReading</c>（<c>RecipeWorkerCounter.cs:45-48</c>）⇒
+        /// **产物进了核心容器也照样被数到**，不需要我们再写一套计数。</para>
+        /// </summary>
+        private Bill_Production CountingBill(CraftPlan plan, Map map)
+        {
+            if (plan.CountBill != null && !plan.CountBill.DeletedOrDereferenced) return plan.CountBill;
+            if (plan == null || plan.recipe == null || map == null) return null;
+
+            Thing bench = null;
+            for (int i = 0; i < benches.Count; i++)
+            {
+                if (CanCraft(benches[i], plan.recipe)) { bench = benches[i]; break; }
+            }
+            IBillGiver giver = bench as IBillGiver;
+            if (giver == null) return null;
+
+            Bill_Production bill = new Bill_Production(plan.recipe);
+            bill.repeatMode = BillRepeatModeDefOf.TargetCount;
+            bill.targetCount = plan.targetCount;
+            bill.pauseWhenSatisfied = plan.pauseWhenSatisfied;
+            bill.unpauseWhenYouHave = plan.ResumeAt;
+
+            BillStack stack = new BillStack(giver);
+            stack.AddBill(bill);
+            plan.CountBill = bill;
+            plan.CountStack = stack;
+            return bill;
+        }
+
+        /// <summary>
+        /// 重数产物并更新"这一轮要不要开工"（30 tick 节流；<c>countedTick == 0</c> 表示强制重数）。
+        /// 面板与生产线调度都调它，保证两边看到同一个数。
+        /// </summary>
+        internal void RefreshTargetStateIfStale(CraftPlan plan, Map map)
+        {
+            if (plan == null) return;
+            if (plan.mode != CraftPlan.ModeTarget)
+            {
+                plan.wantsWork = true;
+                return;
+            }
+
+            int now = Find.TickManager.TicksGame;
+            if (plan.countedTick > 0 && now - plan.countedTick < 30) return;
+
+            Bill_Production bill = CountingBill(plan, map);
+            if (bill == null || bill.Map == null)
+            {
+                // 台子拆了 / 换图了 ⇒ 丢掉计数 bill（下次重建）。数不了就不开工：
+                // 面板那边会显示"范围内没有可用的工作台"，比乱做一通好。
+                plan.CountBill = null;
+                plan.CountStack = null;
+                plan.countedCount = 0;
+                plan.countedTick = now;
+                plan.wantsWork = false;
+                return;
+            }
+
+            bill.targetCount = plan.targetCount;
+            bill.pauseWhenSatisfied = plan.pauseWhenSatisfied;
+            bill.unpauseWhenYouHave = plan.ResumeAt;
+
+            int counted;
+            try
+            {
+                counted = plan.recipe.WorkerCounter.CountProducts(bill);
+            }
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] 维持数量计数失败（本轮按 0 算）：" + e, 883355);
+                counted = 0;
+            }
+
+            plan.countedCount = Math.Max(0, counted);
+            plan.countedTick = now;
+            plan.wantsWork = plan.UpdateTargetState(plan.countedCount);
+        }
+
+        /// <summary>这个配方能不能用"维持数量"（原版同一判据：单产物且无特殊产物）。</summary>
+        internal bool CanTargetMode(CraftPlan plan)
+        {
+            if (plan == null || plan.recipe == null) return false;
+            Bill_Production bill = (plan.CountBill != null && !plan.CountBill.DeletedOrDereferenced)
+                ? plan.CountBill
+                : CountingBill(plan, parent.Map);
+            if (bill == null) return true;      // 没台子时无从判断，先允许（面板会提示没有可用工作台）
+            try
+            {
+                return plan.recipe.WorkerCounter.CanCountProducts(bill);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>模式按钮：无限 → 次数(1) → 维持数量(10) → 无限（不可计数的配方跳过维持数量）。</summary>
+        internal void CycleMode(CraftPlan plan)
+        {
+            if (plan == null) return;
+            if (plan.mode == CraftPlan.ModeForever)
+            {
+                plan.mode = CraftPlan.ModeCount;
+                plan.remaining = 0;
+                plan.AddCount(1);
+                return;
+            }
+            if (plan.mode == CraftPlan.ModeCount)
+            {
+                if (CanTargetMode(plan)) plan.SetTarget(plan.targetCount > 0 ? plan.targetCount : 10);
+                else plan.SetForever();
+                return;
+            }
+            plan.SetForever();
         }
 
         // ===================================================================

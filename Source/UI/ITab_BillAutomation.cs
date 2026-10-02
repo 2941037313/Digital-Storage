@@ -91,6 +91,7 @@ namespace DigitalStorage.UI
                 string tail;
                 if (plan.Done) tail = "DS_BA_PlanFinished".Translate().ToString();
                 else if (plan.suspended) tail = "DS_BA_Suspended".Translate().ToString();
+                else if (plan.mode == CraftPlan.ModeTarget && plan.paused) tail = plan.countedCount + "/" + plan.targetCount;
                 else if (first != null && first.HasWork) tail = (first.Progress01 * 100f).ToString("0") + "%";
                 else tail = "DS_BA_NoBench".Translate().ToString();
 

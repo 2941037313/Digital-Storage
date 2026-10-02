@@ -61,7 +61,7 @@ namespace DigitalStorage.AI
             line.ClearWork();
             line.BlockKey = "DS_BA_NoBill";
 
-            if (plan == null || plan.recipe == null || !plan.Active) return false;
+            if (plan == null || plan.recipe == null || !plan.Maintained) return false;
 
             Thing bench = line.Bench;
             if (bench == null || bench.Destroyed || !bench.Spawned) return false;

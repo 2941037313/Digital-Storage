@@ -30,7 +30,7 @@ namespace DigitalStorage.AI
     {
         public static CraftResult TryComplete(CompBillAutomation comp, CraftPlan plan, CraftLine line, Map map, Pawn w)
         {
-            if (plan == null || plan.recipe == null || !plan.Active) return CraftResult.Invalid;
+            if (plan == null || plan.recipe == null || !plan.Maintained) return CraftResult.Invalid;
 
             Bill_Production bill = line.Bill;
             if (bill == null || bill.DeletedOrDereferenced) return CraftResult.Invalid;

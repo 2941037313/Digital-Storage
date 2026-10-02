@@ -153,6 +153,10 @@
   <DS_CA_Down>下移</DS_CA_Down>
   <DS_CA_Delete>删除</DS_CA_Delete>
   <DS_CA_SetForever>改为无限</DS_CA_SetForever>
+  <DS_CA_ModeBtn>模式：{0}</DS_CA_ModeBtn>
+  <DS_CA_Target>维持 {0}/{1}</DS_CA_Target>
+  <DS_CA_TargetPaused>已达标（{0}/{1}），产物被用掉就自动恢复</DS_CA_TargetPaused>
+  <DS_CA_PauseWhenSatisfied>达标即暂停</DS_CA_PauseWhenSatisfied>
   <DS_BA_Stats2>已产出 {0} · 配方 {1}</DS_BA_Stats2>
   <DS_Cat_All>全部</DS_Cat_All>
   <DS_Cat_Weapon>武器</DS_Cat_Weapon>

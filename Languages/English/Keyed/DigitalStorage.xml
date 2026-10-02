@@ -153,6 +153,10 @@
   <DS_CA_Down>Down</DS_CA_Down>
   <DS_CA_Delete>Delete</DS_CA_Delete>
   <DS_CA_SetForever>Set to forever</DS_CA_SetForever>
+  <DS_CA_ModeBtn>Mode: {0}</DS_CA_ModeBtn>
+  <DS_CA_Target>Keep {0}/{1}</DS_CA_Target>
+  <DS_CA_TargetPaused>Satisfied ({0}/{1}); resumes when products are used up</DS_CA_TargetPaused>
+  <DS_CA_PauseWhenSatisfied>Pause when satisfied</DS_CA_PauseWhenSatisfied>
   <DS_BA_Stats2>produced {0} · recipes {1}</DS_BA_Stats2>
   <DS_Cat_All>All</DS_Cat_All>
   <DS_Cat_Weapon>Weapons</DS_Cat_Weapon>

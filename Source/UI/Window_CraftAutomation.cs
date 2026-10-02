@@ -207,6 +207,17 @@ namespace DigitalStorage.UI
             Rect list = new Rect(nav.xMax, body.y, ListWidth, body.height);
             Rect detail = new Rect(list.xMax, body.y, body.width - NavWidth - ListWidth, body.height);
 
+            // 维持数量模式：让面板看到的计数与生产线调度一致（内部 30 tick 节流，不会每帧去数）
+            Map map = Find.CurrentMap;
+            if (map != null)
+            {
+                IList<CraftPlan> all = comp.PlansForReading;
+                for (int i = 0; i < all.Count; i++)
+                {
+                    comp.RefreshTargetStateIfStale(all[i], map);
+                }
+            }
+
             DrawNav(nav);
             DrawList(list);
             DrawDetail(detail);
@@ -427,10 +438,16 @@ namespace DigitalStorage.UI
 
                 Text.Anchor = TextAnchor.MiddleRight;
                 GUI.color = ColDim;
-                string badge = (plan.mode == CraftPlan.ModeCount)
-                    ? plan.remaining.ToString()
-                    : "∞";
-                Widgets.Label(new Rect(row.xMax - 52f, row.y + 4f, 30f, 20f), badge);
+                string badge;
+                float badgeW = 30f;
+                if (plan.mode == CraftPlan.ModeCount) badge = plan.remaining.ToString();
+                else if (plan.mode == CraftPlan.ModeTarget)
+                {
+                    badge = plan.countedCount + "/" + plan.targetCount;   // 当前 / 目标
+                    badgeW = 52f;
+                }
+                else badge = "∞";
+                Widgets.Label(new Rect(row.xMax - badgeW - 22f, row.y + 4f, badgeW, 20f), badge);
                 GUI.color = Color.white;
                 Text.Anchor = TextAnchor.UpperLeft;
 
@@ -504,9 +521,7 @@ namespace DigitalStorage.UI
 
             // 三行信息
             SKind kind = KindOf(plan);
-            y = InfoRow(inner, x, y, "DS_CA_Mode".Translate(),
-                plan.mode == CraftPlan.ModeCount ? "DS_BA_Remain".Translate(plan.remaining).ToString() : "DS_BA_Forever".Translate().ToString(),
-                ColText);
+            y = InfoRow(inner, x, y, "DS_CA_Mode".Translate(), ModeText(plan), ColText);
             y = InfoRow(inner, x, y, "DS_CA_Running".Translate(),
                 "DS_BA_Lines".Translate(plan.lines.Count, comp.UsableBenchCountFor(plan.recipe)).ToString(), ColText);
             y = InfoRow(inner, x, y, "DS_CA_Status".Translate(), StatusText(plan), ColorOf(kind));
@@ -541,7 +556,12 @@ namespace DigitalStorage.UI
             // 操作
             float bw = 56f;
             float bx = x;
-            bool cntMode = plan.mode == CraftPlan.ModeCount;
+            // 模式循环：无限 → 次数(N) → 维持数量(当前/目标) → 无限（不可计数的配方会跳过维持数量）
+            if (Widgets.ButtonText(new Rect(bx, y, 128f, 26f), "DS_CA_ModeBtn".Translate(ModeText(plan))))
+            {
+                comp.CycleMode(plan);
+            }
+            bx += 132f;
             if (Widgets.ButtonText(new Rect(bx, y, bw, 26f), "+1")) plan.AddCount(1);
             bx += bw + 4f;
             if (Widgets.ButtonText(new Rect(bx, y, bw, 26f), "+10")) plan.AddCount(10);
@@ -560,11 +580,29 @@ namespace DigitalStorage.UI
             {
                 comp.RemovePlan(plan);
                 sel = null;
+                Widgets.EndScrollView();
+                return;
             }
             bx += bw + 16f;
-            if (cntMode && Widgets.ButtonText(new Rect(bx, y, 96f, 26f), "DS_CA_SetForever".Translate()))
+
+            // 维持数量：达标即暂停开关（用户口径：少一个"低于多少恢复"的数字框，用固定比例代替）
+            if (plan.mode == CraftPlan.ModeTarget)
             {
-                plan.SetForever();
+                if (Widgets.ButtonText(new Rect(bx, y, 118f, 26f),
+                        "DS_CA_PauseWhenSatisfied".Translate() + "：" +
+                        (plan.pauseWhenSatisfied ? "DS_BA_On".Translate().ToString() : "DS_BA_Off".Translate().ToString())))
+                {
+                    plan.pauseWhenSatisfied = !plan.pauseWhenSatisfied;
+                    plan.countedTick = 0;
+                }
+                bx += 122f;
+            }
+            else if (plan.mode == CraftPlan.ModeCount)
+            {
+                if (Widgets.ButtonText(new Rect(bx, y, 96f, 26f), "DS_CA_SetForever".Translate()))
+                {
+                    plan.SetForever();
+                }
             }
 
             Widgets.EndScrollView();
@@ -579,6 +617,18 @@ namespace DigitalStorage.UI
             float rate = Math.Max(0.0001f, line.BaseRate);
             if (comp != null) rate *= Math.Max(0.01f, comp.Props.workSpeedMult) * comp.OverclockSpeedMult;
             return Math.Max(0f, line.WorkLeft) / rate / 60f;
+        }
+
+        /// <summary>模式的一行文字（三处共用）：无限 / 剩余 N / 维持 当前/目标。</summary>
+        private static string ModeText(CraftPlan plan)
+        {
+            if (plan == null) return "";
+            if (plan.mode == CraftPlan.ModeCount) return "DS_BA_Remain".Translate(plan.remaining).ToString();
+            if (plan.mode == CraftPlan.ModeTarget)
+            {
+                return "DS_CA_Target".Translate(plan.countedCount, plan.targetCount).ToString();
+            }
+            return "DS_BA_Forever".Translate().ToString();
         }
 
         private static string SkillText(RecipeDef r)
@@ -674,12 +724,15 @@ namespace DigitalStorage.UI
             if (plan == null) return SKind.Idle;
             if (plan.Done) return SKind.Done;
             if (plan.suspended) return SKind.Idle;
+            // 维持数量"达标暂停"= 这一单不用管了 ⇒ 归到"已完成"那一档（它会在产物被消耗后自动恢复）
+            if (plan.mode == CraftPlan.ModeTarget && plan.paused) return SKind.Done;
 
             CraftLine line = (plan.lines.Count > 0) ? plan.lines[0] : null;
             if (line != null && line.HasWork) return SKind.Ok;
-            if (plan.lines.Count == 0) return SKind.Bad;      // 范围内没有可用工作台
+            if (plan.lines.Count == 0 && plan.mode != CraftPlan.ModeTarget) return SKind.Bad;   // 范围内没有可用工作台
+            if (plan.lines.Count == 0 && plan.mode == CraftPlan.ModeTarget && !plan.paused) return SKind.Warn;
 
-            string k = line.BlockKey;
+            string k = (line == null) ? null : line.BlockKey;
             if (k == null) return SKind.Ok;
             switch (k)
             {
@@ -700,8 +753,17 @@ namespace DigitalStorage.UI
         {
             if (plan.Done) return "DS_BA_PlanFinished".Translate().ToString();
             if (plan.suspended) return "DS_BA_Suspended".Translate().ToString();
+            if (plan.mode == CraftPlan.ModeTarget && plan.paused)
+            {
+                return "DS_CA_TargetPaused".Translate(plan.countedCount, plan.targetCount).ToString();
+            }
             CraftLine line = (plan.lines.Count > 0) ? plan.lines[0] : null;
-            if (line == null) return "DS_BA_NoBench".Translate().ToString();
+            if (line == null)
+            {
+                return (plan.mode == CraftPlan.ModeTarget && plan.countedCount < plan.targetCount)
+                    ? "DS_BA_NoBench".Translate().ToString()
+                    : "DS_CA_TargetPaused".Translate(plan.countedCount, plan.targetCount).ToString();
+            }
             if (line.HasWork) return "DS_CA_Working".Translate().ToString();
             if (line.BlockKey.NullOrEmpty()) return "DS_CA_Waiting".Translate().ToString();
             return line.BlockKey.Translate().ToString();
