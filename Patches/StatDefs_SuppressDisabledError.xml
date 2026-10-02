@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+  <!-- DevMode 的一致性检查噪音（只影响日志，不改行为）：
+       MiningYield 带 required 的 skillNeedFactors ⇒ 只要"采矿技能"对这只 pawn 是 totallyDisabled，
+       每次挖掘都会 Log.ErrorOnce 一条 "Attempted to calculate value for disabled stat MiningYield"。
+       触发者是我们生成的**假 pawn**（随机背景可能禁用采矿，SkillRecord.CalculateTotallyDisabled →
+       SkillDef.IsDisabled(CombinedDisabledWorkTags, GetDisabledWorkTypes)）。
+       我们的工人是"造出来的资质载体"，不该被背景禁技能 ⇒ 给这个 stat 静音这条检查。
+       ⚠️ 字段名的原版拼写就是 supressDisabledError（少一个 p），别"顺手改正"。
+       只静音统计检查；数值照常计算（MiningYield 仍按技能/操作算，掉落不受影响）。 -->
+  <Operation Class="PatchOperationAdd">
+    <xpath>/Defs/StatDef[defName="MiningYield"]</xpath>
+    <value>
+      <supressDisabledError>true</supressDisabledError>
+    </value>
+  </Operation>
+</Patch>

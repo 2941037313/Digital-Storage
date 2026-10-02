@@ -396,7 +396,7 @@
   <ThingDef ParentName="DigitalStorage_BuildingBase">
     <defName>DigitalStorage_WorkerTranscendent</defName>
     <label>超凡代理</label>
-    <description>四条代理链的终点。一台建筑同时接管挖掘、建造、清洁、种植（含伐木）。\n\n速度 5.0×，资质 20 级，每类工作可并行 50 件（四类合计 200 件同时进行），耗电 6000W。</description>
+    <description>四条代理链的终点。一台建筑同时接管挖掘、建造、清洁、种植（含伐木）。\n\n速度 7.5×，资质 20 级，每类工作可并行 75 件（四类合计上限 300），耗电 6000W。</description>
     <size>(3,3)</size>
     <statBases>
       <MaxHitPoints>5000</MaxHitPoints>
@@ -408,10 +408,10 @@
       <li>DigitalStorage_TranscendentProxy</li>
     </researchPrerequisites>
     <costList>
-      <Steel>1500</Steel>
-      <Plasteel>600</Plasteel>
-      <ComponentIndustrial>80</ComponentIndustrial>
-      <ComponentSpacer>40</ComponentSpacer>
+      <Steel>2250</Steel>
+      <Plasteel>900</Plasteel>
+      <ComponentIndustrial>120</ComponentIndustrial>
+      <ComponentSpacer>60</ComponentSpacer>
     </costList>
     <graphicData>
       <texPath>2.0/代理建筑-超凡</texPath>
@@ -436,10 +436,10 @@
           <li>PlantCutting</li>
         </workTypes>
         <skillLevel>20</skillLevel>
-        <workSpeedMult>5.0</workSpeedMult>
-        <maxParallelPerWorkType>50</maxParallelPerWorkType>
-        <maxParallelTotal>200</maxParallelTotal>
-        <maxVisualTasks>8</maxVisualTasks>
+        <workSpeedMult>7.5</workSpeedMult>
+        <maxParallelPerWorkType>75</maxParallelPerWorkType>
+        <maxParallelTotal>300</maxParallelTotal>
+        <maxVisualTasks>12</maxVisualTasks>
       </li>
     </comps>
   </ThingDef>

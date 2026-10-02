@@ -50,6 +50,17 @@ namespace DigitalStorage.AI
             get { return "DS_WorkHand"; }
         }
 
+        /// <summary>
+        /// 每"干完一步"在目标处触发的特效（挖掘 = <c>EffecterDefOf.Mine</c>，每镐一次）。
+        ///
+        /// <para><b>由 comp 统一驱动</b>（不是任务自己 Spawn）：这样它才跟"手/读条"走同一套
+        /// "只画前 N 件"的上限 —— 否则并行 200 时会出现"有特效但没有手"的错位。</para>
+        /// </summary>
+        public virtual EffecterDef HitEffecterDef
+        {
+            get { return null; }
+        }
+
         /// <summary>面板/调试用的活名（挖掘 / 建造 / …）。</summary>
         public abstract string Label { get; }
 
@@ -142,21 +153,30 @@ namespace DigitalStorage.AI
         {
             new DigitalTaskAdapter_Mine(),
             new DigitalTaskAdapter_Construct(),
+            new DigitalTaskAdapter_Deconstruct(),
             new DigitalTaskAdapter_Clean(),
             new DigitalTaskAdapter_PlantCut(),
         };
 
-        private static readonly Dictionary<WorkTypeDef, WorkGiver> giverCache = new Dictionary<WorkTypeDef, WorkGiver>();
+        private static readonly Dictionary<WorkTypeDef, List<WorkGiver>> giversCache =
+            new Dictionary<WorkTypeDef, List<WorkGiver>>();
 
-        /// <summary>这个工作类型下、**有适配器**的那个 WorkGiver。没有则返回 null（那个建筑就不干活）。</summary>
-        public static WorkGiver FindGiver(WorkTypeDef workType)
+        /// <summary>
+        /// 这个工作类型下**所有有适配器**的 WorkGiver（按 Defs 加载顺序）。
+        ///
+        /// <para>⚠️ 一个工作类型可以有**多个** WorkGiver，必须全都要试：
+        /// <c>Construction</c> 下就有 建造(<c>ConstructFinishFrames</c>)、拆除(<c>Deconstruct</c>)、
+        /// 维修(<c>Repair</c>)、修屋顶…；早期版本只取"第一个有适配器的"，结果
+        /// **建造代理永远不拆建筑**（那一类活根本没被问过）。</para>
+        /// </summary>
+        public static List<WorkGiver> FindGivers(WorkTypeDef workType)
         {
             if (workType == null) return null;
 
-            WorkGiver cached;
-            if (giverCache.TryGetValue(workType, out cached)) return cached;
+            List<WorkGiver> cached;
+            if (giversCache.TryGetValue(workType, out cached)) return cached;
 
-            WorkGiver found = null;
+            List<WorkGiver> found = new List<WorkGiver>();
             List<WorkGiverDef> all = DefDatabase<WorkGiverDef>.AllDefsListForReading;
             for (int i = 0; i < all.Count; i++)
             {
@@ -164,10 +184,9 @@ namespace DigitalStorage.AI
                 if (d == null || d.workType != workType) continue;
                 WorkGiver w = d.Worker;
                 if (w == null || AdapterFor(w) == null) continue;
-                found = w;
-                break;
+                found.Add(w);
             }
-            giverCache[workType] = found;
+            giversCache[workType] = found;
             return found;
         }
 
@@ -190,7 +209,7 @@ namespace DigitalStorage.AI
         /// 机器不该因为抽到"不能做熟练劳动"就罢工。**代理建筑本身就是许可**。
         /// 其余三道照旧：<c>nonColonistsCanDo</c> / <c>ShouldSkip</c> / <c>MissingRequiredCapacity</c>。</para>
         /// </summary>
-        public static bool PawnCanUse(WorkGiver giver, Pawn pawn)
+        public static bool PawnCanUse(WorkGiver giver, Pawn pawn, DigitalTaskAdapter adapter)
         {
             if (giver == null || giver.def == null || pawn == null) return false;
             if (!giver.def.nonColonistsCanDo && !pawn.IsColonist
@@ -198,7 +217,16 @@ namespace DigitalStorage.AI
             {
                 return false;
             }
-            if (giver.ShouldSkip(pawn)) return false;
+
+            // ⚠️ `ShouldSkip` 必须跟着 `TrustWorkGiver` 一起放行：
+            // WorkGiver_CleanFilth.ShouldSkip = "家区里没有污物就跳过整类工作"
+            // （WorkGiver_CleanFilth.cs:22-25）—— 我们放宽了候选集（全图污物），
+            // 却仍被这道门拦死，实测表现就是"清洁代理一件活都不干"。
+            if (adapter == null || adapter.TrustWorkGiver)
+            {
+                if (giver.ShouldSkip(pawn)) return false;
+            }
+
             if (giver.MissingRequiredCapacity(pawn) != null) return false;
             if (pawn.RaceProps.IsMechanoid && !giver.def.canBeDoneByMechs) return false;
             return true;
@@ -232,12 +260,15 @@ namespace DigitalStorage.AI
 
         private float ticksToPickHit = -1f;
 
-        /// <summary>镐击特效（原版 <c>JobDriver_Mine</c> 用的是 <c>EffecterDefOf.Mine</c>，每镐触发一次）。</summary>
-        private Effecter effecter;
-
         public override string Label
         {
             get { return "挖掘"; }
+        }
+
+        /// <summary>原版 <c>JobDriver_Mine</c> 用的就是 <c>EffecterDefOf.Mine</c>；由 comp 在表现层驱动。</summary>
+        public override EffecterDef HitEffecterDef
+        {
+            get { return EffecterDefOf.Mine; }
         }
 
         /// <summary>与原版 <c>JobDriver_Mine</c> 的读条口径一致：<c>1 - HitPoints/MaxHitPoints</c>。</summary>
@@ -252,11 +283,6 @@ namespace DigitalStorage.AI
 
         public override void Cleanup()
         {
-            if (effecter != null)
-            {
-                effecter.Cleanup();
-                effecter = null;
-            }
         }
 
         public override bool StillValid(Pawn pawn, Map map)
@@ -280,19 +306,13 @@ namespace DigitalStorage.AI
             ticksToPickHit -= 1f;
             if (ticksToPickHit > 0f) return;
 
-            // 原版 JobDriver_Mine.cs:62-66：每镐先触发特效再结算伤害。
-            // ⚠️ 但**不要照抄 `Trigger(actor, mineTarget)`** —— 那个 actor 是我们的假 pawn，
-            // sprayer 会去读 `TargetInfo.CenterVector3` → `Pawn.DrawPos` → `PawnTweener`，
-            // 而假 pawn 从未 spawn，这条链过去会 NRE（pather 为 null）。
-            // 现在虽然补了 AddComponentsForSpawn 兜底，仍然用"目标打目标"更稳、也更符合语义：
-            // 手是隔空干活的，碎石就该从矿上崩起来，没有"从人手上飞出"这一半。
-            if (effecter == null)
-            {
-                effecter = EffecterDefOf.Mine.Spawn();
-            }
-            effecter.Trigger(target, target);
-
-            StrikeCount++;   // 让"干活的那只手"挥一下
+            // 原版 JobDriver_Mine.cs:62-66 是"先触发特效再结算伤害"。
+            // ⚠️ 但我们**不在这里 Spawn effecter**：特效改由 comp 在表现层驱动，
+            //    这样它才和"手 / 黄色读条"共用同一套"只画前 N 件"的上限 ——
+            //    否则并行 200 时会出现"有特效，但那只手上没人"的错位（实测报过）。
+            //    另外也刻意不照抄 `Trigger(actor, mineTarget)`：actor 是假 pawn，
+            //    sprayer 会去读 `TargetInfo.CenterVector3` → `Pawn.DrawPos`（历史上 NRE 过）。
+            StrikeCount++;
 
             DoDamage(pawn, map);
 
@@ -876,6 +896,94 @@ namespace DigitalStorage.AI
                 // JobDriver_PlantCut → Toils_Interact.DestroyThing（它自己带 !Destroyed 守卫）
                 plant.Destroy();
             }
+        }
+    }
+
+    // ==========================================================================================
+    // 拆除 —— 照抄 JobDriver_Deconstruct（More Organs LaborTask_Deconstruct 的移植）
+    //
+    // 归属：拆除在游戏里挂在 **Construction** 工作类型下（WorkGiver_Deconstruct, priorityInType 50），
+    // 所以"建造代理"应当同时会建与拆。早期版本每个工作类型只取"第一个有适配器的 WorkGiver"，
+    // 于是建造代理永远不拆建筑 —— 现在 FindGivers 会返回该工作类型下所有有适配器的 giver。
+    // ==========================================================================================
+    public class DigitalTaskAdapter_Deconstruct : DigitalTaskAdapter
+    {
+        public override Type WorkGiverClass
+        {
+            get { return typeof(WorkGiver_Deconstruct); }
+        }
+
+        public override DigitalTask MakeTask(Thing t, CompDigitalWorker comp)
+        {
+            return new DigitalTask_Deconstruct { target = t, comp = comp };
+        }
+
+        public override bool CanTarget(Pawn pawn, Thing t)
+        {
+            return t is Building || t is MinifiedThing;
+        }
+    }
+
+    public class DigitalTask_Deconstruct : DigitalTask
+    {
+        private const float MaxDeconstructWork = 3000f;
+        private const float MinDeconstructWork = 20f;
+
+        private float workLeft;
+        private float totalNeededWork;
+
+        public override string Label
+        {
+            get { return "拆除"; }
+        }
+
+        private Building BuildingTarget
+        {
+            get { return (target == null) ? null : (target.GetInnerIfMinified() as Building); }
+        }
+
+        public override bool StillValid(Pawn pawn, Map map)
+        {
+            Building b = BuildingTarget;
+            if (b == null || b.Destroyed || !b.Spawned) return false;
+            if (pawn.Faction != null && !b.DeconstructibleBy(pawn.Faction)) return false;
+            if (map.designationManager.DesignationOn(target, DesignationDefOf.Deconstruct) == null) return false;
+            CompExplosive explosive = b.TryGetComp<CompExplosive>();
+            return explosive == null || !explosive.wickStarted;
+        }
+
+        public override float Progress01
+        {
+            get { return totalNeededWork <= 0f ? -1f : Mathf.Clamp01(1f - workLeft / totalNeededWork); }
+        }
+
+        public override void Work(Pawn pawn, Map map, float speedMult)
+        {
+            Building b = BuildingTarget;
+            if (b == null || b.Destroyed) return;
+
+            if (totalNeededWork <= 0f)
+            {
+                // 原版 JobDriver_Deconstruct：工时 = Clamp(WorkToBuild, 20, 3000)，速度 = ConstructionSpeed * 1.7
+                totalNeededWork = Mathf.Clamp(b.GetStatValue(StatDefOf.WorkToBuild), MinDeconstructWork, MaxDeconstructWork);
+                workLeft = totalNeededWork;
+            }
+
+            workLeft -= speedMult * 1.7f;
+            StrikeCount++;
+            if (workLeft > 0f) return;
+
+            Thing t = target;
+            if (t.Faction != null)
+            {
+                t.Faction.Notify_BuildingRemoved(b, pawn);
+            }
+            t.Destroy(DestroyMode.Deconstruct);
+            if (pawn.records != null)
+            {
+                pawn.records.Increment(RecordDefOf.ThingsDeconstructed);
+            }
+            map.designationManager.RemoveAllDesignationsOn(t);
         }
     }
 }

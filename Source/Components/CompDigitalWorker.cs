@@ -41,6 +41,7 @@ namespace DigitalStorage.Components
             public Map map;
             public Mote_DS_WorkHand hand;
             public Effecter bar;
+            public Effecter hitFx;
             public int lastStrikes;
         }
 
@@ -54,8 +55,11 @@ namespace DigitalStorage.Components
         /// <summary>候选集遍历上限（防某个 lister 把一帧吃光）。</summary>
         private const int MaxIterate = 4000;
 
-        /// <summary>一次扫描最多新增几件活 —— 并行 200 时不让单 tick 出现尖峰（分摊到多个扫描周期）。</summary>
-        private const int AddsPerScan = 25;
+        /// <summary>一次扫描最多新增几件活（实测不卡，给大一点让并行舰队快速填满）。</summary>
+        private const int AddsPerScan = 60;
+
+        /// <summary>没填满时用更短的扫描间隔，避免"并行数爬升很慢"。</summary>
+        private const int FillScanIntervalTicks = 15;
 
         public CompProperties_DigitalWorker Props
         {
@@ -145,7 +149,13 @@ namespace DigitalStorage.Components
                 int now = Find.TickManager.TicksGame;
                 if (now >= nextScanTick)
                 {
-                    nextScanTick = now + Math.Max(1, Props.scanIntervalTicks);
+                    int interval = Math.Max(1, Props.scanIntervalTicks);
+                    int totalCap = TotalParallelCap();
+                    if (totalCap > 0 && works.Count < totalCap)
+                    {
+                        interval = Math.Min(interval, FillScanIntervalTicks);   // 没填满 ⇒ 快扫
+                    }
+                    nextScanTick = now + interval;
                     for (int added = 0; added < AddsPerScan; added++)
                     {
                         if (!TryAddOneWork(map, w)) break;
@@ -210,18 +220,38 @@ namespace DigitalStorage.Components
             return n;
         }
 
+        /// <summary>总并行上限（含 maxParallelTotal 与"每类配额 × 类别数"取小）。</summary>
+        private int TotalParallelCap()
+        {
+            List<WorkTypeDef> types = Props.workTypes;
+            int cap = Math.Max(1, Props.maxParallelPerWorkType) * (types != null && types.Count > 0 ? types.Count : 1);
+            if (Props.maxParallelTotal > 0 && Props.maxParallelTotal < cap) cap = Props.maxParallelTotal;
+            return cap;
+        }
+
         private bool TryScanWorkType(Map map, Pawn w, WorkTypeDef workType)
         {
-            WorkGiver giver = DigitalTaskRegistry.FindGiver(workType);
-            if (giver == null) return false;
+            // ⚠️ 一个工作类型可能有**多个**有适配器的 WorkGiver（Construction = 建造 + 拆除 + 维修…），
+            // 必须全试 —— 早先只取第一个，表现就是"建造代理永远不拆建筑"。
+            List<WorkGiver> givers = DigitalTaskRegistry.FindGivers(workType);
+            if (givers == null) return false;
 
+            for (int g = 0; g < givers.Count; g++)
+            {
+                if (TryScanGiver(map, w, workType, givers[g])) return true;
+            }
+            return false;
+        }
+
+        private bool TryScanGiver(Map map, Pawn w, WorkTypeDef workType, WorkGiver giver)
+        {
             WorkGiver_Scanner scanner = giver as WorkGiver_Scanner;
             if (scanner == null) return false;
 
             DigitalTaskAdapter adapter = DigitalTaskRegistry.AdapterFor(giver);
             if (adapter == null) return false;
 
-            if (!DigitalTaskRegistry.PawnCanUse(giver, w)) return false;
+            if (!DigitalTaskRegistry.PawnCanUse(giver, w, adapter)) return false;
 
             IEnumerable<Thing> set = adapter.CandidateSet(map, w, scanner);
             if (set == null) return false;
@@ -308,9 +338,7 @@ namespace DigitalStorage.Components
             if (!Powered) return "代理建筑：断电";
             if (!enabled) return "代理建筑：已关闭";
 
-            int cap = Math.Max(1, Props.maxParallelPerWorkType)
-                * ((Props.workTypes != null && Props.workTypes.Count > 0) ? Props.workTypes.Count : 1);
-            if (Props.maxParallelTotal > 0 && Props.maxParallelTotal < cap) cap = Props.maxParallelTotal;
+            int cap = TotalParallelCap();
 
             if (works.Count == 0)
             {
@@ -367,6 +395,15 @@ namespace DigitalStorage.Components
                     {
                         aw.lastStrikes = aw.task.StrikeCount;
                         aw.hand.Strike();
+
+                        // 命中特效也走同一套"只画前 N 件"的上限 —— 否则并行 200 时
+                        // 会出现"矿上有特效、但那只手不在"的错位。
+                        // Trigger 的两个目标都用目标物本身：sprayer 不会去读假 pawn 的 DrawPos。
+                        if (aw.task.HitEffecterDef != null)
+                        {
+                            if (aw.hitFx == null) aw.hitFx = aw.task.HitEffecterDef.Spawn();
+                            aw.hitFx.Trigger(t, t);
+                        }
                     }
                 }
 
@@ -404,6 +441,11 @@ namespace DigitalStorage.Components
             {
                 aw.bar.Cleanup();
                 aw.bar = null;
+            }
+            if (aw.hitFx != null)
+            {
+                aw.hitFx.Cleanup();
+                aw.hitFx = null;
             }
             aw.lastStrikes = 0;
         }
