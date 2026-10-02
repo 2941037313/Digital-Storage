@@ -570,10 +570,14 @@ namespace DigitalStorage.UI
             Widgets.EndScrollView();
         }
 
-        private static float RemainSeconds(CraftLine line)
+        /// <summary>
+        /// 本件预计剩余秒数。速率要把**等级倍率 × 超频倍率**算进去 —— 否则 9GHz 下估出来的时间会大 9 倍，
+        /// 玩家一眼就看得出不对（这里只做量级估计，不追帧）。
+        /// </summary>
+        private float RemainSeconds(CraftLine line)
         {
             float rate = Math.Max(0.0001f, line.BaseRate);
-            // 只按原版速率估个量级；倍率（等级/超频）由调用处不外传，这里给个保守估计
+            if (comp != null) rate *= Math.Max(0.01f, comp.Props.workSpeedMult) * comp.OverclockSpeedMult;
             return Math.Max(0f, line.WorkLeft) / rate / 60f;
         }
 
