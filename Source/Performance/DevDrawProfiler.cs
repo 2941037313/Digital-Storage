@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using DigitalStorage.Components;
 using HarmonyLib;
 using RimWorld;
 using UnityEngine;
@@ -34,9 +36,12 @@ namespace DigitalStorage.Performance
     {
         private const int WindowFrames = 180;
 
-        /// <summary>固定顺序，保证日志一行稳定好对比。</summary>
+        /// <summary>固定顺序，保证日志一行稳定好对比。
+        /// 嵌套关系：<c>Ticks</c> ⊃ <c>MapUpd</c> ⊃ {MapMesh, DynThings, Designations, Overlays, Motes, Flecks}
+        /// 且 ⊃ <c>DSWork</c>；只有 <c>SelDraw</c> 在刻度之外（MapInterfaceUpdate 里）。</summary>
         private static readonly string[] Keys =
         {
+            "Ticks", "MapUpd", "DSWork",
             "MapMesh", "DynThings", "Designations", "Overlays", "Motes", "Flecks", "SelDraw"
         };
 
@@ -52,6 +57,14 @@ namespace DigitalStorage.Performance
         private static double windowPeak;
         private static double windowDelta;
         private static double windowDeltaPeak;
+
+        // GC / 分配（判断"帧时间去哪了"的另一半：托管堆抖动）
+        private static long allocated;
+        private static long lastHeap = -1L;
+        private static long heapStart;
+        private static int gc0Start;
+        private static int gc1Start;
+        private static int gc2Start;
 
         internal static bool Enabled
         {
@@ -86,10 +99,21 @@ namespace DigitalStorage.Performance
             counters[key] = value;
         }
 
+        /// <summary>本帧内的最大值（多实例/多 tick 的场景，例如"任务数"）。</summary>
+        internal static void CounterMax(string key, int value)
+        {
+            if (!Enabled) return;
+            CheckFrame();
+            int cur;
+            if (counters.TryGetValue(key, out cur) && cur >= value) return;
+            counters[key] = value;
+        }
+
         private static void CheckFrame()
         {
             if (frameStamp == Time.frameCount) return;
-            if (frameStamp >= 0) FlushFrame();
+            if (frameStamp < 0) ResetWindow();
+            else FlushFrame();
             frameStamp = Time.frameCount;
             frameMs.Clear();
             frameTotal = 0.0;
@@ -118,32 +142,20 @@ namespace DigitalStorage.Performance
                 if (v > max) windowMax[k] = v;
             }
 
-            if (frames >= WindowFrames) LogWindow();
+            // 堆净增之和 ≈ 本窗口的托管分配量（不强制 GC，代价可忽略；只在 DevMode 下跑）
+            long heap = GC.GetTotalMemory(false);
+            if (lastHeap >= 0L && heap > lastHeap) allocated += heap - lastHeap;
+            lastHeap = heap;
+
+            if (frames >= WindowFrames)
+            {
+                LogWindow();
+                ResetWindow();
+            }
         }
 
-        private static void LogWindow()
+        private static void ResetWindow()
         {
-            var sb = new System.Text.StringBuilder();
-            sb.Append("[DS-Draw] 帧=").Append(frames);
-            sb.Append(" 帧间隔 ").Append(F(WindowDeltaAvg()));
-            sb.Append("ms(峰 ").Append(F(windowDeltaPeak)).Append(')');
-            sb.Append(" | 托管绘制合计 ").Append(F(windowTotal / frames));
-            sb.Append("ms(峰 ").Append(F(windowPeak)).Append(')');
-            for (int i = 0; i < Keys.Length; i++)
-            {
-                string k = Keys[i];
-                double sum;
-                if (!windowMs.TryGetValue(k, out sum) || sum <= 0.0) continue;
-                double max;
-                windowMax.TryGetValue(k, out max);
-                sb.Append(" | ").Append(k).Append(' ').Append(F(sum / frames)).Append('/').Append(F(max));
-            }
-            int selected;
-            if (counters.TryGetValue("选中", out selected)) sb.Append(" || 选中=").Append(selected);
-            int des;
-            if (counters.TryGetValue("标记", out des)) sb.Append(" 标记=").Append(des);
-            Log.Warning(sb.ToString());
-
             frames = 0;
             windowTotal = 0.0;
             windowPeak = 0.0;
@@ -151,6 +163,67 @@ namespace DigitalStorage.Performance
             windowDeltaPeak = 0.0;
             windowMs.Clear();
             windowMax.Clear();
+            allocated = 0L;
+            lastHeap = GC.GetTotalMemory(false);
+            heapStart = lastHeap;
+            gc0Start = GC.CollectionCount(0);
+            gc1Start = GC.CollectionCount(1);
+            gc2Start = GC.CollectionCount(2);
+        }
+
+        private static double KeyAvg(string k)
+        {
+            double s;
+            return windowMs.TryGetValue(k, out s) && frames > 0 ? s / frames : 0.0;
+        }
+
+        private static double KeyMax(string k)
+        {
+            double m;
+            return windowMax.TryGetValue(k, out m) ? m : 0.0;
+        }
+
+        private static void LogWindow()
+        {
+            double frameAvg = WindowDeltaAvg();
+            double ticks = KeyAvg("Ticks");
+            double selDraw = KeyAvg("SelDraw");
+            double drawInner = KeyAvg("MapMesh") + KeyAvg("DynThings") + KeyAvg("Designations")
+                             + KeyAvg("Overlays") + KeyAvg("Motes") + KeyAvg("Flecks");
+            double other = frameAvg - ticks - selDraw;
+            if (other < 0.0) other = 0.0;
+            double tickNonDraw = ticks - drawInner;
+            if (tickNonDraw < 0.0) tickNonDraw = 0.0;
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append("[DS-Draw] 帧=").Append(frames);
+            sb.Append(" 帧间隔 ").Append(F(frameAvg)).Append("(峰 ").Append(F(windowDeltaPeak)).Append(')');
+            sb.Append(" | 刻度 ").Append(F(ticks)).Append("(峰 ").Append(F(KeyMax("Ticks"))).Append(')');
+            int ticksPerFrame;
+            if (counters.TryGetValue("tick/帧", out ticksPerFrame)) sb.Append("[tick/帧=").Append(ticksPerFrame).Append(']');
+            sb.Append(" | 刻度内绘制 ").Append(F(drawInner));
+            sb.Append(" 刻度内非绘制 ").Append(F(tickNonDraw));
+            sb.Append(" 帧内其他 ").Append(F(other));
+            sb.Append(" ||");
+            for (int i = 0; i < Keys.Length; i++)
+            {
+                string k = Keys[i];
+                double sum;
+                if (!windowMs.TryGetValue(k, out sum) || sum <= 0.0) continue;
+                sb.Append(' ').Append(k).Append(' ').Append(F(sum / frames)).Append('/').Append(F(KeyMax(k)));
+            }
+            sb.Append(" || GC0+").Append(GC.CollectionCount(0) - gc0Start);
+            sb.Append(" GC1+").Append(GC.CollectionCount(1) - gc1Start);
+            sb.Append(" GC2+").Append(GC.CollectionCount(2) - gc2Start);
+            sb.Append(" 分配").Append(F(allocated / 1048576.0)).Append("MB");
+            sb.Append(" 堆Δ").Append(F((GC.GetTotalMemory(false) - heapStart) / 1048576.0)).Append("MB");
+            int selected;
+            if (counters.TryGetValue("选中", out selected)) sb.Append(" 选中=").Append(selected);
+            int des;
+            if (counters.TryGetValue("标记", out des)) sb.Append(" 标记=").Append(des);
+            int tasks;
+            if (counters.TryGetValue("任务", out tasks)) sb.Append(" 任务=").Append(tasks);
+            Log.Warning(sb.ToString());
         }
 
         private static double WindowDeltaAvg()
@@ -314,6 +387,74 @@ namespace DigitalStorage.Performance
         {
             if (t0 == 0L) return;
             DevDrawProfiler.Add("SelDraw", DevDrawProfiler.Ms(t0));
+            t0 = 0L;
+        }
+    }
+
+    /// <summary>
+    /// ⑧ 整帧刻度：<c>Game.Update</c> 每帧调一次 <c>TickManagerUpdate</c>，内部是
+    /// <c>DoSingleTick</c> 循环（含每个 <c>Map.MapUpdate</c> ⇒ 含上面六个绘制项）。
+    /// 于是 <b>帧间隔 − 刻度 − SelDraw = 帧内其他</b>（UI/输入/渲染线程/GC 等）。
+    /// </summary>
+    [HarmonyPatch(typeof(TickManager), nameof(TickManager.TickManagerUpdate))]
+    internal static class PerfProbe_Ticks
+    {
+        private static long t0;
+
+        private static void Prefix()
+        {
+            t0 = DevDrawProfiler.Enabled ? DevDrawProfiler.Now : 0L;
+        }
+
+        private static void Postfix()
+        {
+            if (t0 == 0L) return;
+            DevDrawProfiler.Add("Ticks", DevDrawProfiler.Ms(t0));
+            TickManager tm = Find.TickManager;
+            if (tm != null) DevDrawProfiler.Counter("tick/帧", tm.TicksThisFrame);
+            t0 = 0L;
+        }
+    }
+
+    /// <summary>⑨ 单张地图的一次更新（每个 tick 每图一次；含绘制块与全部地图逻辑）。</summary>
+    [HarmonyPatch(typeof(Map), nameof(Map.MapUpdate))]
+    internal static class PerfProbe_MapUpdate
+    {
+        private static long t0;
+
+        private static void Prefix()
+        {
+            t0 = DevDrawProfiler.Enabled ? DevDrawProfiler.Now : 0L;
+        }
+
+        private static void Postfix()
+        {
+            if (t0 == 0L) return;
+            DevDrawProfiler.Add("MapUpd", DevDrawProfiler.Ms(t0));
+            t0 = 0L;
+        }
+    }
+
+    /// <summary>
+    /// ⑩ 我们自己的代理建筑 tick（一个建筑一个 comp，多实例同帧累加）。
+    /// 这是"刻度内非绘制"里最该被怀疑的一块：并行 300 时它每 tick 都在跑。
+    /// </summary>
+    [HarmonyPatch(typeof(CompDigitalWorker), nameof(CompDigitalWorker.CompTick))]
+    internal static class PerfProbe_DSWorker
+    {
+        private static long t0;
+
+        private static void Prefix(CompDigitalWorker __instance)
+        {
+            if (!DevDrawProfiler.Enabled) return;
+            t0 = DevDrawProfiler.Now;
+            DevDrawProfiler.CounterMax("任务", __instance.ActiveCount);
+        }
+
+        private static void Postfix()
+        {
+            if (t0 == 0L) return;
+            DevDrawProfiler.Add("DSWork", DevDrawProfiler.Ms(t0));
             t0 = 0L;
         }
     }
