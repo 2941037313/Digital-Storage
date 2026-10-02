@@ -29,9 +29,6 @@
       <Mass>30</Mass>
     </statBases>
     <tickerType>Normal</tickerType>
-    <researchPrerequisites>
-      <li>DigitalStorage_Worker1</li>
-    </researchPrerequisites>
     <costList>
       <Steel>200</Steel>
       <ComponentIndustrial>6</ComponentIndustrial>
@@ -57,9 +54,6 @@
       <Mass>35</Mass>
     </statBases>
     <tickerType>Normal</tickerType>
-    <researchPrerequisites>
-      <li>DigitalStorage_Worker2</li>
-    </researchPrerequisites>
     <costList>
       <Steel>350</Steel>
       <Plasteel>60</Plasteel>
@@ -86,9 +80,6 @@
       <Mass>40</Mass>
     </statBases>
     <tickerType>Normal</tickerType>
-    <researchPrerequisites>
-      <li>DigitalStorage_Worker3</li>
-    </researchPrerequisites>
     <costList>
       <Steel>500</Steel>
       <Plasteel>150</Plasteel>
@@ -111,6 +102,9 @@
   <!-- 挖掘 × 3 -->
   <ThingDef ParentName="DigitalStorage_WorkerTierI">
     <defName>DigitalStorage_WorkerMiningI</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_MiningProxy1</li>
+    </researchPrerequisites>
     <label>挖掘代理 I</label>
     <description>自动完成玩家标记的采矿工作，殖民者无需前往。断电即停工。</description>
     <graphicData>
@@ -132,6 +126,9 @@
 
   <ThingDef ParentName="DigitalStorage_WorkerTierII">
     <defName>DigitalStorage_WorkerMiningII</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_MiningProxy2</li>
+    </researchPrerequisites>
     <label>挖掘代理 II</label>
     <description>自动完成玩家标记的采矿工作，殖民者无需前往。断电即停工。</description>
     <graphicData>
@@ -153,6 +150,9 @@
 
   <ThingDef ParentName="DigitalStorage_WorkerTierIII">
     <defName>DigitalStorage_WorkerMiningIII</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_MiningProxy3</li>
+    </researchPrerequisites>
     <label>挖掘代理 III</label>
     <description>自动完成玩家标记的采矿工作，殖民者无需前往。断电即停工。</description>
     <graphicData>
@@ -175,6 +175,9 @@
   <!-- 建造 × 3 -->
   <ThingDef ParentName="DigitalStorage_WorkerTierI">
     <defName>DigitalStorage_WorkerBuildI</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_BuildProxy1</li>
+    </researchPrerequisites>
     <label>建造代理 I</label>
     <description>自动把蓝图成框并建完，材料直接从数字存储核心取用。核心凑不齐材料时会放手交给殖民者。断电即停工。</description>
     <graphicData>
@@ -196,6 +199,9 @@
 
   <ThingDef ParentName="DigitalStorage_WorkerTierII">
     <defName>DigitalStorage_WorkerBuildII</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_BuildProxy2</li>
+    </researchPrerequisites>
     <label>建造代理 II</label>
     <description>自动把蓝图成框并建完，材料直接从数字存储核心取用。核心凑不齐材料时会放手交给殖民者。断电即停工。</description>
     <graphicData>
@@ -217,6 +223,9 @@
 
   <ThingDef ParentName="DigitalStorage_WorkerTierIII">
     <defName>DigitalStorage_WorkerBuildIII</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_BuildProxy3</li>
+    </researchPrerequisites>
     <label>建造代理 III</label>
     <description>自动把蓝图成框并建完，材料直接从数字存储核心取用。核心凑不齐材料时会放手交给殖民者。断电即停工。</description>
     <graphicData>
@@ -239,6 +248,9 @@
   <!-- 清洁 × 3（放宽 Home 区：全图污物都能清） -->
   <ThingDef ParentName="DigitalStorage_WorkerTierI">
     <defName>DigitalStorage_WorkerCleanI</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_CleanProxy1</li>
+    </researchPrerequisites>
     <label>清洁代理 I</label>
     <description>自动清理地图上的污物，不受家区限制。断电即停工。</description>
     <graphicData>
@@ -260,6 +272,9 @@
 
   <ThingDef ParentName="DigitalStorage_WorkerTierII">
     <defName>DigitalStorage_WorkerCleanII</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_CleanProxy2</li>
+    </researchPrerequisites>
     <label>清洁代理 II</label>
     <description>自动清理地图上的污物，不受家区限制。断电即停工。</description>
     <graphicData>
@@ -281,6 +296,9 @@
 
   <ThingDef ParentName="DigitalStorage_WorkerTierIII">
     <defName>DigitalStorage_WorkerCleanIII</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_CleanProxy3</li>
+    </researchPrerequisites>
     <label>清洁代理 III</label>
     <description>自动清理地图上的污物，不受家区限制。断电即停工。</description>
     <graphicData>
@@ -303,6 +321,9 @@
   <!-- 种植 × 3（Growing 的播种/收割待下一波；当前实际干的是伐木 PlantCutting） -->
   <ThingDef ParentName="DigitalStorage_WorkerTierI">
     <defName>DigitalStorage_WorkerGrowI</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_GrowProxy1</li>
+    </researchPrerequisites>
     <label>种植代理 I</label>
     <description>自动砍伐玩家标记的树木。（播种与收割待接。）断电即停工。</description>
     <graphicData>
@@ -324,6 +345,9 @@
 
   <ThingDef ParentName="DigitalStorage_WorkerTierII">
     <defName>DigitalStorage_WorkerGrowII</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_GrowProxy2</li>
+    </researchPrerequisites>
     <label>种植代理 II</label>
     <description>自动砍伐玩家标记的树木。（播种与收割待接。）断电即停工。</description>
     <graphicData>
@@ -345,6 +369,9 @@
 
   <ThingDef ParentName="DigitalStorage_WorkerTierIII">
     <defName>DigitalStorage_WorkerGrowIII</defName>
+    <researchPrerequisites>
+      <li>DigitalStorage_GrowProxy3</li>
+    </researchPrerequisites>
     <label>种植代理 III</label>
     <description>自动砍伐玩家标记的树木。（播种与收割待接。）断电即停工。</description>
     <graphicData>
@@ -364,4 +391,56 @@
     </comps>
   </ThingDef>
 
+  <!-- 超凡代理：四条链的终点。一台建筑同时接管四类工作。
+       速度 5.0×、资质 20、**每类并行 50 / 合计 200**、耗电 6000W。 -->
+  <ThingDef ParentName="DigitalStorage_BuildingBase">
+    <defName>DigitalStorage_WorkerTranscendent</defName>
+    <label>超凡代理</label>
+    <description>四条代理链的终点。一台建筑同时接管挖掘、建造、清洁、种植（含伐木）。\n\n速度 5.0×，资质 20 级，每类工作可并行 50 件（四类合计 200 件同时进行），耗电 6000W。</description>
+    <size>(3,3)</size>
+    <statBases>
+      <MaxHitPoints>5000</MaxHitPoints>
+      <WorkToBuild>6000</WorkToBuild>
+      <Mass>80</Mass>
+    </statBases>
+    <tickerType>Normal</tickerType>
+    <researchPrerequisites>
+      <li>DigitalStorage_TranscendentProxy</li>
+    </researchPrerequisites>
+    <costList>
+      <Steel>1500</Steel>
+      <Plasteel>600</Plasteel>
+      <ComponentIndustrial>80</ComponentIndustrial>
+      <ComponentSpacer>40</ComponentSpacer>
+    </costList>
+    <graphicData>
+      <texPath>2.0/代理建筑-超凡</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(3,3)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="CompProperties_Power">
+        <compClass>CompPowerTrader</compClass>
+        <basePowerConsumption>6000</basePowerConsumption>
+        <shortCircuitInRain>true</shortCircuitInRain>
+      </li>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes>
+          <li>Mining</li>
+          <li>Construction</li>
+          <li>Cleaning</li>
+          <li>Growing</li>
+          <li>PlantCutting</li>
+        </workTypes>
+        <skillLevel>20</skillLevel>
+        <workSpeedMult>5.0</workSpeedMult>
+        <maxParallelPerWorkType>50</maxParallelPerWorkType>
+        <maxParallelTotal>200</maxParallelTotal>
+        <maxVisualTasks>8</maxVisualTasks>
+      </li>
+    </comps>
+  </ThingDef>
 </Defs>

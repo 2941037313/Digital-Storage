@@ -11,50 +11,66 @@ using Verse;
 namespace DigitalStorage.Components
 {
     /// <summary>
-    /// <b>代理建筑</b>（数字工人）：由建筑自己完成 挖掘/建造/清洁/种植 之一，殖民者不跑腿。
+    /// <b>代理建筑</b>（数字工人）：由建筑自己完成 挖掘/建造/清洁/种植(伐木) 之一，殖民者不跑腿。
     ///
     /// <para><b>路线</b>：不 spawn 任何 Pawn（"假 pawn 当资质载体"），而是照抄原版 driver 的
     /// "对目标干活"那一段，脱离 job 直接调用产出函数。三条路线为何这样选、以及为什么
     /// "完全不要 pawn"不成立（<c>Plant.PlantCollected(by,…)</c> 会解引用 <c>by</c>），
     /// 见 obsidian：<c>代码Wiki/rimworld/代理工人-脱离job直调产出.md</c>。</para>
     ///
-    /// <para><b>三处必须记住的纪律</b>（都是 More Organs 踩过的）：
+    /// <para><b>并行</b>：普通代理建筑 <c>maxParallelPerWorkType = 1</c>（一次一件活）；
+    /// 超凡代理 = 50 且管 4 个 workTypes ⇒ 总计最多 200 件同时进行。
+    /// 因此整个 tick <b>只借还一次地图</b>（<see cref="DigitalWorkerScope"/>），而不是逐任务借还。</para>
+    ///
+    /// <para><b>四件必须记住的事</b>（都是踩过的）：
     /// ① 产出函数**没有** <c>Destroyed</c> 守卫 ⇒ 每次动手前后都要复查目标；
     /// ② 找活与干活都必须包在 <see cref="DigitalWorkerScope"/> 里 ——
     ///    <c>ReservationManager.CanReserve</c> 要求 <c>claimant.Spawned &amp;&amp; claimant.Map == map</c>
     ///    （<c>ReservationManager.cs:164-167</c>），而假 pawn 从不 spawn；
-    /// ③ 借还 <c>mapIndexOrState</c> 必须 <c>try/finally</c>，漏一次 pawn 就永久挂在错误地图上。</para>
+    /// ③ 借还 <c>mapIndexOrState</c> 必须 <c>try/finally</c>，漏一次 pawn 就永久挂在错误地图上；
+    /// ④ 假 pawn 必须补 <c>PawnComponentsUtility.AddComponentsForSpawn</c>，否则任何读
+    ///    <c>pawn.DrawPos</c> 的原版代码都会在 <c>PawnTweener.TweenedPosRoot</c> 里 NRE
+    ///    （它直接解引用 <c>pawn.pather</c>）。</para>
     /// </summary>
     public class CompDigitalWorker : ThingComp
     {
+        /// <summary>一件正在干的活 + 它自己的表现件（手 / 黄色读条）。</summary>
+        private class ActiveWork
+        {
+            public DigitalTask task;
+            public Map map;
+            public Mote_DS_WorkHand hand;
+            public Effecter bar;
+            public int lastStrikes;
+        }
+
         /// <summary>资质载体。**不进存档**（可重建的派生对象），读档后按需重建。</summary>
         private Pawn worker;
 
-        private DigitalTask task;
+        private readonly List<ActiveWork> works = new List<ActiveWork>();
         private int nextScanTick;
         private bool enabled = true;
 
-        /// <summary>干活时目标"底下"的黄色进度条（原版同款 effecter，见 <see cref="UpdateProgressBar"/>）。</summary>
-        private Effecter progressBar;
-
-        /// <summary>干活时趴在目标上的那只手（纯表现 Mote，见 <see cref="UpdateWorkHand"/>）。</summary>
-        private Mote_DS_WorkHand workHand;
-
-        /// <summary>上一次看到的"干活步数"，用来判断该不该让手挥一下。</summary>
-        private int lastSeenStrikes;
-
         /// <summary>候选集遍历上限（防某个 lister 把一帧吃光）。</summary>
         private const int MaxIterate = 4000;
+
+        /// <summary>一次扫描最多新增几件活 —— 并行 200 时不让单 tick 出现尖峰（分摊到多个扫描周期）。</summary>
+        private const int AddsPerScan = 25;
 
         public CompProperties_DigitalWorker Props
         {
             get { return (CompProperties_DigitalWorker)props; }
         }
 
-        /// <summary>工人在干活吗（UI/调试用）。</summary>
+        /// <summary>同时进行几件活（UI/调试用）。</summary>
+        public int ActiveCount
+        {
+            get { return works.Count; }
+        }
+
         public DigitalTask CurrentTask
         {
-            get { return task; }
+            get { return works.Count > 0 ? works[0].task : null; }
         }
 
         public bool Enabled
@@ -63,7 +79,7 @@ namespace DigitalStorage.Components
             set
             {
                 enabled = value;
-                if (!enabled) Release();
+                if (!enabled) ReleaseAll();
             }
         }
 
@@ -103,10 +119,10 @@ namespace DigitalStorage.Components
 
         public override void CompTick()
         {
-            // 断电 / 被拆 / 关掉 ⇒ 立刻放手（不占着目标）
+            // 断电 / 被拆 / 关掉 ⇒ 立刻全放手（不占着目标）
             if (!CanWork)
             {
-                Release();
+                ReleaseAll();
                 return;
             }
 
@@ -116,141 +132,82 @@ namespace DigitalStorage.Components
             Pawn w = Worker;
             if (w == null) return;
 
-            if (task != null && !task.StillValid(w, map))
-            {
-                Release();
-            }
-
-            if (task == null)
-            {
-                int now = Find.TickManager.TicksGame;
-                if (now < nextScanTick) return;
-                nextScanTick = now + Math.Max(1, Props.scanIntervalTicks);
-                TryScan(map, w);
-                if (task == null) return;
-            }
-
-            DigitalWorkerScope.Enter(w, map, task.target.PositionHeld);
+            DigitalWorkerScope.Enter(w, map, parent.PositionHeld);
             try
             {
-                task.Work(w, map, Props.workSpeedMult);
-            }
-            catch (Exception e)
-            {
-                Log.Error("[DigitalStorage] 代理建筑干活出错（已放手）：" + parent + " → " + e);
-                Release();
-                return;
+                // 1) 丢掉失效的（目标没了 / 设计取消 / 被别人订走）
+                for (int i = works.Count - 1; i >= 0; i--)
+                {
+                    if (!works[i].task.StillValid(w, map)) ReleaseWorkAt(i);
+                }
+
+                // 2) 补到并行上限（按 workTypes 各自的配额；限流见 AddsPerScan）
+                int now = Find.TickManager.TicksGame;
+                if (now >= nextScanTick)
+                {
+                    nextScanTick = now + Math.Max(1, Props.scanIntervalTicks);
+                    for (int added = 0; added < AddsPerScan; added++)
+                    {
+                        if (!TryAddOneWork(map, w)) break;
+                    }
+                }
+
+                // 3) 干活（每件活各自累积）
+                for (int i = 0; i < works.Count; i++)
+                {
+                    try
+                    {
+                        works[i].task.Work(w, map, Props.workSpeedMult);
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error("[DigitalStorage] 代理建筑干活出错（丢这一件）：" + parent + " → " + e);
+                        ReleaseWorkAt(i);
+                        i--;
+                    }
+                }
+
+                // 4) 收掉干完的
+                for (int i = works.Count - 1; i >= 0; i--)
+                {
+                    if (works[i].task.Finished) ReleaseWorkAt(i);
+                }
             }
             finally
             {
                 DigitalWorkerScope.Exit(w);
             }
 
-            UpdateProgressBar();
-            UpdateWorkHand(map);
-
-            if (task != null && task.Finished) Release();
+            UpdateVisuals(map);
         }
 
-        /// <summary>
-        /// 把"干活的那只手"摆到当前目标上，并在每次干完一步时让它挥一下。
-        ///
-        /// <para>位置直接取 <c>target.DrawPos</c>（所以矿物、植株、框架、污物都能用同一套），
-        /// 略微朝镜头一点压在目标正面。手的生死由它自己的 <c>Maintain()</c> 自愈机制兜底：
-        /// 我们一旦不再调 <c>Maintain()</c>，它 1 秒后自己消失。</para>
-        /// </summary>
-        private void UpdateWorkHand(Map map)
-        {
-            if (task == null || task.target == null || task.target.Destroyed || !task.target.Spawned)
-            {
-                ReleaseWorkHand();
-                return;
-            }
-
-            if (workHand == null || workHand.Destroyed || !workHand.Spawned)
-            {
-                ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail(task.HandMoteDefName);
-                if (def == null) return;
-                Mote_DS_WorkHand m = ThingMaker.MakeThing(def) as Mote_DS_WorkHand;
-                if (m == null) return;
-                GenSpawn.Spawn(m, task.target.Position, map);
-                workHand = m;
-            }
-
-            Vector3 pos = task.target.DrawPos;
-            pos.y = 0f;          // y 由 Mote.DrawMote 按 altitudeLayer 每帧重设
-            pos.z += 0.15f;      // 略微朝镜头，压在目标正面
-            workHand.exactPosition = pos;
-            workHand.Maintain();
-
-            if (task.StrikeCount != lastSeenStrikes)
-            {
-                lastSeenStrikes = task.StrikeCount;
-                workHand.Strike();
-            }
-        }
-
-        private void ReleaseWorkHand()
-        {
-            if (workHand != null && !workHand.Destroyed)
-            {
-                workHand.Destroy();
-            }
-            workHand = null;
-            lastSeenStrikes = 0;
-        }
-
-        /// <summary>
-        /// 干活时目标"底下"的黄色进度条。
-        ///
-        /// <para>原版那个读条不是 UI，而是 <c>EffecterDefOf.ProgressBar</c> 生成的一个 effecter，
-        /// 里面挂着一个 <c>MoteProgressBar</c>（填充色 (0.9,0.85,0.2) 就是那个黄）。
-        /// 我们没有 JobDriver，所以照 <c>ToilEffects.WithProgressBar</c> 的口径自己挂一个 ——
-        /// **一点补丁都不用加**。先例：More Organs <c>LaborHand.cs:338-360</c>。</para>
-        /// </summary>
-        private void UpdateProgressBar()
-        {
-            float p = (task == null) ? -1f : task.Progress01;
-            if (p < 0f || task.target == null || task.target.Destroyed || !task.target.Spawned)
-            {
-                CleanupProgressBar();
-                return;
-            }
-            if (progressBar == null)
-            {
-                progressBar = EffecterDefOf.ProgressBar.Spawn();
-            }
-            progressBar.EffectTick(new TargetInfo(task.target), TargetInfo.Invalid);
-
-            MoteProgressBar mote = (progressBar.children.Count > 0)
-                ? (progressBar.children[0] as SubEffecter_ProgressBar)?.mote
-                : null;
-            if (mote != null)
-            {
-                mote.progress = Mathf.Clamp01(p);
-                mote.offsetZ = -0.5f;     // 原版 WithProgressBar 的默认位置（贴在目标"底下"）
-                mote.alwaysShow = true;   // 代理可能在远离镜头处干活，别只在最近缩放才画
-            }
-        }
-
-        private void CleanupProgressBar()
-        {
-            if (progressBar != null)
-            {
-                progressBar.Cleanup();
-                progressBar = null;
-            }
-        }
-
-        /// <summary>找一件活并认领。整段都在作用域里（<c>HasJobOnThing</c> 会走 <c>CanReserve</c>）。</summary>
-        private void TryScan(Map map, Pawn w)
+        /// <summary>再找一件活（受"每类并行配额"限制）。找到并认领返回 true。</summary>
+        private bool TryAddOneWork(Map map, Pawn w)
         {
             List<WorkTypeDef> types = Props.workTypes;
-            if (types == null) return;
+            if (types == null) return false;
+
+            if (Props.maxParallelTotal > 0 && works.Count >= Props.maxParallelTotal) return false;
+
+            int cap = Math.Max(1, Props.maxParallelPerWorkType);
             for (int i = 0; i < types.Count; i++)
             {
-                if (TryScanWorkType(map, w, types[i])) return;   // 按列表顺序，第一个命中的就干活
+                WorkTypeDef wt = types[i];
+                if (wt == null) continue;
+                if (CountWorksOf(wt) >= cap) continue;
+                if (TryScanWorkType(map, w, wt)) return true;
             }
+            return false;
+        }
+
+        private int CountWorksOf(WorkTypeDef wt)
+        {
+            int n = 0;
+            for (int i = 0; i < works.Count; i++)
+            {
+                if (works[i].task.workType == wt) n++;
+            }
+            return n;
         }
 
         private bool TryScanWorkType(Map map, Pawn w, WorkTypeDef workType)
@@ -264,98 +221,188 @@ namespace DigitalStorage.Components
             DigitalTaskAdapter adapter = DigitalTaskRegistry.AdapterFor(giver);
             if (adapter == null) return false;
 
-            DigitalWorkerScope.Enter(w, map, parent.PositionHeld);
-            try
+            if (!DigitalTaskRegistry.PawnCanUse(giver, w)) return false;
+
+            IEnumerable<Thing> set = adapter.CandidateSet(map, w, scanner);
+            if (set == null) return false;
+
+            int seen = 0;
+            foreach (Thing t in set)
             {
-                if (!DigitalTaskRegistry.PawnCanUse(giver, w)) return false;
+                if (++seen > MaxIterate) break;
+                if (t == null || t.Destroyed || !t.Spawned) continue;
 
-                IEnumerable<Thing> set = adapter.CandidateSet(map, w, scanner);
-                if (set == null) return false;
+                // 不抢别人（含原版殖民者与**本建筑其它活**）已认领的目标
+                if (t.IsForbidden(w)) continue;
+                if (DigitalWorkerClaims.IsClaimedByOther(map, t, this)) continue;
+                if (!adapter.CanTarget(w, t)) continue;
 
-                int seen = 0;
-                foreach (Thing t in set)
+                if (adapter.TrustWorkGiver)
                 {
-                    if (++seen > MaxIterate) break;
-                    if (t == null || t.Destroyed || !t.Spawned) continue;
-
-                    // 不抢别人（含原版殖民者）已预约的活
-                    if (t.IsForbidden(w)) continue;
-                    if (DigitalWorkerClaims.IsClaimedByOther(map, t, this)) continue;
-                    if (!adapter.CanTarget(w, t)) continue;
-
-                    if (adapter.TrustWorkGiver)
+                    bool hasJob;
+                    try
                     {
-                        bool hasJob;
-                        try
-                        {
-                            hasJob = scanner.HasJobOnThing(w, t, false);
-                        }
-                        catch (Exception e)
-                        {
-                            Log.ErrorOnce("[DigitalStorage] 问 WorkGiver 时出错：" + giver.def.defName + " → " + e,
-                                giver.def.shortHash * 31 + 9923);
-                            hasJob = false;
-                        }
-                        if (!hasJob) continue;
+                        hasJob = scanner.HasJobOnThing(w, t, false);
                     }
-
-                    DigitalTask candidate = adapter.MakeTask(t, this);
-                    if (!candidate.StillValid(w, map)) continue;
-
-                    DigitalWorkerClaims.TryClaim(map, t, this);
-                    task = candidate;
-                    return true;
+                    catch (Exception e)
+                    {
+                        Log.ErrorOnce("[DigitalStorage] 问 WorkGiver 时出错：" + giver.def.defName + " → " + e,
+                            giver.def.shortHash * 31 + 9923);
+                        hasJob = false;
+                    }
+                    if (!hasJob) continue;
                 }
-            }
-            finally
-            {
-                DigitalWorkerScope.Exit(w);
+
+                DigitalTask candidate = adapter.MakeTask(t, this);
+                candidate.workType = workType;
+                if (!candidate.StillValid(w, map)) continue;
+
+                DigitalWorkerClaims.TryClaim(map, t, this);
+                works.Add(new ActiveWork { task = candidate, map = map });
+                return true;
             }
             return false;
         }
 
-        /// <summary>放手：清认领表 + 丢任务 + 收掉 effecter/手。断电/拆除/目标失效/干完都走这里。</summary>
-        public void Release()
+        /// <summary>放手一件活（清它那份认领 + 收掉它的表现件）。</summary>
+        private void ReleaseWorkAt(int i)
         {
-            DigitalWorkerClaims.ReleaseAll(this);
-            if (task != null)
-            {
-                task.Cleanup();
-                task = null;
-            }
-            CleanupProgressBar();
-            ReleaseWorkHand();
+            ActiveWork aw = works[i];
+            works.RemoveAt(i);
+            DigitalWorkerClaims.Release(aw.map, aw.task.target, this);
+            aw.task.Cleanup();
+            CleanupVisual(aw);
+        }
+
+        /// <summary>全部放手（断电/拆除/关闭/出异常）。</summary>
+        public void ReleaseAll()
+        {
+            for (int i = works.Count - 1; i >= 0; i--) ReleaseWorkAt(i);
+            DigitalWorkerClaims.ReleaseAll(this);   // 兜底：万一有漏网的条目
         }
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
             base.PostDeSpawn(map, mode);
-            Release();
+            ReleaseAll();
         }
 
         public override void PostExposeData()
         {
             base.PostExposeData();
             Scribe_Values.Look(ref enabled, "enabled", true);
-            // 刻意不 Scribe worker / task：工人是可重建的派生对象，任务重建后会重新认领
+            // 刻意不 Scribe worker / works：工人与进行中的活都是可重建的派生状态，
+            // 读档后重新找活即可（比存一份可能对不上的认领表更安全）。
         }
 
         /// <summary>
         /// 检查面板状态行。
-        /// TODO(4.0 收尾)：改成 Keyed 翻译（现在为了第一波实测方便先写死中文）。
+        /// TODO(4.0 收尾)：改成 Keyed 翻译（现在为了实测方便先写死中文）。
         /// </summary>
         public override string CompInspectStringExtra()
         {
             if (!parent.Spawned) return null;
             if (!Powered) return "代理建筑：断电";
             if (!enabled) return "代理建筑：已关闭";
-            if (task == null)
+
+            int cap = Math.Max(1, Props.maxParallelPerWorkType)
+                * ((Props.workTypes != null && Props.workTypes.Count > 0) ? Props.workTypes.Count : 1);
+            if (Props.maxParallelTotal > 0 && Props.maxParallelTotal < cap) cap = Props.maxParallelTotal;
+
+            if (works.Count == 0)
             {
                 if (Find.TickManager.TicksGame < nextScanTick) return "代理建筑：待命";
                 return "代理建筑：待命（没找到目标）";
             }
-            return "代理建筑：" + task.Label + " · " + task.TargetLabel
-                + "（速度 " + Props.workSpeedMult.ToString("0.0") + "×，资质 " + Props.skillLevel + "）";
+
+            DigitalTask first = works[0].task;
+            return "代理建筑：" + first.Label + " · " + first.TargetLabel
+                + "（速度 " + Props.workSpeedMult.ToString("0.0") + "×，资质 " + Props.skillLevel
+                + "，并行 " + works.Count + "/" + cap + "）";
+        }
+
+        // ===================================================================
+        // 表现：目标上的那只手 + 目标底下的黄色读条（都只画前 N 件，见 maxVisualTasks）
+        // ===================================================================
+
+        private void UpdateVisuals(Map map)
+        {
+            int cap = Math.Max(0, Props.maxVisualTasks);
+            for (int i = 0; i < works.Count; i++)
+            {
+                ActiveWork aw = works[i];
+                Thing t = aw.task.target;
+
+                if (i >= cap || t == null || t.Destroyed || !t.Spawned)
+                {
+                    CleanupVisual(aw);
+                    continue;
+                }
+
+                // ---- 手 ----
+                if (aw.hand == null || aw.hand.Destroyed || !aw.hand.Spawned)
+                {
+                    ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail(aw.task.HandMoteDefName);
+                    if (def != null)
+                    {
+                        Mote_DS_WorkHand m = ThingMaker.MakeThing(def) as Mote_DS_WorkHand;
+                        if (m != null)
+                        {
+                            GenSpawn.Spawn(m, t.Position, map);
+                            aw.hand = m;
+                        }
+                    }
+                }
+                if (aw.hand != null && !aw.hand.Destroyed)
+                {
+                    Vector3 pos = t.DrawPos;
+                    pos.y = 0f;        // y 由 Mote.DrawMote 按 altitudeLayer 每帧重设
+                    pos.z += 0.15f;    // 略微朝镜头，压在目标正面
+                    aw.hand.exactPosition = pos;
+                    aw.hand.Maintain();   // 不再 Maintain 时它 1 秒后自愈消失
+                    if (aw.task.StrikeCount != aw.lastStrikes)
+                    {
+                        aw.lastStrikes = aw.task.StrikeCount;
+                        aw.hand.Strike();
+                    }
+                }
+
+                // ---- 黄色读条（原版 EffecterDefOf.ProgressBar + MoteProgressBar）----
+                float p = aw.task.Progress01;
+                if (p < 0f)
+                {
+                    if (aw.bar != null)
+                    {
+                        aw.bar.Cleanup();
+                        aw.bar = null;
+                    }
+                    continue;
+                }
+                if (aw.bar == null) aw.bar = EffecterDefOf.ProgressBar.Spawn();
+                aw.bar.EffectTick(new TargetInfo(t), TargetInfo.Invalid);
+
+                MoteProgressBar mote = (aw.bar.children.Count > 0)
+                    ? (aw.bar.children[0] as SubEffecter_ProgressBar)?.mote
+                    : null;
+                if (mote != null)
+                {
+                    mote.progress = Mathf.Clamp01(p);
+                    mote.offsetZ = -0.5f;     // 原版 WithProgressBar 的默认位置（贴在目标"底下"）
+                    mote.alwaysShow = true;   // 代理可能在远离镜头处干活，别只在最近缩放才画
+                }
+            }
+        }
+
+        private void CleanupVisual(ActiveWork aw)
+        {
+            if (aw.hand != null && !aw.hand.Destroyed) aw.hand.Destroy();
+            aw.hand = null;
+            if (aw.bar != null)
+            {
+                aw.bar.Cleanup();
+                aw.bar = null;
+            }
+            aw.lastStrikes = 0;
         }
 
         // ===================================================================
@@ -427,7 +474,8 @@ namespace DigitalStorage.Components
     /// <para>先例：<c>god hand GodAssistantController.cs:288-318</c>（它用在制作产物上）。
     /// 我们比它多一个理由：<b>找活阶段也要借</b> —— <c>WorkGiver.HasJobOnThing</c> 里就有
     /// <c>CanReserve</c>，而它要求 <c>claimant.Spawned &amp;&amp; claimant.Map == map</c>。
-    /// 但作用域要**尽量窄**，且必须 <c>try/finally</c>。</para>
+    /// 但作用域要**尽量窄**，且必须 <c>try/finally</c>；并行 200 时**整个 tick 只借还一次**
+    /// （逐任务借还就是每 tick 几百次反射写）。</para>
     ///
     /// <para>顺序很关键：进入时<b>先设 Position 再翻 mapIndexOrState</b>（<c>Position</c> 的 setter
     /// 在 <c>Spawned</c> 时会去动 region/lister）；退出时<b>先翻回 -1 再清 Position</b>。</para>
@@ -458,7 +506,8 @@ namespace DigitalStorage.Components
     /// <c>Log.Warning + return false</c> ⇒ 绕开 job 就无法正规预约；用假 Job 预约则会把假 Job
     /// 写进存档、读档找不回来 = 永久占着某块矿。所以只能"自有认领表 + 只读 <c>CanReserve</c> 过滤"。</para>
     ///
-    /// <para>认领表**不进存档**：读档后所有代理重新找活即可（比存一份可能对不上的表更安全）。</para>
+    /// <para>认领表**不进存档**：读档后所有代理重新找活即可（比存一份可能对不上的表更安全）。
+    /// 一个建筑可以同时认领多件活（超凡代理并行 200）⇒ 放行 <c>owner == me</c>。</para>
     /// </summary>
     internal static class DigitalWorkerClaims
     {
@@ -500,16 +549,8 @@ namespace DigitalStorage.Components
 
         public static bool IsClaimedByOther(Map map, Thing t, CompDigitalWorker me)
         {
-            Dictionary<Thing, CompDigitalWorker> d = For(map);
-            CompDigitalWorker owner;
-            if (!d.TryGetValue(t, out owner)) return false;
-            if (owner == me) return false;
-            if (owner == null || owner.parent == null || !owner.parent.Spawned)
-            {
-                d.Remove(t);
-                return false;
-            }
-            return true;
+            CompDigitalWorker owner = OwnerOf(map, t);
+            return owner != null && owner != me;
         }
 
         public static void TryClaim(Map map, Thing t, CompDigitalWorker me)
@@ -518,6 +559,21 @@ namespace DigitalStorage.Components
             For(map)[t] = me;
         }
 
+        /// <summary>只放掉**这一件**（并行时不能把别的活一起放了）。</summary>
+        public static void Release(Map map, Thing t, CompDigitalWorker me)
+        {
+            if (map == null || t == null) return;
+            Dictionary<Thing, CompDigitalWorker> d;
+            if (!claims.TryGetValue(map, out d)) return;
+            CompDigitalWorker owner;
+            if (d.TryGetValue(t, out owner) && owner == me)
+            {
+                d.Remove(t);
+            }
+            if (d.Count == 0) claims.Remove(map);
+        }
+
+        /// <summary>把这个建筑的所有认领全放掉（断电/拆除/兜底）。</summary>
         public static void ReleaseAll(CompDigitalWorker me)
         {
             if (me == null) return;

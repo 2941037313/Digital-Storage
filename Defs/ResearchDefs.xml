@@ -23,11 +23,7 @@
     <researchViewY>2</researchViewY>
   </ResearchProjectDef>
 
-  <!-- 4.0：数字存储接口研究已删（接口建筑砍掉，产品决策「核心一放就是完全体」）。
-       原先依赖它的终端植入体研究与自动收纳 I 研究改为直接依赖基础数字存储。 -->
-
-  <!-- 4.0：终端植入体研究已删（芯片整体砍除）。4.0 是纯轮椅 ——
-       任何位置的殖民者都能直接存取，不需要任何 hediff / 建筑。 -->
+  <!-- 4.0：数字存储接口研究已删（接口建筑砍掉，产品决策「核心一放就是完全体」）。 -->
 
   <!-- 自动收纳 1 级 -->
   <ResearchProjectDef>
@@ -77,54 +73,186 @@
     <researchViewY>0</researchViewY>
   </ResearchProjectDef>
 
-  <!-- 4.0：缓冲仓库研究已删（缓冲仓库特性整体砍掉）。 -->
+  <!-- ==========================================================================
+       代理建筑：**四条并行链**（挖掘 / 建造 / 清洁 / 种植），每条三级，
+       四条链的三级全部汇入「超凡代理」。
 
-  <!-- 代理建筑 I（第一波：只解锁挖掘代理 I；二三级与其它三类随实现铺开） -->
+       X = 4 / 5 / 6 对应 I / II / III；Y = 5 / 4 / 3 / 2 对应四条分支。
+       超凡代理：(8, 3.5) —— 汇流点。
+       （ResearchProjectDef 的 defName 可以以数字结尾，ThingDef 不行。）
+       ========================================================================== -->
+
+  <!-- ===== 挖掘链 ===== -->
   <ResearchProjectDef>
-    <defName>DigitalStorage_Worker1</defName>
-    <label>代理建筑 I</label>
-    <description>解锁一级代理建筑。代理建筑由数字工人执行，能自动完成挖掘/建造/清洁/种植等工作，殖民者无需前往。</description>
+    <defName>DigitalStorage_MiningProxy1</defName>
+    <label>挖掘代理 I</label>
+    <description>解锁一级挖掘代理：速度 0.8×、资质 8 级、耗电 500W。</description>
     <baseCost>1000</baseCost>
     <techLevel>Spacer</techLevel>
-    <prerequisites>
-      <li>DigitalStorage_BasicStorage</li>
-    </prerequisites>
+    <prerequisites><li>DigitalStorage_BasicStorage</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>4</researchViewX>
+    <researchViewY>5</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_MiningProxy2</defName>
+    <label>挖掘代理 II</label>
+    <description>解锁二级挖掘代理：速度 1.2×、资质 15 级、耗电 1000W。</description>
+    <baseCost>2000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_MiningProxy1</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>5</researchViewX>
+    <researchViewY>5</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_MiningProxy3</defName>
+    <label>挖掘代理 III</label>
+    <description>解锁三级挖掘代理：速度 2.0×、资质 20 级、耗电 2000W。</description>
+    <baseCost>3000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_MiningProxy2</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>6</researchViewX>
+    <researchViewY>5</researchViewY>
+  </ResearchProjectDef>
+
+  <!-- ===== 建造链 ===== -->
+  <ResearchProjectDef>
+    <defName>DigitalStorage_BuildProxy1</defName>
+    <label>建造代理 I</label>
+    <description>解锁一级建造代理：速度 0.8×、资质 8 级、耗电 500W。</description>
+    <baseCost>1000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_BasicStorage</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>4</researchViewX>
+    <researchViewY>4</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_BuildProxy2</defName>
+    <label>建造代理 II</label>
+    <description>解锁二级建造代理：速度 1.2×、资质 15 级、耗电 1000W。</description>
+    <baseCost>2000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_BuildProxy1</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>5</researchViewX>
+    <researchViewY>4</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_BuildProxy3</defName>
+    <label>建造代理 III</label>
+    <description>解锁三级建造代理：速度 2.0×、资质 20 级、耗电 2000W。</description>
+    <baseCost>3000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_BuildProxy2</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>6</researchViewX>
+    <researchViewY>4</researchViewY>
+  </ResearchProjectDef>
+
+  <!-- ===== 清洁链 ===== -->
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CleanProxy1</defName>
+    <label>清洁代理 I</label>
+    <description>解锁一级清洁代理：速度 0.8×、资质 8 级、耗电 500W。</description>
+    <baseCost>1000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_BasicStorage</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>4</researchViewX>
+    <researchViewY>3</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CleanProxy2</defName>
+    <label>清洁代理 II</label>
+    <description>解锁二级清洁代理：速度 1.2×、资质 15 级、耗电 1000W。</description>
+    <baseCost>2000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_CleanProxy1</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>5</researchViewX>
+    <researchViewY>3</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CleanProxy3</defName>
+    <label>清洁代理 III</label>
+    <description>解锁三级清洁代理：速度 2.0×、资质 20 级、耗电 2000W。</description>
+    <baseCost>3000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_CleanProxy2</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>6</researchViewX>
+    <researchViewY>3</researchViewY>
+  </ResearchProjectDef>
+
+  <!-- ===== 种植链 ===== -->
+  <ResearchProjectDef>
+    <defName>DigitalStorage_GrowProxy1</defName>
+    <label>种植代理 I</label>
+    <description>解锁一级种植代理：速度 0.8×、资质 8 级、耗电 500W。当前可自动伐木。</description>
+    <baseCost>1000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_BasicStorage</li></prerequisites>
     <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
     <tab>DigitalStorage_Tab</tab>
     <researchViewX>4</researchViewX>
     <researchViewY>2</researchViewY>
   </ResearchProjectDef>
-
-  <!-- 代理建筑 II -->
   <ResearchProjectDef>
-    <defName>DigitalStorage_Worker2</defName>
-    <label>代理建筑 II</label>
-    <description>解锁二级代理建筑：速度 1.2×、资质 15 级。</description>
+    <defName>DigitalStorage_GrowProxy2</defName>
+    <label>种植代理 II</label>
+    <description>解锁二级种植代理：速度 1.2×、资质 15 级、耗电 1000W。当前可自动伐木。</description>
     <baseCost>2000</baseCost>
     <techLevel>Spacer</techLevel>
-    <prerequisites>
-      <li>DigitalStorage_Worker1</li>
-    </prerequisites>
+    <prerequisites><li>DigitalStorage_GrowProxy1</li></prerequisites>
     <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
     <tab>DigitalStorage_Tab</tab>
-    <researchViewX>4</researchViewX>
-    <researchViewY>1</researchViewY>
+    <researchViewX>5</researchViewX>
+    <researchViewY>2</researchViewY>
   </ResearchProjectDef>
-
-  <!-- 代理建筑 III -->
   <ResearchProjectDef>
-    <defName>DigitalStorage_Worker3</defName>
-    <label>代理建筑 III</label>
-    <description>解锁三级代理建筑：速度 2.0×、资质 20 级。</description>
+    <defName>DigitalStorage_GrowProxy3</defName>
+    <label>种植代理 III</label>
+    <description>解锁三级种植代理：速度 2.0×、资质 20 级、耗电 2000W。当前可自动伐木。</description>
     <baseCost>3000</baseCost>
     <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_GrowProxy2</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>6</researchViewX>
+    <researchViewY>2</researchViewY>
+  </ResearchProjectDef>
+
+  <!-- ===== 超凡代理：四条链的三级全部汇入 ===== -->
+  <ResearchProjectDef>
+    <defName>DigitalStorage_TranscendentProxy</defName>
+    <label>超凡代理</label>
+    <description>四条代理链的终点：一台建筑同时接管挖掘/建造/清洁/种植。\n\n速度 5.0×，资质 20 级，**每类工作可并行 50 件**（四类合计 200 件同时进行），耗电 6000W。</description>
+    <baseCost>6000</baseCost>
+    <techLevel>Spacer</techLevel>
     <prerequisites>
-      <li>DigitalStorage_Worker2</li>
+      <li>DigitalStorage_MiningProxy3</li>
+      <li>DigitalStorage_BuildProxy3</li>
+      <li>DigitalStorage_CleanProxy3</li>
+      <li>DigitalStorage_GrowProxy3</li>
     </prerequisites>
     <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
     <tab>DigitalStorage_Tab</tab>
-    <researchViewX>4</researchViewX>
-    <researchViewY>0</researchViewY>
+    <researchViewX>8</researchViewX>
+    <researchViewY>3.5</researchViewY>
   </ResearchProjectDef>
+
+  <!-- 4.0：缓冲仓库研究已删（缓冲仓库特性整体砍掉）。 -->
 
 </Defs>

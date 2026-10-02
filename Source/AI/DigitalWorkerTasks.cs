@@ -26,6 +26,15 @@ namespace DigitalStorage.AI
         public Thing target;
         public CompDigitalWorker comp;
 
+        /// <summary>这件活是哪一类工作找来的（并行配额按它计数）。由 comp 在认领时填。</summary>
+        public WorkTypeDef workType;
+
+        /// <summary>
+        /// 任务自己要求"放弃这一件"（例如建造发现核心凑不齐料，要让路给原版搬运工）。
+        /// ⚠️ 不要用 <c>comp.Release()</c> —— 那是"全放手"，并行时会连带杀掉别的活。
+        /// </summary>
+        public bool Abort;
+
         /// <summary>
         /// "干完一步"的计数（挖一镐 / 砍一刀 / 建一点）。comp 靠它决定要不要让手上那只手挥一下。
         /// 没有离散步骤的工作（例如将来的连续推进类）让它保持 0 即可，手就只待机呼吸。
@@ -52,7 +61,7 @@ namespace DigitalStorage.AI
 
         public virtual bool Finished
         {
-            get { return target == null || target.Destroyed || !target.Spawned; }
+            get { return Abort || target == null || target.Destroyed || !target.Spawned; }
         }
 
         /// <summary>0~1 的进度（给建筑底下那根黄色读条用）；&lt;0 表示这类活没有进度概念。</summary>
@@ -442,8 +451,8 @@ namespace DigitalStorage.AI
             {
                 if (!TrySupplyFromCores(pawn, map, bp))
                 {
-                    // 核心凑不齐 ⇒ 让路给原版搬运工（我们已认领这个目标，不放手的话谁都干不了）
-                    comp.Release();
+                    // 核心凑不齐 ⇒ 让路给原版搬运工（只放弃这一件，别动别的活）
+                    Abort = true;
                 }
                 return;
             }
@@ -489,7 +498,7 @@ namespace DigitalStorage.AI
         {
             get
             {
-                if (failed) return true;
+                if (Abort || failed) return true;
                 Frame f = FrameTarget;
                 if (f != null && !f.Destroyed && f.IsCompleted() && f.WorkLeft <= 0f) return true;
                 return base.Finished;

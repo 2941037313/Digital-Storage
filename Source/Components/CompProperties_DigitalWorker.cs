@@ -37,6 +37,31 @@ namespace DigitalStorage.Components
         /// <summary>两次找活之间的间隔（tick）。默认 60 = 1 秒。</summary>
         public int scanIntervalTicks = 60;
 
+        /// <summary>
+        /// <b>每类工作最多同时处理几件活</b>（并行度）。
+        ///
+        /// <para>普通代理建筑 = 1（一次一件）；<b>超凡代理 = 50</b>，它管 4 个 workTypes
+        /// ⇒ 总计最多 50 × 4 = 200 件同时进行。</para>
+        /// </summary>
+        public int maxParallelPerWorkType = 1;
+
+        /// <summary>
+        /// <b>总并行上限</b>（0 = 不限）。
+        ///
+        /// <para>为什么要这个：用户说的是"每类 50、四类合计 200"，但游戏里"种植"是
+        /// <b>两个</b> WorkTypeDef（<c>Growing</c> + <c>PlantCutting</c>），
+        /// 只靠"每类 50"会算成 5 × 50 = 250。加上总量上限才能精确表达"合计 200"。</para>
+        /// </summary>
+        public int maxParallelTotal = 0;
+
+        /// <summary>
+        /// 最多同时给几件活画"手 + 黄色读条"。
+        ///
+        /// <para>纯表现上限：并行 200 时如果每件都挂一只 Mote + 一根读条，
+        /// 画面会变成"手海"而且帧数会掉。默认只画最近的 6 件（机制不受影响）。</para>
+        /// </summary>
+        public int maxVisualTasks = 6;
+
         public CompProperties_DigitalWorker()
         {
             compClass = typeof(CompDigitalWorker);
@@ -59,6 +84,18 @@ namespace DigitalStorage.Components
             if (workSpeedMult <= 0f)
             {
                 yield return parentDef.defName + "：workSpeedMult 必须 > 0（收到 " + workSpeedMult + "）。";
+            }
+            if (maxParallelPerWorkType < 1)
+            {
+                yield return parentDef.defName + "：maxParallelPerWorkType 至少为 1（收到 " + maxParallelPerWorkType + "）。";
+            }
+            if (maxParallelTotal < 0)
+            {
+                yield return parentDef.defName + "：maxParallelTotal 不能为负（0 = 不限，收到 " + maxParallelTotal + "）。";
+            }
+            if (maxVisualTasks < 0)
+            {
+                yield return parentDef.defName + "：maxVisualTasks 不能为负（收到 " + maxVisualTasks + "）。";
             }
         }
     }
