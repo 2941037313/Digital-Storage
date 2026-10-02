@@ -135,6 +135,86 @@ namespace DigitalStorage.Components
         }
 
         // ===================================================================
+        // 入口 3：立刻对格子跑一次真实收纳（决定性的那一步）
+        // ===================================================================
+
+        /// <summary>
+        /// 对格子上的每件东西**真的**重放一次 <c>CompTick</c> 的最后一跳，并打印每一步的结果。
+        ///
+        /// <para>与"点格子诊断"的区别：诊断是**只读**的（只问闸门），这个是**动手**的
+        /// （真的调 <c>CompAutoIngest.TryIngest</c>）。所以它能一次分清两件事：</para>
+        /// <list type="bullet">
+        /// <item>调用后东西**进核心了** ⇒ 说明判定全通过，玩家的症状纯粹是"排不到队"（看 ⑤ 队列深度）</item>
+        /// <item>调用后东西**还在原地** ⇒ 说明有一道闸门在只读诊断里看不出来，报出来的那一步就是它</item>
+        /// </list>
+        /// </summary>
+        [DebugAction(Category, "立刻收纳这一格（动手，打印每一步）",
+            actionType = DebugActionType.ToolMap,
+            allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ForceIngestCell()
+        {
+            Map map = Find.CurrentMap;
+            if (map == null) return;
+
+            IntVec3 cell = Verse.UI.MouseCell();
+            if (!cell.InBounds(map)) return;
+
+            MoteMaker.ThrowText(cell.ToVector3Shifted(), map, "DS 强制收纳 → 日志");
+
+            // ⚠️ 必须**先快照**：TryIngest 会 DeSpawn 物品，边遍历边改会炸
+            List<Thing> things = new List<Thing>(map.thingGrid.ThingsListAt(cell));
+            SB.Length = 0;
+            SB.AppendLine("=== [DS 强制收纳] 格子 " + cell + "  共 " + things.Count + " 个 Thing ===");
+
+            List<Building_StorageCore> cores = FindAllCores(map);
+            if (cores.Count == 0)
+            {
+                SB.AppendLine("  本图没有核心，无从下手。");
+                SB.AppendLine("=== [DS 强制收纳] 结束 ===");
+                Log.Warning(SB.ToString());
+                return;
+            }
+
+            for (int i = 0; i < things.Count; i++)
+            {
+                Thing t = things[i];
+                if (t == null) continue;
+
+                SB.Append("  " + Brief(t) + " → ");
+
+                CompAutoIngest.Reject rej = CompAutoIngest.RejectReason(t, map);
+                if (rej != CompAutoIngest.Reject.None)
+                {
+                    SB.AppendLine("✗ 过滤层挡下：" + RejText(rej));
+                    continue;
+                }
+
+                Building_StorageCore dest = CompAutoIngest.WouldVanillaHaulIntoCore(map, t);
+                if (dest == null)
+                {
+                    SB.AppendLine("✗ 目的地层挡下：" + DestReason(map, t, cores));
+                    continue;
+                }
+
+                bool ok = CompAutoIngest.TryIngest(dest, t);
+                if (ok)
+                {
+                    SB.AppendLine("✓ **已吸进** " + dest.LabelCap + " @ " + dest.Position
+                                  + "（⇒ 判定全通过，症状是排不到队，去看 ⑤ 队列深度）");
+                }
+                else
+                {
+                    SB.AppendLine("✗ TryIngest 返回 false —— 判定通过但落地失败。"
+                                  + " Accepts=" + dest.Accepts(t)
+                                  + "（注意：本函数**不会**刷新 @ 里的判定，因为东西已经被放回原处）");
+                }
+            }
+
+            SB.AppendLine("=== [DS 强制收纳] 结束 ===");
+            Log.Warning(SB.ToString());
+        }
+
+        // ===================================================================
         // A. 全局状态
         // ===================================================================
 
@@ -213,8 +293,77 @@ namespace DigitalStorage.Components
                 SB.AppendLine("     原因：" + DestReason(map, t, cores));
             }
 
-            // ⑤ 结论
-            SB.AppendLine("  ⑤ 结论：" + Verdict(t, inPool, rej, dest, cores));
+            // ⑤ 队列深度：四层全过也可能"永远轮不到"（见 AppendQueueDepth 的注释）
+            AppendQueueDepth(map, t, cores);
+
+            // ⑥ 结论
+            SB.AppendLine("  ⑥ 结论：" + Verdict(t, inPool, rej, dest, cores));
+        }
+
+        /// <summary>
+        /// <b>队列深度</b>：算出这件东西在"本图所有**可吸**物品"里排第几，本轮轮不轮得到。
+        ///
+        /// <para><b>为什么需要这一层</b>：自动收纳每 15 tick 只吸 <c>rate</c>（研究满级 = 10）件，
+        /// 缓冲上限 <c>bufSize = rate * 3</c>。所以"四层全通过"只说明**它被检查时会通过**，
+        /// 不等于**它被检查过**。2026-10-02 就踩了这个：缓冲只装"通过过滤"的，
+        /// 而"原版不会搬进核心"的东西也占槽位 ⇒ 表头长期压着 30 件这种东西，
+        /// 排在后面的物品永远进不了缓冲，而单件诊断每次都说"四层全通过"。
+        /// 现在收集阶段就判目的地（缓冲只装可吸的）并加了轮转扫描；
+        /// 这一层用来回答剩下的正常排队问题："还要等几轮"。</para>
+        ///
+        /// <para><b>这一层是复刻而非调用</b>：那段逻辑写在 <c>CompTick</c> 方法体里，没有可调用的函数。
+        /// 复刻时严格对齐三件事：候选来源（待搬表）、过滤（<c>RejectReason == None</c>）、
+        /// 目的地判定（<c>WouldVanillaHaulIntoCore</c>）。</para>
+        /// </summary>
+        private static void AppendQueueDepth(Map map, Thing t, List<Building_StorageCore> cores)
+        {
+            if (cores.Count == 0 || t == null) return;
+
+            CompAutoIngest comp = cores[0].GetComp<CompAutoIngest>();
+            int rate = (comp != null) ? comp.IngestRate : 1;
+            int bufSize = rate * 3;
+
+            ICollection<Thing> pool = map.listerHaulables.ThingsPotentiallyNeedingHauling();
+            int position = -1;
+            int ingestable = 0;
+            int scanned = 0;
+            const int ScanCap = 800; // 诊断是一次性点击，给宽一点；防超大表卡住 UI
+
+            foreach (Thing x in pool)
+            {
+                if (scanned++ >= ScanCap) break;
+                if (x == null || x.Destroyed) continue;
+                if (CompAutoIngest.RejectReason(x, map) != CompAutoIngest.Reject.None) continue;
+                if (CompAutoIngest.WouldVanillaHaulIntoCore(map, x) == null) continue;
+
+                if (ReferenceEquals(x, t)) { position = ingestable; }
+                ingestable++;
+            }
+
+            SB.AppendLine("  ⑤ 队列深度（每 " + 15 + " tick 一轮）：待搬表 " + pool.Count + " 件"
+                          + " / 其中可吸 " + ingestable + " 件"
+                          + " / 每轮上限 rate=" + rate + "、缓冲 bufSize=" + bufSize
+                          + " / 轮转起点=" + CompAutoIngest.ScanOffset);
+
+            if (position < 0)
+            {
+                SB.AppendLine("     目标不在这 " + ScanCap + " 件的可吸集合里（可能它自己不可吸，见 ①~④）");
+            }
+            else if (position < rate)
+            {
+                SB.AppendLine("     目标位次 = " + position + "（< rate）⇒ 本轮就该轮到它。若持续不吸请把这整段发我。");
+            }
+            else if (position < bufSize)
+            {
+                SB.AppendLine("     目标位次 = " + position + "（在 rate 与 bufSize 之间）⇒ 本轮或下一轮轮到它。");
+            }
+            else
+            {
+                int cycles = (position / rate) + 1;
+                SB.AppendLine("     目标位次 = " + position + " ⇒ 前面还有 " + position
+                              + " 件可吸的排在它前面，按每轮 " + rate + " 件算，约 " + cycles + " 轮（≈ "
+                              + (cycles * 15f / 60f).ToString("F1") + " 秒）后轮到它。");
+            }
         }
 
         // ===================================================================
@@ -297,7 +446,8 @@ namespace DigitalStorage.Components
             if (!inPool) return "★ 卡在**候选层**：不在原版待搬表里 ⇒ 自动收纳看不见它。这是最常见的一类。";
             if (rej != CompAutoIngest.Reject.None) return "★ 卡在**过滤层**：" + RejText(rej);
             if (dest == null) return "★ 卡在**目的地层**：原版不会把它搬进核心（见 ④ 的原因）。";
-            return "四层全通过 ⇒ 应该在 15 tick 内被吸入。若持续不吸：确认核心通电、设置总开关为开、研究已解锁（见「核心层」）。";
+            return "①②③④ 全通过 ⇒ **它被检查时会通过**。是否真的吸到，取决于 ⑤ 队列深度"
+                   + "（每轮只吸 rate 件）。要立刻验证就点「立刻收纳这一格（动手）」。";
         }
 
         // ===================================================================

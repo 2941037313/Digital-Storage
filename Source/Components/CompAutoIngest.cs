@@ -29,6 +29,16 @@ namespace DigitalStorage.Components
         /// </summary>
         private static readonly Dictionary<int, int> withdrawnUntil = new Dictionary<int, int>();
         private static Thing[] candidateBuffer = new Thing[30];
+
+        /// <summary>与 <see cref="candidateBuffer"/> 平行的目的地缓冲（收集时就判好，省一次重判）。</summary>
+        private static Building_StorageCore[] candidateDestBuffer = new Building_StorageCore[30];
+
+        /// <summary>
+        /// 候选扫描的轮转起点。**必须有**：待搬表是个 <c>HashSet</c>，枚举顺序在集合不变时是稳定的，
+        /// 固定从表头扫就会让排在后面的东西永远排不到（见 <see cref="CollectCandidates"/> 的注释）。
+        /// </summary>
+        private static int scanOffset;
+
         private static int lastSweepTick = -1;
 
         public static void MarkWithdrawn(Thing t)
@@ -95,6 +105,19 @@ namespace DigitalStorage.Components
             }
         }
 
+        /// <summary>诊断用（<see cref="AutoIngestDevTool"/>）：当前研究决定的每次吸入上限（1/5/10）。</summary>
+        internal int IngestRate
+        {
+            get
+            {
+                EnsureResearchCache();
+                return ingestRateCache > 0 ? ingestRateCache : 1;
+            }
+        }
+
+        /// <summary>诊断用：候选扫描的轮转起点（见 <see cref="CollectCandidates"/>）。</summary>
+        internal static int ScanOffset => scanOffset;
+
         public override void CompTick()
         {
             base.CompTick();
@@ -124,7 +147,10 @@ namespace DigitalStorage.Components
             // 收集候选项到静态小缓冲，避免 Ingest/Destroy 修改 haulables 列表导致迭代异常。
             int bufSize = rate * 3;
             if (candidateBuffer.Length < bufSize)
+            {
                 candidateBuffer = new Thing[bufSize];
+                candidateDestBuffer = new Building_StorageCore[bufSize];
+            }
             int bufCount = 0;
 
 
@@ -140,23 +166,13 @@ namespace DigitalStorage.Components
             // 而核心走的是 `TryFindBestBetterNonSlotGroupStorageFor` 那条腿
             // （StoreUtility.cs:144 / :242），只要核心比当前储存更优，物品本来就在待搬表里。
             // 真正的元凶是当时那条活动区闸门（已删）。
-            var haulables = map.listerHaulables.ThingsPotentiallyNeedingHauling();
-            foreach (Thing t in haulables)
-            {
-                if (bufCount >= bufSize) break;
-                if (!CanCollect(t, map)) continue;
-                candidateBuffer[bufCount++] = t;
-            }
+            CollectCandidates(map, bufSize, ref bufCount);
 
             for (int i = 0; i < bufCount && taken < rate; i++)
             {
-                var t = candidateBuffer[i];
-                if (t.Destroyed) continue;
-
-                // 路由判据：**原版自己会不会把它搬进核心**（见 WouldVanillaHaulIntoCore）。
-                // 优先级比较、过滤器、容量全部由原版回答，不再由本 mod 复述一遍。
-                Building_StorageCore dest = WouldVanillaHaulIntoCore(map, t);
-                if (dest == null) continue;
+                Thing t = candidateBuffer[i];
+                Building_StorageCore dest = candidateDestBuffer[i];
+                if (t == null || t.Destroyed || dest == null || dest.Destroyed) continue;
 
                 // 立刻入库（零延迟的产品决策不变）。光束只是**余像**：物品此刻已经进核心，
                 // 所以在它被搬走之前先把原来的格子和绘制位置记下来交给光束。
@@ -170,7 +186,72 @@ namespace DigitalStorage.Components
             }
             // 清理引用防止 GC 泄漏
             for (int i = 0; i < bufCount; i++)
+            {
                 candidateBuffer[i] = null;
+                candidateDestBuffer[i] = null;
+            }
+        }
+
+        /// <summary>
+        /// 把"**原版真的会搬进核心**"的东西填进 <see cref="candidateBuffer"/>（上限 <paramref name="bufSize"/>），
+        /// 同时把目的核心写进 <see cref="candidateDestBuffer"/>。
+        ///
+        /// <para><b>⚠️ 这里修的是一个"东西永远不被收纳"的真 bug（2026-10-02 用户实测）。</b>
+        /// 旧写法分两步：先把前 <c>bufSize</c> 件**通过过滤**的塞满缓冲，**之后**才判
+        /// "原版会不会把它搬进核心"，不满足的就 <c>continue</c>。
+        /// 于是那些"通过过滤、但原版不会搬进核心"的东西**每次都占着缓冲槽位，而且永远出不去**
+        /// —— 待搬表是个 <c>HashSet</c>，枚举顺序在集合不变时稳定，所以只要表头长期压着
+        /// <c>bufSize</c>(默认 30) 件这种东西，**排在它们后面的物品永远进不了缓冲区**，
+        /// 表现为"有些东西死活不收纳"。而任何单件诊断都会说"它四层全通过" ——
+        /// 因为**它每次被检查时确实都通过，问题是它从来没被检查过**。</para>
+        ///
+        /// <para>现在收集阶段就直接判目的地，缓冲里装的**全是可吸的**；
+        /// 再叠一层<b>轮转扫描起点</b>兜底（万一某个窗口里的东西因为别的原因长期吸不动，
+        /// 下一轮也会换一段扫描，不会把表尾饿死）。</para>
+        /// </summary>
+        private void CollectCandidates(Map map, int bufSize, ref int bufCount)
+        {
+            ICollection<Thing> haulables = map.listerHaulables.ThingsPotentiallyNeedingHauling();
+            int total = haulables.Count;
+            if (total <= 0) return;
+
+            int start = scanOffset % total;
+            if (start < 0) start = 0;
+            scanOffset = (start + bufSize) % total;
+
+            // 第一遍：从轮转起点扫到表尾
+            int index = 0;
+            foreach (Thing t in haulables)
+            {
+                if (index++ < start) continue;
+                if (bufCount >= bufSize) return;
+                TryAddCandidate(t, map, ref bufCount);
+            }
+
+            // 第二遍：绕回表头把缓冲补满（否则"起点靠后 + 可吸件数少"的这一轮会少吸）
+            if (bufCount >= bufSize) return;
+            index = 0;
+            foreach (Thing t in haulables)
+            {
+                if (index++ >= start) break;
+                if (bufCount >= bufSize) return;
+                TryAddCandidate(t, map, ref bufCount);
+            }
+        }
+
+        private void TryAddCandidate(Thing t, Map map, ref int bufCount)
+        {
+            if (t == null || t.Destroyed) return;
+            if (!CanCollect(t, map)) return;
+
+            // 路由判据：**原版自己会不会把它搬进核心**（见 WouldVanillaHaulIntoCore）。
+            // 优先级比较、过滤器、容量全部由原版回答，不再由本 mod 复述一遍。
+            Building_StorageCore dest = WouldVanillaHaulIntoCore(map, t);
+            if (dest == null) return;
+
+            candidateBuffer[bufCount] = t;
+            candidateDestBuffer[bufCount] = dest;
+            bufCount++;
         }
 
         /// <summary>
@@ -199,7 +280,7 @@ namespace DigitalStorage.Components
         ///
         /// <b>失败必须放回地面</b>，否则物品凭空消失。
         /// </summary>
-        private static bool TryIngest(Building_StorageCore core, Thing t)
+        internal static bool TryIngest(Building_StorageCore core, Thing t)
         {
             if (core == null || t == null || t.Destroyed) return false;
             if (!core.Accepts(t)) return false;
