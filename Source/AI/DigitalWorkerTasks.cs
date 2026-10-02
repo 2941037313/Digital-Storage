@@ -341,6 +341,10 @@ namespace DigitalStorage.AI
                 return;
             }
 
+            // 最后一镐：受"每 tick 完成预算"约束。拿不到票就留着这点血，下一 tick 再收尾
+            // （产物/掉落/记录完全走原版，只是晚一 tick）。
+            if (!DigitalWorkBudget.AllowCompletion()) return;
+
             bool isMineVein = map.designationManager.DesignationAt(mineable.Position, DesignationDefOf.MineVein) != null;
             IntVec3 pos = mineable.Position;
 
@@ -490,6 +494,7 @@ namespace DigitalStorage.AI
             float workToBuild = f.WorkToBuild;
             if (workToBuild <= 0f)
             {
+                if (!DigitalWorkBudget.AllowCompletion()) return;   // 超预算：下一 tick 再建完
                 f.CompleteConstruction(pawn);
                 return;
             }
@@ -508,7 +513,7 @@ namespace DigitalStorage.AI
 
             f.workDone += num;
             StrikeCount++;
-            if (f.workDone >= workToBuild)
+            if (f.workDone >= workToBuild && DigitalWorkBudget.AllowCompletion())
             {
                 f.CompleteConstruction(pawn);
             }
@@ -718,6 +723,7 @@ namespace DigitalStorage.AI
             cleaningWorkDone += num;
             if (cleaningWorkDone > filth.def.filth.cleaningWorkToReduceThickness)
             {
+                if (!DigitalWorkBudget.AllowCompletion()) return;   // 超预算：下一 tick 再削
                 filth.ThinFilth();
                 StrikeCount++;
                 cleaningWorkDone = 0f;
@@ -818,6 +824,7 @@ namespace DigitalStorage.AI
             StrikeCount++;
 
             if (workDone < p.def.plant.harvestWork) return;
+            if (!DigitalWorkBudget.AllowCompletion()) return;   // 超预算：下一 tick 再收
 
             Harvest(pawn, p);
             workDone = 0f;
@@ -972,6 +979,7 @@ namespace DigitalStorage.AI
             workLeft -= speedMult * 1.7f;
             StrikeCount++;
             if (workLeft > 0f) return;
+            if (!DigitalWorkBudget.AllowCompletion()) return;   // 超预算：下一 tick 再拆
 
             Thing t = target;
             if (t.Faction != null)

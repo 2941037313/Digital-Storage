@@ -27,12 +27,25 @@ namespace DigitalStorage.Settings
         /// </summary>
         public static bool perfOptimizationsEnabled = true;
 
+        /// <summary>
+        /// <b>每 tick 最多让代理"真正落地"几件活</b>（0 = 无限制）。
+        ///
+        /// <para>落地 = 走原版那一次性代价（挖完生成掉落物 / 建完生成建筑 / 拆完还材料 / 收获生成作物），
+        /// 实测约 0.4~0.5ms/件。代理吞吐是"并行 75 × 7.5 倍速 ⇒ 每 tick 完成 20~40 件"，
+        /// 也就是每 tick 要 10~20ms，而 60Hz 下每帧只有 16.7ms（且每帧必跑 1 tick）
+        /// ⇒ 帧时间 20~56ms。压住这个数字，帧时间就变成常量；代价是扫图变慢。</para>
+        ///
+        /// <para>默认 16：约 960 件/秒（8000 格的图约 8~9 秒扫完），CPU 约 6~8ms/tick。</para>
+        /// </summary>
+        public static int workerCompletionsPerTick = 16;
+
         public override void ExposeData()
         {
             Scribe_Values.Look(ref costMultiplier, "costMultiplier", 1.0f);
             Scribe_Values.Look(ref enableDebugLog, "enableDebugLog", false);
             Scribe_Values.Look(ref autoIngestEnabled, "autoIngestEnabled", true);
             Scribe_Values.Look(ref perfOptimizationsEnabled, "perfOptimizationsEnabled", true);
+            Scribe_Values.Look(ref workerCompletionsPerTick, "workerCompletionsPerTick", 16);
             base.ExposeData();
         }
 
@@ -62,6 +75,12 @@ namespace DigitalStorage.Settings
             listing.Gap(6f);
             listing.CheckboxLabeled("DS_PerfToggle".Translate(), ref perfOptimizationsEnabled,
                 "DS_PerfToggleDesc".Translate());
+            listing.Gap(6f);
+            listing.Label("DS_WorkerBudget".Translate(workerCompletionsPerTick));
+            float budget = workerCompletionsPerTick;
+            budget = listing.Slider(budget, 0f, 120f);
+            workerCompletionsPerTick = Mathf.RoundToInt(budget);
+            listing.Label("DS_WorkerBudgetDesc".Translate());
             listing.Gap(24f);
 
             Text.Font = GameFont.Medium;

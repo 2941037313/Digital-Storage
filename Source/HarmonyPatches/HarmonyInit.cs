@@ -13,6 +13,8 @@ namespace DigitalStorage.HarmonyPatches
         {
             var harmony = new Harmony("DigitalStorage.HarmonyPatches");
             PatchAllIsolated(harmony);
+            // 带 out/ref 参数的方法写不进 [HarmonyPatch] 特性（特性实参必须是常量/typeof），只能手挂
+            ManualInstallAll(harmony);
             // 第三方定向兼容（可选 mod）：必须在 PatchAll 之后单独装，失败也不能影响本 mod 的补丁
             Compatibility.PhinixCompatPatch.Install(harmony);
             // Log.Message 在游戏内日志窗口不显示（只有 Player.log 有），诊断一律用 Warning。
@@ -34,6 +36,36 @@ namespace DigitalStorage.HarmonyPatches
         }
 
         internal static string PatchSummary = "";
+
+        /// <summary>
+        /// <b>手挂补丁</b>：目标方法带 <c>out</c>/<c>ref</c> 参数时，
+        /// <c>[HarmonyPatch(typeof(X), "M", new[]{ … typeof(T).MakeByRefType() … })]</c>
+        /// 编译不过（特性实参必须是常量表达式 / <c>typeof</c> / 数组创建），
+        /// 只能用 <c>AccessTools.Method</c> 在代码里定位后手挂。
+        /// 同样逐个 try/catch —— 手挂失败也不能影响其余补丁。
+        /// </summary>
+        private static void ManualInstallAll(Harmony harmony)
+        {
+            int ok = 0;
+            var failed = new List<string>();
+
+            try
+            {
+                Patch_GenPlace_DropRedirect.Install(harmony);
+                ok++;
+            }
+            catch (Exception ex)
+            {
+                failed.Add("Patch_GenPlace_DropRedirect");
+                Log.Error("[DigitalStorage] 手挂补丁失败（已跳过）：Patch_GenPlace_DropRedirect :: " + ex);
+            }
+
+            PatchSummary += " 手挂=" + ok;
+            if (failed.Count > 0)
+            {
+                PatchSummary += " 手挂失败=" + failed.Count + " [" + string.Join(",", failed.ToArray()) + "]";
+            }
+        }
 
         /// <summary>
         /// <b>逐个补丁类隔离挂载</b>，而不是 <c>harmony.PatchAll()</c>。

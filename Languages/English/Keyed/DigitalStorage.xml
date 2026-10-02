@@ -54,6 +54,8 @@
   <DS_AutoIngestToggleDesc>Allow cores to absorb loose items automatically instead of waiting for a hauler. Turn this off if items seem to teleport around the map.</DS_AutoIngestToggleDesc>
   <DS_PerfToggle>Vanilla performance fixes</DS_PerfToggle>
   <DS_PerfToggleDesc>Fixes three vanilla hot spots that show up when you drag-select or designate a lot: selection brackets are culled outside the camera view, designation icons are updated incrementally instead of being fully rebuilt every frame, and the "meta puff" fleck burst from mass designating is capped per tick. Pure performance, no gameplay change. Turn off to compare against vanilla behavior.</DS_PerfToggleDesc>
+  <DS_WorkerBudget>Proxy workers: max {0} completions per tick (0 = unlimited)</DS_WorkerBudget>
+  <DS_WorkerBudgetDesc>Each finished job pays a one-time vanilla cost (~0.4-0.5 ms): spawning the drops (which searches for a free nearby cell), spawning the finished building, returning deconstruct materials, spawning harvest yield - each also dirties regions and re-registers things. With 75 parallel workers at 7.5x speed that is 20-40 completions per tick, i.e. 10-20 ms of CPU per tick, while a 60 Hz frame only has 16.7 ms. Lower this to keep frames stable; raise it (or set 0) for raw sweeping speed.</DS_WorkerBudgetDesc>
 
   <!-- ========== Caravan ========== -->
 

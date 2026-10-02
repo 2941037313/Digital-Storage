@@ -138,6 +138,8 @@ namespace DigitalStorage.Components
 
             long heap0 = Performance.DevDrawProfiler.HeapStamp();
             DigitalWorkerScope.Enter(w, map, parent.PositionHeld);
+            // 本次 tick 期间的掉落直塞目标（没有可用核心时 Active=false，整条链路零开销）
+            Core.DigitalDropRedirect.Begin(map, parent.PositionHeld);
             try
             {
                 // 1) 丢掉失效的（目标没了 / 设计取消 / 被别人订走）
@@ -199,6 +201,7 @@ namespace DigitalStorage.Components
             }
             finally
             {
+                Core.DigitalDropRedirect.End();
                 DigitalWorkerScope.Exit(w);
             }
 
