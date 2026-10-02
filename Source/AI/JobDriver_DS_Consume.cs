@@ -34,23 +34,30 @@ namespace DigitalStorage.AI
             return "DS_ReportConsuming".Translate(t != null ? t.Label : "?");
         }
 
+        /// <summary>
+        /// <b>⚠️ 绝不能返回 false</b>：<c>Pawn_JobTracker.StartJob:377-381</c> 对"非排队 job 开起来
+        /// 之后预订失败"只有一句 <c>Log.Warning</c> + <c>EndCurrentJob(JobCondition.Errored)</c>，
+        /// 而 Errored 会让原版挂一个 <c>Wait</c> 恢复作业（用户 2026-10-02 实测的"几秒等待 job"）。
+        ///
+        /// <para>抢不到就直接放行：<c>MakeNewToils</c> 的 <c>FailOn</c> 与 <see cref="WithdrawToCarry"/>
+        /// 的 <c>owner.Contains</c> 会把"东西没了/被别人拿走"判成 <c>Incompletable</c>，那是干净的路。</para>
+        /// </summary>
         public override bool TryMakePreToilReservations(bool errorOnFailed)
         {
             Thing target = TargetThing;
-            if (target == null || target.Destroyed) return false;
+            if (target == null || target.Destroyed) return true;   // 交给 FailOn / WithdrawToCarry 判
 
-            // 【跨图】原版 ReservationManager.CanReserve:172 有一条硬闸门：
+            // 【跨图】原版 ReservationManager.CanReserve 有一条硬闸门：
             //   target.Thing.SpawnedOrAnyParentSpawned && target.Thing.MapHeld != map ⇒ false
             // a 图核心里的东西 MapHeld 就是 a 图，b 图的预订管理器**永远订不到**它。
-            // 这条闸门在语义上是对的（别隔图搬东西），不该去改；跨图这一路本来也不需要它：
-            // 取料 toil 会在同一次 initAction 里就把东西挪到手上，两个 pawn 抢同一份时
-            // 靠 owner.Contains 兜底（抢输了就 Incompletable，物品原地不动）。
-            // 不加这个分支的后果不是"订不到"，而是 errorOnFailed=true 时刷一条红色报错 + 作业起不来。
+            // 跨图这条路本来也不需要它：取料 toil 会在同一次 initAction 里就把东西挪到手上。
             if (target.MapHeld != pawn.Map) return true;
 
             // 预订那件具体的东西（未 Spawned 也没问题 —— Thing.MapHeld 由容器的
             // ParentHolder => Map 数据修复保证非 null）。这样两个 pawn 不会抢同一份。
-            return pawn.Reserve(target, job, 1, -1, null, errorOnFailed);
+            // errorOnFailed:false —— 抢不到也不硬失败。
+            pawn.Reserve(target, job, 1, -1, null, false);
+            return true;
         }
 
         protected override IEnumerable<Toil> MakeNewToils()
