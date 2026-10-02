@@ -4,6 +4,7 @@ using System.Reflection;
 using DigitalStorage.AI;
 using HarmonyLib;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace DigitalStorage.Components
@@ -31,6 +32,9 @@ namespace DigitalStorage.Components
         private DigitalTask task;
         private int nextScanTick;
         private bool enabled = true;
+
+        /// <summary>干活时目标"底下"的黄色进度条（原版同款 effecter，见 <see cref="UpdateProgressBar"/>）。</summary>
+        private Effecter progressBar;
 
         /// <summary>候选集遍历上限（防某个 lister 把一帧吃光）。</summary>
         private const int MaxIterate = 4000;
@@ -78,6 +82,12 @@ namespace DigitalStorage.Components
                 EnsureWorker();
                 return worker;
             }
+        }
+
+        /// <summary>只在已经建好时返回，**不会触发创建** —— 给热路径（如 <c>CanReserve</c> 补丁）用。</summary>
+        public Pawn WorkerIfCreated
+        {
+            get { return worker; }
         }
 
         // ===================================================================
@@ -129,7 +139,51 @@ namespace DigitalStorage.Components
                 DigitalWorkerScope.Exit(w);
             }
 
+            UpdateProgressBar();
+
             if (task != null && task.Finished) Release();
+        }
+
+        /// <summary>
+        /// 干活时目标"底下"的黄色进度条。
+        ///
+        /// <para>原版那个读条不是 UI，而是 <c>EffecterDefOf.ProgressBar</c> 生成的一个 effecter，
+        /// 里面挂着一个 <c>MoteProgressBar</c>（填充色 (0.9,0.85,0.2) 就是那个黄）。
+        /// 我们没有 JobDriver，所以照 <c>ToilEffects.WithProgressBar</c> 的口径自己挂一个 ——
+        /// **一点补丁都不用加**。先例：More Organs <c>LaborHand.cs:338-360</c>。</para>
+        /// </summary>
+        private void UpdateProgressBar()
+        {
+            float p = (task == null) ? -1f : task.Progress01;
+            if (p < 0f || task.target == null || task.target.Destroyed || !task.target.Spawned)
+            {
+                CleanupProgressBar();
+                return;
+            }
+            if (progressBar == null)
+            {
+                progressBar = EffecterDefOf.ProgressBar.Spawn();
+            }
+            progressBar.EffectTick(new TargetInfo(task.target), TargetInfo.Invalid);
+
+            MoteProgressBar mote = (progressBar.children.Count > 0)
+                ? (progressBar.children[0] as SubEffecter_ProgressBar)?.mote
+                : null;
+            if (mote != null)
+            {
+                mote.progress = Mathf.Clamp01(p);
+                mote.offsetZ = -0.5f;     // 原版 WithProgressBar 的默认位置（贴在目标"底下"）
+                mote.alwaysShow = true;   // 代理可能在远离镜头处干活，别只在最近缩放才画
+            }
+        }
+
+        private void CleanupProgressBar()
+        {
+            if (progressBar != null)
+            {
+                progressBar.Cleanup();
+                progressBar = null;
+            }
         }
 
         /// <summary>找一件活并认领。整段都在作用域里（<c>HasJobOnThing</c> 会走 <c>CanReserve</c>）。</summary>
@@ -203,11 +257,16 @@ namespace DigitalStorage.Components
             }
         }
 
-        /// <summary>放手：清认领表 + 丢任务。断电/拆除/目标失效/干完都走这里。</summary>
+        /// <summary>放手：清认领表 + 丢任务 + 收掉 effecter。断电/拆除/目标失效/干完都走这里。</summary>
         public void Release()
         {
             DigitalWorkerClaims.ReleaseAll(this);
-            task = null;
+            if (task != null)
+            {
+                task.Cleanup();
+                task = null;
+            }
+            CleanupProgressBar();
         }
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
@@ -346,6 +405,28 @@ namespace DigitalStorage.Components
                 claims[map] = d;
             }
             return d;
+        }
+
+        /// <summary>认领表里有没有任何条目 —— <c>CanReserve</c> 补丁的廉价早退用（热路径）。</summary>
+        public static bool AnyClaims
+        {
+            get { return claims.Count > 0; }
+        }
+
+        /// <summary>这个目标被哪个代理建筑认领了（没有/已失效则返回 null，并顺手清理失效项）。</summary>
+        public static CompDigitalWorker OwnerOf(Map map, Thing t)
+        {
+            if (map == null || t == null) return null;
+            Dictionary<Thing, CompDigitalWorker> d;
+            if (!claims.TryGetValue(map, out d)) return null;
+            CompDigitalWorker owner;
+            if (!d.TryGetValue(t, out owner)) return null;
+            if (owner == null || owner.parent == null || !owner.parent.Spawned)
+            {
+                d.Remove(t);
+                return null;
+            }
+            return owner;
         }
 
         public static bool IsClaimedByOther(Map map, Thing t, CompDigitalWorker me)

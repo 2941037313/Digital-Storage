@@ -114,6 +114,7 @@
          跨图的 bill 发现层补丁没进 DLL，症状是"吃饭/建造/加油跨界正常，bill/手术报缺料"。 -->
     <Compile Include="HarmonyPatches\Patch_WorkGiver_DoBill_RemoteIngredients.cs" />
     <Compile Include="HarmonyPatches\Patch_MakeLordsAsAppropriate_InstantLoad.cs" />
+    <Compile Include="HarmonyPatches\Patch_ReservationManager_CanReserve.cs" />
 
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />

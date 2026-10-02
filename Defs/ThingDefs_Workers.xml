@@ -52,7 +52,7 @@
     <label>挖掘代理 I</label>
     <description>自动完成玩家标记的采矿工作，殖民者无需前往。\n\n只处理已经在核心网络里、或被自动收纳吸走的产物。断电即停工。</description>
     <graphicData>
-      <texPath>2.0/基座</texPath>
+      <texPath>2.0/代理建筑</texPath>
       <graphicClass>Graphic_Single</graphicClass>
       <shaderType>CutoutComplex</shaderType>
       <drawSize>(2,2)</drawSize>

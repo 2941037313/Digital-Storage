@@ -38,6 +38,17 @@ namespace DigitalStorage.AI
             get { return target == null || target.Destroyed || !target.Spawned; }
         }
 
+        /// <summary>0~1 的进度（给建筑底下那根黄色读条用）；&lt;0 表示这类活没有进度概念。</summary>
+        public virtual float Progress01
+        {
+            get { return -1f; }
+        }
+
+        /// <summary>放手时收掉自己挂的 effecter 等资源（断电/拆除/目标失效/干完都会调）。</summary>
+        public virtual void Cleanup()
+        {
+        }
+
         public string TargetLabel
         {
             get { return (target == null) ? "?" : target.LabelShort; }
@@ -156,9 +167,31 @@ namespace DigitalStorage.AI
 
         private float ticksToPickHit = -1f;
 
+        /// <summary>镐击特效（原版 <c>JobDriver_Mine</c> 用的是 <c>EffecterDefOf.Mine</c>，每镐触发一次）。</summary>
+        private Effecter effecter;
+
         public override string Label
         {
             get { return "挖掘"; }
+        }
+
+        /// <summary>与原版 <c>JobDriver_Mine</c> 的读条口径一致：<c>1 - HitPoints/MaxHitPoints</c>。</summary>
+        public override float Progress01
+        {
+            get
+            {
+                if (target == null || target.MaxHitPoints <= 0) return -1f;
+                return 1f - (float)target.HitPoints / (float)target.MaxHitPoints;
+            }
+        }
+
+        public override void Cleanup()
+        {
+            if (effecter != null)
+            {
+                effecter.Cleanup();
+                effecter = null;
+            }
         }
 
         public override bool StillValid(Pawn pawn, Map map)
@@ -181,6 +214,13 @@ namespace DigitalStorage.AI
 
             ticksToPickHit -= 1f;
             if (ticksToPickHit > 0f) return;
+
+            // 原版 JobDriver_Mine.cs:62-66：每镐先触发特效再结算伤害
+            if (effecter == null)
+            {
+                effecter = EffecterDefOf.Mine.Spawn();
+            }
+            effecter.Trigger(pawn, target);
 
             DoDamage(pawn, map);
 
