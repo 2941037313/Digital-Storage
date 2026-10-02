@@ -98,6 +98,7 @@
   <DS_BA_Block_Restricted>这条 bill 限定给特定小人，代理不抢</DS_BA_Block_Restricted>
   <DS_BA_Block_Obstructed>工作台要先加燃料，或先搬走台上的东西</DS_BA_Block_Obstructed>
   <DS_BA_Block_Uft>该配方需要未完成品（暂不支持）</DS_BA_Block_Uft>
+  <DS_BA_Block_Spot>工作台的站位格被堵住或被禁止</DS_BA_Block_Spot>
   <DS_BA_Done>制作完成：{0}（已存入数字存储核心）</DS_BA_Done>
   <DS_BA_DoneDropped>制作完成：{0}（核心放不下或未启用，放在工作台旁）</DS_BA_DoneDropped>
 

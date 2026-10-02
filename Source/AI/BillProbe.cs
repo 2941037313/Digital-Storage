@@ -151,6 +151,7 @@ namespace DigitalStorage.AI
                     slot.WorkLeft = slot.WorkAmount;
                     slot.NextAcquireTick = 0;
                     slot.BlockKey = null;
+                    Performance.DevDrawProfiler.Bump("账单取活", 1);
 
                     // 与 JobDriver_DoBill 的两个 toil 对齐（:100 Notify_DoBillStarted / DoRecipeWork init:76）。
                     // Bill_Production 自己没重写，但子类/mod 扩展可能在用 ⇒ 该调的还是要调。
@@ -183,7 +184,7 @@ namespace DigitalStorage.AI
             }
             else
             {
-                slot.BlockKey = Diagnose(giver, w);
+                slot.BlockKey = Diagnose(giver, bench, map, w);
                 slot.NextAcquireTick = now + RetryTicks;
             }
             return false;
@@ -199,10 +200,18 @@ namespace DigitalStorage.AI
         /// <para>⚠️ <c>Bill.PawnAllowedToStartAnew</c> 会写全局静态 <c>JobFailReason</c>（右键菜单用它显示
         /// "技能不符"之类），诊断完必须 <c>Clear()</c>，否则残留在玩家的右键菜单里。</para>
         /// </summary>
-        private static string Diagnose(IBillGiver giver, Pawn w)
+        private static string Diagnose(IBillGiver giver, Thing bench, Map map, Pawn w)
         {
             BillStack stack = giver.BillStack;
             if (stack == null || stack.Count == 0) return "DS_BA_NoBill";
+
+            // 交互格被堵住/被禁止：原版 JobOnThing 在这里返回 null，与"缺料"是两件事，
+            // 不单独报出来会把排查引到错误方向（本 mod 在"诊断给错方向"上吃过亏）。
+            if (bench.def.hasInteractionCell)
+            {
+                IntVec3 cell = bench.InteractionCell;
+                if (cell.Impassable(map) || cell.IsForbidden(w)) return "DS_BA_Block_Spot";
+            }
 
             bool anyDoable = false;      // 有 bill 想做
             bool materialOnly = false;   // 有 bill 通过了所有便宜判据 ⇒ 失败原因只能是"缺料"

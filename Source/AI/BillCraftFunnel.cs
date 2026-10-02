@@ -137,6 +137,7 @@ namespace DigitalStorage.AI
 
             // ⑤ 产物：直塞核心，塞不进就落在台子旁（绝不吞）
             StoreProducts(comp, products, map, bench);
+            Performance.DevDrawProfiler.Bump("账单完成", 1);
             return CraftResult.Done;
         }
 

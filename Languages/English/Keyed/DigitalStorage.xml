@@ -98,6 +98,7 @@
   <DS_BA_Block_Restricted>This bill is restricted to a specific pawn; the proxy will not take it</DS_BA_Block_Restricted>
   <DS_BA_Block_Obstructed>Bench needs fuel, or has something on it to haul away</DS_BA_Block_Obstructed>
   <DS_BA_Block_Uft>Recipe needs an unfinished thing (not supported yet)</DS_BA_Block_Uft>
+  <DS_BA_Block_Spot>The bench's interaction cell is blocked or forbidden</DS_BA_Block_Spot>
   <DS_BA_Done>Crafted: {0} (stored into digital storage)</DS_BA_Done>
   <DS_BA_DoneDropped>Crafted: {0} (core full or disabled, dropped at the bench)</DS_BA_DoneDropped>
 
