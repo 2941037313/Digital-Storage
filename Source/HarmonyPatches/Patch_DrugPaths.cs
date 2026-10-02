@@ -57,7 +57,7 @@ namespace DigitalStorage.HarmonyPatches
             ReservationManager res = map.reservationManager;
             int seen = 0, rejected = 0, reserved = 0;
 
-            Thing best = HaulSourceContents.FindBest(map, null, t =>
+            Thing best = HaulSourceContents.FindBestIncludingRemote(map, null, t =>
             {
                 seen++;
                 if (!validator(t)) { rejected++; return false; }

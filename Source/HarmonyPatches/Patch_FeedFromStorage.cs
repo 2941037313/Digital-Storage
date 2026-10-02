@@ -40,7 +40,7 @@ namespace DigitalStorage.HarmonyPatches
             }
             ThingFilter capturedFilter = foodFilter;
 
-            Thing best = HaulSourceContents.FindBest(
+            Thing best = HaulSourceContents.FindBestIncludingRemote(
                 getter.Map,
                 t => FoodScoring.Score(eater, t.def),
                 t => t.def.IsNutritionGivingIngestible && t.def.IsIngestible

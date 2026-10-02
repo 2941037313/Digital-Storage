@@ -214,6 +214,11 @@ namespace DigitalStorage.Backpack
             if (map == null) return 0; // 远行队 / 载具里：跟着小人走，落地时再处理
 
             Building_StorageCore core = FindNearestCore(map, pawn.PositionHeld);
+            // 【跨图】本图一个可用核心都没有 → 退回**任意图**上最近的核心。
+            // 场景：小人带着从 a 图取来的料坐运输舱到了 b 图（b 图还没造核心）。
+            // 没有这条兜底，那批料会一直躺在背包里（不丢，但等于被藏起来了）。
+            // 注意远行队 / 太空里 pawn.MapHeld 为 null ⇒ 上面已经 return 0，料跟着人走。
+            if (core == null) core = FindNearestCoreGlobal(pawn.PositionHeld);
             if (core == null) return 0;
             ThingOwner target = core.GetDirectlyHeldThings();
             if (target == null) return 0;
@@ -235,7 +240,17 @@ namespace DigitalStorage.Backpack
 
         private static Building_StorageCore FindNearestCore(Map map, IntVec3 from)
         {
-            List<Building_StorageCore> cores = CoreFinder.AllUsableCores(map);
+            return Nearest(CoreFinder.AllUsableCores(map), from);
+        }
+
+        /// <summary>本图没有可用核心时的兜底：全游戏最近的核心（见调用处的跨图注释）。</summary>
+        private static Building_StorageCore FindNearestCoreGlobal(IntVec3 from)
+        {
+            return Nearest(CoreFinder.AllUsableCoresGlobal(), from);
+        }
+
+        private static Building_StorageCore Nearest(List<Building_StorageCore> cores, IntVec3 from)
+        {
             Building_StorageCore best = null;
             int bestDist = int.MaxValue;
 

@@ -129,7 +129,8 @@ namespace DigitalStorage.HarmonyPatches
             if (!CanInteract(__instance)) return false;
 
             var allCores = HaulSourceContents.EnabledSources(map);
-            if (allCores.Count == 0) return true;
+            // 跨图：本图没有核心，但别的图的核心里有货 → 照样要扩展菜单
+            if (allCores.Count == 0 && !HaulSourceContents.AnyRemoteContent(map)) return true;
 
             var mapStuffDefs = new HashSet<ThingDef>();
             var containerStuffDefs = new HashSet<ThingDef>();
@@ -173,7 +174,7 @@ namespace DigitalStorage.HarmonyPatches
 
         private static void CollectStuffDefs(Map map, ThingDef thingDef, HashSet<ThingDef> result)
         {
-            HaulSourceContents.GatherAll(map, tmpStuffThings);
+            HaulSourceContents.GatherAllIncludingRemote(map, tmpStuffThings);
             for (int i = 0; i < tmpStuffThings.Count; i++)
             {
                 ThingDef d = tmpStuffThings[i]?.def;
@@ -221,7 +222,8 @@ namespace DigitalStorage.HarmonyPatches
 
             // 4.0：容器内容物取代账本。ExtendList 只关心"这个 stuff 在不在"，
             // 所以只收 def（不需要数量）。缓存按 tick，因为内容物随时会变。
-            HaulSourceContents.GatherAll(map, tmpStuffThings);
+            // 跨图：别的图核心里的 stuff 也算"有"（建造投料本来就跨图了）。
+            HaulSourceContents.GatherAllIncludingRemote(map, tmpStuffThings);
             for (int i = 0; i < tmpStuffThings.Count; i++)
             {
                 Thing t = tmpStuffThings[i];

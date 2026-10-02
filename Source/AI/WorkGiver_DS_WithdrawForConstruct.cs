@@ -33,7 +33,8 @@ namespace DigitalStorage.AI
         public override bool ShouldSkip(Pawn pawn, bool forced = false)
         {
             // 没有可用（已通电）的核心就别扫了。核心通电是 4.0 保留的唯一门。
-            return !CoreFinder.AnyUsableCore(pawn);
+            // 跨图：本图没有也算 —— 材料可能全在另一张图的核心里（4.0 第三阶段）。
+            return !CoreFinder.AnyUsableCoreGlobal(pawn);
         }
 
         public override bool HasJobOnThing(Pawn pawn, Thing t, bool forced = false)
@@ -102,7 +103,8 @@ namespace DigitalStorage.AI
         private static (Thing thing, int count)? PlanFor(Pawn pawn, IConstructible c, bool forced)
         {
             if (!IsValidTarget(pawn, c)) return null;
-            if (!CoreFinder.AnyUsableCore(pawn)) return null;
+            // 跨图：材料可以来自**任意图**上通电的核心（本图优先，见 ConstructMaterialPlanner）
+            if (!CoreFinder.AnyUsableCoreGlobal(pawn)) return null;
             return ConstructMaterialPlanner.TryPlan(c, pawn, forced, pawn.Map);
         }
 

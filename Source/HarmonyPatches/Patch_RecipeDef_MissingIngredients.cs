@@ -46,9 +46,9 @@ namespace DigitalStorage.HarmonyPatches
             }
             if (resultList.Count == 0) return;
 
-            // 4.0：可用料 = 容器内容物，而不是账本库存。
+            // 4.0：可用料 = 容器内容物，而不是账本库存（跨图：别的图核心里的药也算"有"）
             var availableDefs = new HashSet<ThingDef>();
-            HaulSourceContents.GatherAll(map, tmpThings);
+            HaulSourceContents.GatherAllIncludingRemote(map, tmpThings);
             for (int i = 0; i < tmpThings.Count; i++)
             {
                 Thing t = tmpThings[i];

@@ -104,7 +104,27 @@ namespace DigitalStorage.Backpack
                     if (counts == null || i >= counts.Count) continue;
 
                     Thing absorbed = bag.TryAbsorb(t, counts[i]);
-                    if (absorbed == null) continue;
+                    if (absorbed == null)
+                    {
+                        // ★ 跨图源吸不进背包时**必须收工**（2026-10-02 跨图阶段新增）。
+                        //
+                        // 本图源失败可以先放着 —— 原版会走到核心门口自己拿，是既有的退化路径。
+                        // 但跨图源失败就完全不同了：队列里这一项指向的是**另一张图**上的容器，
+                        // GotoThing(canGotoSpawnedParent: true) 会把它的 SpawnedParentOrMe 解析成
+                        // a 图上的核心建筑，然后**照 a 图的坐标在 b 图上寻路**（不报错，就是走错地方）。
+                        // 宁可直接判定作业不可能完成 —— 原版的 nextTickToSearchForIngredients
+                        // 会让它在 500~600 tick 后重新找料，那时多半就拿得到别的了。
+                        Building_StorageCore remote = t.ParentHolder as Building_StorageCore;
+                        if (remote != null && remote.Spawned && remote.Map != actor.Map)
+                        {
+                            if (DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog)
+                                Log.Warning("[DS] 跨图取料：源已被截走（" + t.def.defName
+                                    + " @ " + remote.Map + "），本作业放弃，等待下轮重找");
+                            actor.jobs.curDriver.EndJobWith(JobCondition.Incompletable);
+                            return;
+                        }
+                        continue;
+                    }
 
                     // ★★ 决定性的一步：把作业队列那一项**改指到背包里那件**。
                     //

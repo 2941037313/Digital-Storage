@@ -84,7 +84,81 @@ namespace DigitalStorage.AI
             return AllUsableCores(pawn).Count > 0;
         }
 
-        public static bool IsUsable(Building_StorageCore core) =>
-            core != null && core.Spawned && !core.Destroyed && core.Powered;
+        // ===================================================================
+        // 跨图（4.0 第三阶段）
+        // ===================================================================
+        //
+        // 【为什么不需要任何注册表 / 房间 / 网络名】"b 图怎么识别 a 图的容器" 这个问题
+        // 本身是伪问题 —— 两条索引原版都给了：
+        //   ① 全局图列表 Find.Maps（Game.cs:300）
+        //   ② 每张图自己的 haul source 列表 map.haulDestinationManager.AllHaulSourcesListForReading
+        // 拼起来就是"全图的容器"。而"这件东西属于谁"更不需要查：
+        //   Thing.ParentHolder → Building_StorageCore → .Map（靠 ParentHolder => Map 的数据修复，
+        //   跨图的 MapHeld / SpawnedParentOrMe 本来就解析得对）。
+        // 真正缺的只有两件事，分别在 Bill 发现层（见 HarmonyPatches/Patch_WorkGiver_DoBill_RemoteIngredients）
+        // 与预订闸门（见 JobDriver_DS_Consume / JobDriver_DS_Withdraw 的跨图分支）处理。
+
+        /// <summary>
+        /// 全游戏所有可用核心（含当前图）。返回**新建列表**，可以安全持有。
+        ///
+        /// <para>只在"本图找不到"的兜底路径上调用（见 <c>HaulSourceContents.FindBestIncludingRemote</c>），
+        /// 所以不做 tick 缓存 —— 缓存反而会让刚放下的核心要等一 tick 才被看见。</para>
+        /// </summary>
+        public static List<Building_StorageCore> AllUsableCoresGlobal()
+        {
+            var result = new List<Building_StorageCore>();
+            List<Map> maps = Find.Maps;
+            if (maps == null) return result;
+
+            for (int i = 0; i < maps.Count; i++)
+            {
+                Map m = maps[i];
+                if (m == null) continue;
+                result.AddRange(AllUsableCores(m));
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// <b>别的图</b>上有没有可用核心。<c>ShouldSkip</c> 这类每次扫描都要问的入口用，
+        /// 按 tick 缓存（一 tick 内图/核心集合不会变）。
+        /// </summary>
+        public static bool AnyRemoteUsableCore(Map exclude)
+        {
+            int tick = Find.TickManager.TicksGame;
+            if (globalTick == tick && cachedExclude == exclude) return globalAny;
+
+            globalTick = tick;
+            cachedExclude = exclude;
+            globalAny = false;
+
+            List<Map> maps = Find.Maps;
+            if (maps != null)
+            {
+                for (int i = 0; i < maps.Count && !globalAny; i++)
+                {
+                    Map m = maps[i];
+                    if (m == null || m == exclude) continue;
+                    if (AllUsableCores(m).Count > 0) globalAny = true;
+                }
+            }
+
+            // 同一个 tick 内换一张 exclude 图就重算（缓存只服务"同一张图连续问"的调用模式）
+            return globalAny;
+        }
+
+        /// <summary>全游戏（含本图）有没有可用核心。</summary>
+        public static bool AnyUsableCoreGlobal(Pawn pawn)
+        {
+            if (AnyUsableCore(pawn)) return true;
+            return AnyRemoteUsableCore(pawn?.Map);
+        }
+
+        private static int globalTick = -1;
+        private static Map cachedExclude;
+        private static bool globalAny;
+
+        /// <summary>同图 / 跨图共用的唯一判定（实现在 <see cref="Building_StorageCore.IsUsableNow"/>）。</summary>
+        public static bool IsUsable(Building_StorageCore core) => core != null && core.IsUsableNow;
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DigitalStorage.Components;
 using RimWorld;
 using Verse;
 
@@ -27,6 +28,13 @@ namespace DigitalStorage.Core
         private static readonly List<Thing> tmpThings = new List<Thing>();
         private static readonly List<IHaulSource> tmpSources = new List<IHaulSource>();
 
+        /// <summary>
+        /// 跨图枚举用的**第二个**缓冲。必须与 <see cref="tmpSources"/> 分开：
+        /// <c>FindBestIncludingRemote</c> 会先跑本图（<c>tmpSources</c>）再跑跨图，
+        /// 共用一个缓冲会把本图那批冲掉（本 mod 早期就踩过静态缓冲互相覆盖的坑）。
+        /// </summary>
+        private static readonly List<IHaulSource> tmpRemoteSources = new List<IHaulSource>();
+
         /// <summary>本图所有启用中的 haul source。返回的列表是复用的静态缓冲，别存起来。</summary>
         public static List<IHaulSource> EnabledSources(Map map)
         {
@@ -42,6 +50,59 @@ namespace DigitalStorage.Core
                 if (s != null && s.HaulSourceEnabled) tmpSources.Add(s);
             }
             return tmpSources;
+        }
+
+        // ===================================================================
+        // 跨图（4.0 第三阶段）
+        // ===================================================================
+        //
+        // 【作用域的形状】所有跨图入口都遵循同一条规则：**本图优先，本图拿不到才看别的图**。
+        // 这不是限制，是排序 —— 本图有货时行为与 4.0 发布版逐字相同（零回归），
+        // 本图没货时才有新行为。同时它也把跨图扫描的成本锁在"原本会失败"的那些调用上。
+
+        /// <summary>
+        /// <b>其它地图</b>上、处于可用状态的本 mod 核心。返回**复用缓冲**，别存起来。
+        ///
+        /// <para><b>只认本 mod 的核心</b>：跨图是 mod 自己的特性；原版容器（书架 / 衣架 /
+        /// 自动工作台内胆）被跨图取用会破坏它们各自的语义（它们的内容物有下游 job 契约），
+        /// 也会把别的 mod 的容器内容物拖进本 mod 的作业里。</para>
+        /// </summary>
+        public static List<IHaulSource> RemoteCoreSources(Map exclude)
+        {
+            tmpRemoteSources.Clear();
+            List<Map> maps = Find.Maps;
+            if (maps == null) return tmpRemoteSources;
+
+            for (int i = 0; i < maps.Count; i++)
+            {
+                Map m = maps[i];
+                if (m == null || m == exclude) continue;
+
+                List<IHaulSource> all = m.haulDestinationManager?.AllHaulSourcesListForReading;
+                if (all == null) continue;
+
+                for (int j = 0; j < all.Count; j++)
+                {
+                    Building_StorageCore core = all[j] as Building_StorageCore;
+                    if (core == null) continue;
+                    if (!core.HaulSourceEnabled) continue;
+                    if (!core.IsUsableNow) continue;
+                    tmpRemoteSources.Add(core);
+                }
+            }
+            return tmpRemoteSources;
+        }
+
+        /// <summary>别的图上有没有"装得下东西"的可用核心（选材菜单 / 缺料提示用）。</summary>
+        public static bool AnyRemoteContent(Map exclude)
+        {
+            List<IHaulSource> sources = RemoteCoreSources(exclude);
+            for (int i = 0; i < sources.Count; i++)
+            {
+                ThingOwner held = sources[i].GetDirectlyHeldThings();
+                if (held != null && held.Count > 0) return true;
+            }
+            return false;
         }
 
         /// <summary>本图容器里有没有东西。</summary>
@@ -106,14 +167,34 @@ namespace DigitalStorage.Core
         /// <summary>
         /// 在容器里找 <paramref name="score"/> 最大且通过 <paramref name="validator"/> 的东西。
         /// 找不到返回 null。<paramref name="score"/> 可以是 null（等价于都取 0，返回第一个通过的）。
+        ///
+        /// <para>只搜**本图**。要跨图见 <see cref="FindBestIncludingRemote"/>。</para>
         /// </summary>
         public static Thing FindBest(Map map, Func<Thing, float> score, Predicate<Thing> validator)
         {
             if (map == null || validator == null) return null;
+            return FindBestIn(EnabledSources(map), score, validator);
+        }
 
+        /// <summary>
+        /// <b>先本图、再其它图</b>的 <see cref="FindBest"/>。本图找到就立刻返回 ——
+        /// 本图有货时与只搜本图**完全等价**，跨图那段代码一次都不跑。
+        /// </summary>
+        public static Thing FindBestIncludingRemote(Map map, Func<Thing, float> score, Predicate<Thing> validator)
+        {
+            if (map == null || validator == null) return null;
+
+            Thing local = FindBestIn(EnabledSources(map), score, validator);
+            if (local != null) return local;
+
+            return FindBestIn(RemoteCoreSources(map), score, validator);
+        }
+
+        /// <summary>两个作用域共用的选取内核。<paramref name="sources"/> 是调用方给的缓冲。</summary>
+        private static Thing FindBestIn(List<IHaulSource> sources, Func<Thing, float> score, Predicate<Thing> validator)
+        {
             Thing best = null;
             float bestScore = float.MinValue;
-            List<IHaulSource> sources = EnabledSources(map);
 
             for (int i = 0; i < sources.Count; i++)
             {
@@ -134,6 +215,32 @@ namespace DigitalStorage.Core
             }
             tmpThings.Clear();
             return best;
+        }
+
+        /// <summary>本图 + 其它图核心的**递归**内容物（供"缺料提示 / 选材菜单 / 右键取出"枚举）。</summary>
+        public static void GatherAllIncludingRemote(Map map, List<Thing> outThings)
+        {
+            GatherAll(map, outThings);
+            AppendRemote(map, outThings);
+        }
+
+        /// <summary>把其它图核心的递归内容物追加进 <paramref name="outThings"/>（不清空）。</summary>
+        public static void AppendRemote(Map exclude, List<Thing> outThings)
+        {
+            if (outThings == null) return;
+
+            List<IHaulSource> sources = RemoteCoreSources(exclude);
+            for (int i = 0; i < sources.Count; i++)
+            {
+                tmpThings.Clear();
+                ThingOwnerUtility.GetAllThingsRecursively(sources[i], tmpThings);
+                for (int j = 0; j < tmpThings.Count; j++)
+                {
+                    Thing t = tmpThings[j];
+                    if (t != null && !t.Destroyed) outThings.Add(t);
+                }
+            }
+            tmpThings.Clear();
         }
 
         /// <summary>容器里某 def 的总数量。</summary>

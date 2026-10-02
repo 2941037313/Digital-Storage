@@ -23,7 +23,7 @@ namespace DigitalStorage.HarmonyPatches
             if (__result != null || pawn?.Map == null) return;
 
             // 修一次只需要 1 个工业零件（与原版 FindClosestComponent 同一个 def）。
-            Thing best = HaulSourceContents.FindBest(
+            Thing best = HaulSourceContents.FindBestIncludingRemote(
                 pawn.Map, null, t => t.def == ThingDefOf.ComponentIndustrial);
             if (best == null) return;
 

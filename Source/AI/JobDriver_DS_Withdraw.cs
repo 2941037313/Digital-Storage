@@ -43,9 +43,15 @@ namespace DigitalStorage.AI
 
             // 那件东西本身（未 Spawned 也能预订 —— MapHeld 由 ParentHolder => Map 保证非 null）。
             // 两个 pawn 不会抢同一堆。errorOnFailed=false：抢不到也不硬失败，由取料 toil 兜底。
+            //
+            // 【跨图】别的图核心里的东西，原版 ReservationManager.CanReserve:172 的
+            // `MapHeld != map` 闸门一定拒（而且这里返回 false 会让整个作业起不来）。
+            // 跨图这条路不需要预订：取料 toil 立刻把东西拿到手上，抢输由 owner.Contains 兜底。
             Thing src = SourceThing;
-            if (src != null && !src.Destroyed && !pawn.Reserve(src, job, 1, -1, null, false))
-                return false;
+            if (src != null && !src.Destroyed && src.MapHeld == pawn.Map)
+            {
+                if (!pawn.Reserve(src, job, 1, -1, null, false)) return false;
+            }
             return true;
         }
 
@@ -272,7 +278,8 @@ namespace DigitalStorage.AI
 
                 ThingDef def = need.thingDef;
                 // 取同 def 里最大的那一堆：一次能送多少送多少，剩下的由后续 job 接力。
-                Thing best = HaulSourceContents.FindBest(map, t => t.stackCount, t => t.def == def);
+                // 跨图：本图核心没有该材料就扫其它图的核心（本图优先，行为零回归）。
+                Thing best = HaulSourceContents.FindBestIncludingRemote(map, t => t.stackCount, t => t.def == def);
                 if (best == null) continue;
 
                 return (best, Math.Min(remaining, best.stackCount));

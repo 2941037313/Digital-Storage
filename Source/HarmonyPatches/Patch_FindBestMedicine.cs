@@ -32,7 +32,7 @@ namespace DigitalStorage.HarmonyPatches
             int needed = Medicine.GetMedicineCountToFullyHeal(patient);
             if (needed <= 0) return;
 
-            Thing best = HaulSourceContents.FindBest(
+            Thing best = HaulSourceContents.FindBestIncludingRemote(
                 healer.Map,
                 t => t.def.GetStatValueAbstract(StatDefOf.MedicalPotency),
                 t => t.def.IsMedicine && medCare.AllowsMedicine(t.def));

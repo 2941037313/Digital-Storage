@@ -317,6 +317,15 @@ namespace DigitalStorage.Components
         public bool Powered => GetComp<CompPowerTrader>()?.PowerOn ?? true;
 
         /// <summary>
+        /// 【取出方向的唯一门】已生成、未销毁、已通电。
+        ///
+        /// <para>抽到这里是因为**同图与跨图必须用同一份判定**：<see cref="AI.CoreFinder.IsUsable"/>
+        /// 与本类的跨图枚举（<c>HaulSourceContents.RemoteCoreSources</c> / bill 的远程原料兜底）
+        /// 都读这一个属性。两处各写一遍就会漂移，出现"同图能用、跨图看不见"的幽灵 bug。</para>
+        /// </summary>
+        public bool IsUsableNow => Spawned && !Destroyed && Powered;
+
+        /// <summary>
         /// 可选范围全集：所有 <c>ThingCategory.Item</c> 非尸体 def（「全放开」）。
         /// 静态缓存。**不要返回 <see cref="StorageFilter"/>** —— 见 parentFilter 字段的注释。
         /// </summary>

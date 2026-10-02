@@ -33,7 +33,7 @@ namespace DigitalStorage.HarmonyPatches
             int needed = comp.GetFuelCountToFullyRefuel();
             if (needed <= 0) return;
 
-            Thing best = HaulSourceContents.FindBest(pawn.Map, null, t => filter.Allows(t.def));
+            Thing best = HaulSourceContents.FindBestIncludingRemote(pawn.Map, null, t => filter.Allows(t.def));
             if (best == null) return;
 
             Thing taken = HaulSourceContents.ExtractToFeet(best, needed, pawn);

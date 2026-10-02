@@ -30,13 +30,13 @@ namespace DigitalStorage.UI
             Pawn pawn = context.FirstSelectedPawn;
             if (pawn?.Map == null) return null;
 
-            // 没有可用（已通电）核心就不出这个菜单项
-            if (!CoreFinder.AnyUsableCore(pawn)) return null;
+            // 没有可用（已通电）核心就不出这个菜单项。跨图：别的图有也算。
+            if (!CoreFinder.AnyUsableCoreGlobal(pawn)) return null;
 
             Map map = pawn.Map;
             var availableByDef = new Dictionary<ThingDef, int>();
             var all = new List<Thing>();
-            HaulSourceContents.GatherAll(map, all);
+            HaulSourceContents.GatherAllIncludingRemote(map, all);
             for (int i = 0; i < all.Count; i++)
             {
                 Thing t = all[i];
@@ -64,7 +64,8 @@ namespace DigitalStorage.UI
                         Find.WindowStack.Add(new Dialog_WithdrawAmount(def.LabelCap, total, maxCarry, amount =>
                         {
                             // 取同 def 里最大的一堆（job 只认一件 Thing；凑不齐由后续 job 接力）
-                            Thing src = HaulSourceContents.FindBest(map, t => t.stackCount, t => t.def == def);
+                            // 跨图：别的图核心里也算（本图优先）
+                            Thing src = HaulSourceContents.FindBestIncludingRemote(map, t => t.stackCount, t => t.def == def);
                             if (src == null) return;
 
                             var job = JobMaker.MakeJob(

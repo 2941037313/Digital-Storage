@@ -57,7 +57,7 @@ namespace DigitalStorage.AI
             ReservationManager resMgr = map.reservationManager;
             int seen = 0, rejectedByFilter = 0, rejectedByGate = 0, rejectedByReserved = 0;
 
-            Thing best = HaulSourceContents.FindBest(
+            Thing best = HaulSourceContents.FindBestIncludingRemote(
                 map,
                 t => FoodScoring.Score(pawn, t.def),
                 t =>
