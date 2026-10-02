@@ -69,6 +69,7 @@
 
     <Compile Include="Core\HaulSourceContents.cs" />
     <Compile Include="Core\ItemGroup.cs" />
+    <Compile Include="Core\ContainerAutoLoader.cs" />
 
     <Compile Include="AI\DigitalStorage_JobDefOf.cs" />
     <Compile Include="AI\JobDriver_DS_Withdraw.cs" />
@@ -109,6 +110,7 @@
          但那个文件根本不参与编译（DLL 里连类型名都没有）。2026-10-02 就因此白跑了一轮：
          跨图的 bill 发现层补丁没进 DLL，症状是"吃饭/建造/加油跨界正常，bill/手术报缺料"。 -->
     <Compile Include="HarmonyPatches\Patch_WorkGiver_DoBill_RemoteIngredients.cs" />
+    <Compile Include="HarmonyPatches\Patch_MakeLordsAsAppropriate_InstantLoad.cs" />
 
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />
