@@ -25,6 +25,49 @@
 
   <!-- 4.0：数字存储接口研究已删（接口建筑砍掉，产品决策「核心一放就是完全体」）。 -->
 
+  <!-- ==========================================================================
+       核心容量阶梯：**挂研究，不挂建筑上的升级组件**（用户拍板）。
+       Lv1 500 → Lv2 1000 → Lv3 1500 → Lv4 3000 栈，研究点数与目标上限同数。
+       生效方式是 CoreTier 全局读研究 ⇒ 研究一完成，**地图上已有的核心立刻扩容**。
+       X = 1/2/3 排一行放在最上面（Y = 6），不和任何既有链打架。
+       ========================================================================== -->
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CoreLevel2</defName>
+    <label>核心 Lv2</label>
+    <description>存储核心容量 500 → 1000 堆。\n\n对地图上**已经建好**的所有核心立即生效，不需要重建或重读档。</description>
+    <baseCost>1000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_BasicStorage</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>1</researchViewX>
+    <researchViewY>6</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CoreLevel3</defName>
+    <label>核心 Lv3</label>
+    <description>存储核心容量 1000 → 1500 堆。\n\n对地图上**已经建好**的所有核心立即生效，不需要重建或重读档。</description>
+    <baseCost>1500</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_CoreLevel2</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>2</researchViewX>
+    <researchViewY>6</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CoreLevel4</defName>
+    <label>核心 Lv4</label>
+    <description>存储核心容量 1500 → 3000 堆。\n\n对地图上**已经建好**的所有核心立即生效，不需要重建或重读档。</description>
+    <baseCost>3000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_CoreLevel3</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>3</researchViewX>
+    <researchViewY>6</researchViewY>
+  </ResearchProjectDef>
+
   <!-- 自动收纳 1 级 -->
   <ResearchProjectDef>
     <defName>DigitalStorage_AutoIngest1</defName>

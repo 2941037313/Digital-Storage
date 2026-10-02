@@ -142,13 +142,13 @@ namespace DigitalStorage.UI
             Text.Font = GameFont.Small;
             float y = 0f;
 
-            // 顶部：栈数占用条（4.0 上限是"栈数"，由 maxStacks 决定，不再有升级扩容）
+            // 顶部：栈数占用条（上限 = maxStacks，由研究阶梯决定：Lv1 500 → Lv4 3000）
             Rect barRect = new Rect(rect.x, rect.y + y, rect.width, 22f);
             int used = core.innerContainer.Count;
             int cap = core.maxStacks;
             Widgets.FillableBar(barRect, cap > 0 ? (float)used / cap : 0f);
             Text.Anchor = TextAnchor.MiddleCenter;
-            Widgets.Label(barRect, "DS_CapacityBar".Translate(used, cap));
+            Widgets.Label(barRect, "DS_CapacityBarLv".Translate(CoreTier.Level, used, cap));
             Text.Anchor = TextAnchor.UpperLeft;
             y += 26f;
 

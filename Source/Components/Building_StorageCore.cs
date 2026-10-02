@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using DigitalStorage.Core;
@@ -58,9 +59,17 @@ namespace DigitalStorage.Components
         private bool haulDestinationEnabled = true;
 
         /// <summary>
-        /// 栈数上限（<see cref="Accepts"/> 用）。4.0 起不再有"升级扩容"，是固定值 + 未来的 def 字段。
+        /// 栈数上限（<see cref="Accepts"/> 用）。**由研究阶梯决定**，见 <see cref="CoreTier"/>：
+        /// Lv1 500 / Lv2 1000 / Lv3 1500 / Lv4 3000 栈。
+        ///
+        /// <para>取值 = <c>Math.Max(存档里的旧值, 研究值)</c>。留一个只作为**下限**的存档字段，
+        /// 是为了老存档和"开发者模式撤销研究"这两种情况下容量不会突然缩水
+        /// （容量只增不减，与研究的单调性一致）。</para>
         /// </summary>
-        public int maxStacks = 500;
+        public int maxStacks => Math.Max(maxStacksField, CoreTier.Cap);
+
+        /// <summary>存档字段（Scribe 键名仍是 <c>maxStacks</c>，与 4.0 的存档兼容）。</summary>
+        private int maxStacksField = CoreTier.BaseStacks;
 
         private StoragePriority storagePriorityField = StoragePriority.Preferred;
 
@@ -420,7 +429,7 @@ namespace DigitalStorage.Components
             Scribe_Deep.Look(ref storeSettings, "storeSettings", this);
             Scribe_Values.Look(ref haulSourceEnabled, "haulSourceEnabled", true);
             Scribe_Values.Look(ref haulDestinationEnabled, "haulDestinationEnabled", true);
-            Scribe_Values.Look(ref maxStacks, "maxStacks", 500);
+            Scribe_Values.Look(ref maxStacksField, "maxStacks", CoreTier.BaseStacks);
             Scribe_Values.Look(ref storagePriorityField, "storagePriority", StoragePriority.Preferred);
             Scribe_Values.Look(ref allowWeaponsInStorage, "allowWeaponsInStorage", false);
 
@@ -486,8 +495,8 @@ namespace DigitalStorage.Components
             string baseInspect = base.GetInspectString();
             if (!string.IsNullOrEmpty(baseInspect)) sb.AppendLine(baseInspect);
 
-            sb.AppendLine("存储核心：" + innerContainer.Count + " 栈 / " + innerContainer.TotalStackCount
-                + " 个单位（上限 " + maxStacks + " 栈）");
+            sb.AppendLine("存储核心 Lv" + CoreTier.Level + "：" + innerContainer.Count + " 栈 / "
+                + innerContainer.TotalStackCount + " 个单位（上限 " + maxStacks + " 栈）");
             sb.AppendLine("存储优先级：" + storagePriorityField);
             if (!Powered) sb.AppendLine("DS_NoPower".Translate());
             return sb.ToString().TrimEnd();

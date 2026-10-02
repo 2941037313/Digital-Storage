@@ -15,6 +15,15 @@
 
   <!-- DigitalStorage_Interface 已删（4.0 砍接口建筑） -->
 
+  <DigitalStorage_CoreLevel2.label>core Lv2</DigitalStorage_CoreLevel2.label>
+  <DigitalStorage_CoreLevel2.description>Storage core capacity 500 -> 1000 stacks. Applies immediately to every core already built on the map; no rebuild or reload needed.</DigitalStorage_CoreLevel2.description>
+
+  <DigitalStorage_CoreLevel3.label>core Lv3</DigitalStorage_CoreLevel3.label>
+  <DigitalStorage_CoreLevel3.description>Storage core capacity 1000 -> 1500 stacks. Applies immediately to every core already built on the map; no rebuild or reload needed.</DigitalStorage_CoreLevel3.description>
+
+  <DigitalStorage_CoreLevel4.label>core Lv4</DigitalStorage_CoreLevel4.label>
+  <DigitalStorage_CoreLevel4.description>Storage core capacity 1500 -> 3000 stacks. Applies immediately to every core already built on the map; no rebuild or reload needed.</DigitalStorage_CoreLevel4.description>
+
   <!-- DigitalStorage_TerminalImplant 已删（4.0 砍芯片） -->
 
 </LanguageData>

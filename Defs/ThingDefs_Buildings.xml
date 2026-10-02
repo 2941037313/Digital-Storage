@@ -62,9 +62,10 @@
       </li>
       <li Class="CompProperties_Breakdownable" />
       <li Class="DigitalStorage.Components.CompProperties_AutoIngest" />
-      <!-- 4.0：升级三件套已删（CompStorageCoreUpgrade / CompProperties_StorageCoreUpgrade /
-           StorageCoreUpgrade）。用户拍板「核心一放就是完全体」，容量固定为实体上的 maxStacks。
-           原先这里的 <upgrades> 1~4 级（100/250/500/1000 组）随之作废。 -->
+      <!-- 容量不在这里：由研究阶梯决定（CoreTier：Lv1 500 → Lv2 1000 → Lv3 1500 → Lv4 3000 栈），
+           建筑上不再有 <upgrades>。4.0 删掉的升级组件三件套
+           （CompStorageCoreUpgrade / CompProperties_StorageCoreUpgrade / StorageCoreUpgrade）不复活；
+           容量改为全局读研究 ⇒ 研究一完成，地图上已有的核心立刻扩容。 -->
     </comps>
     <researchPrerequisites>
       <li>DigitalStorage_BasicStorage</li>

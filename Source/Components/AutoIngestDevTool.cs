@@ -370,7 +370,8 @@ namespace DigitalStorage.Components
                 SB.Append(" AutoIngest组件=" + (comp != null));
                 if (comp != null) SB.Append(" 开关=" + comp.Enabled);
                 SB.Append(" 优先级=" + c.GetStoreSettings().Priority);
-                SB.Append(" 栈=" + c.innerContainer.Count + "/" + c.maxStacks);
+                SB.Append(" 栈=" + c.innerContainer.Count + "/" + c.maxStacks
+                          + "(Lv" + DigitalStorage.Core.CoreTier.Level + ")");
                 SB.Append(" 兼容替身=" + c.CompatSlotGroupRegistered);
                 SB.AppendLine();
             }

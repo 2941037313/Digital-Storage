@@ -10,7 +10,7 @@
 灵感来自 MC 的应用能源2（AE2）：建造一台存储核心，物品就住进它内部，不占地图格子、不渲染、不参与 tick，也不腐烂。与 3.0 的账本不同，4.0 存的是真实 Thing —— 衣物、武器、品质与耐久差异全部能存，原版搬运与交易也原生认它。
 
 功能特性：
-- 存储核心：3x3 建筑，通电即用，固定 500 堆上限（无升级系统）
+- 存储核心：3x3 建筑，通电即用，500 堆上限；研究「核心 Lv2 / Lv3 / Lv4」可扩到 1000 / 1500 / 3000 堆（研究完成后已有核心立刻扩容）
 - 全图隔空存取：任何位置、任何距离取放，小人不必走到核心旁边
 - 建造投料 / bill 取料：材料直接到手；做 bill 时先进随身背包，0 步开工
 - 自动收纳：三级研究解锁，全图吸取散落物品（牢房与工作台材料区不收）
@@ -19,7 +19,7 @@
 - 原版系统原生覆盖：资源计数、食物与药品警报、财富、bill 的 ×N 计数等
 - 兼容层：Phinix 与红包插件已适配，其它遍历 SlotGroup 的 mod 也能看见核心内容物
 
-⚠️ 3.0 老存档会自动迁移：核心库存逐项还原成真实物品放进容器、旧筛选沿用。已移除的机制（跨图物流、接口、芯片、缓冲仓库、升级）不会复活；旧存档里已建好的接口 / 缓冲仓库、芯片与植入体会随之失效（日志里会有几条一次性的「找不到 Def」）。建议更新前先备份存档。
+⚠️ 3.0 老存档会自动迁移：核心库存逐项还原成真实物品放进容器、旧筛选沿用。已移除的机制（跨图物流、接口、芯片、缓冲仓库）不会复活；旧存档里已建好的接口 / 缓冲仓库、芯片与植入体会随之失效（日志里会有几条一次性的「找不到 Def」）。核心容量升级以**研究**形式回归。建议更新前先备份存档。
 
 A storage mod inspired by AE2. Items live as real Things inside a powered Storage Core: no map footprint, no tick cost, no rot. Remote access from anywhere, auto-ingest, trade support, and a compatibility layer for mods that scan storage groups.</description>
   <packageId>cagier.digitalstorage</packageId>
