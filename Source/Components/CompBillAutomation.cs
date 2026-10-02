@@ -497,51 +497,75 @@ namespace DigitalStorage.Components
         {
             float speedMult = Math.Max(0.01f, Props.workSpeedMult) * OverclockSpeedMult;
 
-            for (int p = 0; p < plans.Count; p++)
+            // 整个"干活"阶段借一次地图：里面会跑原版 StatPart 链（速度/效率）、品质生成、
+            // bill 通知回调、RecordsUtility…它们都可能读 pawn.Map / MapHeld ——
+            // 2026-10-03 实机就因为"出作用域后调了这类东西"炸过 ArgumentNullException（null 字典键）。
+            // 逐任务借还是整个 tick 借一次？与 CompDigitalWorker 同一口径：**整个 tick 一次**。
+            DigitalWorkerScope.Enter(w, map, parent.PositionHeld);
+            try
             {
-                CraftPlan plan = plans[p];
-                for (int i = plan.lines.Count - 1; i >= 0; i--)
+                for (int p = 0; p < plans.Count; p++)
                 {
-                    CraftLine line = plan.lines[i];
-                    if (!line.HasWork) continue;
-
-                    if (!StillValid(plan, line, map))
+                    CraftPlan plan = plans[p];
+                    for (int i = plan.lines.Count - 1; i >= 0; i--)
                     {
+                        CraftLine line = plan.lines[i];
+                        if (!line.HasWork) continue;
+
+                        if (!StillValid(plan, line, map))
+                        {
+                            line.ClearWork();
+                            line.NextAcquireTick = 0;
+                            line.BlockKey = null;
+                            continue;
+                        }
+
+                        line.WorkLeft -= Math.Max(0f, line.BaseRate) * speedMult;
+
+                        try
+                        {
+                            line.Bill.Notify_PawnDidWork(w);   // 原版 DoRecipeWork:104（Bill_Production 是空实现）
+                        }
+                        catch (Exception)
+                        {
+                            // 子类可能重写；它抛异常不该弄死我们的 tick
+                        }
+
+                        if (line.WorkLeft > 0f) continue;
+
+                        CraftResult result;
+                        try
+                        {
+                            result = BillCraftFunnel.TryComplete(this, plan, line, map, w);
+                        }
+                        catch (Exception e)
+                        {
+                            Log.ErrorOnce("[DigitalStorage] 制作代理结算异常（丢弃这一轮，料未扣）：" + e, 882244);
+                            line.ClearWork();
+                            line.NextAcquireTick = now + 300;
+                            continue;
+                        }
+
+                        if (result == CraftResult.NoBudget)
+                        {
+                            line.WorkLeft = 0f;      // 活干完了、只差预算 ⇒ 保留进度，下一 tick 再收尾
+                            continue;
+                        }
+
                         line.ClearWork();
                         line.NextAcquireTick = 0;
-                        line.BlockKey = null;
-                        continue;
-                    }
 
-                    line.WorkLeft -= Math.Max(0f, line.BaseRate) * speedMult;
-
-                    try
-                    {
-                        line.Bill.Notify_PawnDidWork(w);   // 原版 DoRecipeWork:104（Bill_Production 是空实现）
-                    }
-                    catch (Exception)
-                    {
-                        // 子类可能重写；它抛异常不该弄死我们的 tick
-                    }
-
-                    if (line.WorkLeft > 0f) continue;
-
-                    CraftResult result = BillCraftFunnel.TryComplete(this, plan, line, map, w);
-                    if (result == CraftResult.NoBudget)
-                    {
-                        line.WorkLeft = 0f;      // 活干完了、只差预算 ⇒ 保留进度，下一 tick 再收尾
-                        continue;
-                    }
-
-                    line.ClearWork();
-                    line.NextAcquireTick = 0;
-
-                    if (plan.Done)
-                    {
-                        NotifyPlanDone(plan);
-                        break;                   // 这条配方做完了：本 tick 不再管它的线（SyncLines 会收）
+                        if (plan.Done)
+                        {
+                            NotifyPlanDone(plan);
+                            break;                   // 这条配方做完了：本 tick 不再管它的线（SyncLines 会收）
+                        }
                     }
                 }
+            }
+            finally
+            {
+                DigitalWorkerScope.Exit(w);
             }
         }
 
@@ -580,7 +604,18 @@ namespace DigitalStorage.Components
                     CraftLine line = plan.lines[i];
                     if (line.HasWork || now < line.NextAcquireTick) continue;
                     probes--;
-                    BillProbe.TryAcquire(this, plan, line, map, w, now);
+                    try
+                    {
+                        BillProbe.TryAcquire(this, plan, line, map, w, now);
+                    }
+                    catch (Exception e)
+                    {
+                        // 一条线出问题不该让整台建筑每 tick 刷红字（实机炸过一次：诊断里的活动区判定）
+                        Log.ErrorOnce("[DigitalStorage] 制作代理取活异常（已跳过这条线，5 秒后重试）：" + e, 881133);
+                        line.ClearWork();
+                        line.BlockKey = "DS_BA_NoBill";
+                        line.NextAcquireTick = now + 300;
+                    }
                 }
             }
         }

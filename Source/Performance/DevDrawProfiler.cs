@@ -30,7 +30,7 @@ namespace DigitalStorage.Performance
     /// draw call、shader），mod 侧只能靠"少画点东西"（减少标记/贴图/实例数）而不能靠改代码。
     /// 这两种情况的处方完全不同，所以先量。</para>
     ///
-    /// <para>开关：<c>Prefs.DevMode</c>（选项 → 开发者模式）。关闭时不读时钟、不累计。</para>
+    /// <para>开关：<c>Prefs.DevMode</c> **且** mod 设置「详细日志」（默认关）。关闭时不读时钟、不累计。</para>
     /// </summary>
     internal static class DevDrawProfiler
     {
@@ -94,9 +94,17 @@ namespace DigitalStorage.Performance
         private static int gc1Start;
         private static int gc2Start;
 
+        /// <summary>
+        /// 开关：<c>Prefs.DevMode</c>（选项 → 开发者模式）**并且** mod 设置里的「详细日志」
+        /// （<c>DigitalStorageSettings.enableDebugLog</c>，**默认关**）。
+        ///
+        /// <para>为什么要加后半个开关：探针是开发者模式就开，实测时很容易忘了关 ——
+        /// 而它每 ~120 帧就往日志写一行。收进"详细日志"之后，默认状态下日志是干净的，
+        /// 要看性能数据时在 mod 设置里勾一下即可（勾选/取消立刻生效，不用重启）。</para>
+        /// </summary>
         internal static bool Enabled
         {
-            get { return Prefs.DevMode; }
+            get { return Prefs.DevMode && Settings.DigitalStorageSettings.enableDebugLog; }
         }
 
         internal static long Now

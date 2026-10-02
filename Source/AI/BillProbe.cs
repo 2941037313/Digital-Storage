@@ -102,7 +102,7 @@ namespace DigitalStorage.AI
                 {
                     line.BlockKey = "DS_BA_Block_Unsupported";
                     line.NextAcquireTick = now + CraftBackoffTicks;
-                    return false;
+                    return false;      // finally 会负责退出作用域
                 }
                 swapped = true;
 
@@ -133,35 +133,35 @@ namespace DigitalStorage.AI
                     got = candidate;
                     break;
                 }
-            }
-            finally
-            {
-                if (swapped) BillStackSwap.Restore(bench, original);
-                DigitalWorkerScope.Exit(w);
-            }
 
-            if (got == null)
-            {
-                line.BlockKey = Diagnose(bench, plan, map, w);
-                line.NextAcquireTick = now + RetryTicks;
-                return false;
-            }
+                if (got == null)
+                {
+                    // ⚠️ 诊断必须在**作用域内**做：里面的 cell.IsForbidden(pawn) 会走
+                    // Pawn_PlayerSettings.EffectiveAreaRestrictionInPawnCurrentMap，
+                    // 而它拿 pawn.MapHeld 当字典键 —— 假 pawn 一旦出了作用域，MapHeld 是 null
+                    // ⇒ Dictionary.TryGetValue(null) 抛 ArgumentNullException（2026-10-03 实机炸过）。
+                    line.BlockKey = Diagnose(bench, plan, map, w);
+                    line.NextAcquireTick = now + RetryTicks;
+                    return false;
+                }
 
-            Thing[] things;
-            int[] counts;
-            if (!ExtractIngredients(got, map, out things, out counts))
-            {
-                // 原版选了地面上的料（核心里凑不齐）⇒ 用户拍板"物品在核心里才可以被自动化使用"
-                line.BlockKey = "DS_BA_NoCoreMaterial";
-                line.NextAcquireTick = now + CraftBackoffTicks;
-                return false;
-            }
+                // 下面这些**全部留在作用域内**：pawn.GetStatValue 会跑 StatPart 链
+                // （其中有读 pawn.Map / MapHeld 的部分），出作用域就是同一个 null 键/NRE。
+                Thing[] things;
+                int[] counts;
+                if (!ExtractIngredients(got, map, out things, out counts))
+                {
+                    // 原版选了地面上的料（核心里凑不齐）⇒ 用户拍板"物品在核心里才可以被自动化使用"
+                    line.BlockKey = "DS_BA_NoCoreMaterial";
+                    line.NextAcquireTick = now + CraftBackoffTicks;
+                    return false;
+                }
 
-            line.Probe = got;
-            line.Ingredients = things;
-            line.Counts = counts;
-            line.BaseRate = ComputeBaseRate(plan.recipe, bench, w);
-            line.WorkAmount = line.Bill.GetWorkAmount(LastIngredient(things, got));
+                line.Probe = got;
+                line.Ingredients = things;
+                line.Counts = counts;
+                line.BaseRate = ComputeBaseRate(plan.recipe, bench, w);
+                line.WorkAmount = line.Bill.GetWorkAmount(LastIngredient(things, got));
             line.WorkLeft = line.WorkAmount;
             line.NextAcquireTick = 0;
             line.BlockKey = null;
@@ -176,6 +176,12 @@ namespace DigitalStorage.AI
             catch (Exception e)
             {
                 Log.ErrorOnce("[DigitalStorage] bill.Notify_* 抛异常（已忽略）：" + e, 771133);
+            }
+            }
+            finally
+            {
+                if (swapped) BillStackSwap.Restore(bench, original);
+                DigitalWorkerScope.Exit(w);
             }
             return true;
         }
@@ -201,8 +207,10 @@ namespace DigitalStorage.AI
                 : SafeAllowedTransient(recipe, bench, w);
             if (!pawnOk) return "DS_BA_Block_Restricted";
 
-            // 交互格被堵住/被禁止：原版 JobOnThing 在这里返回 null，与"缺料"是两件事
-            if (bench.def.hasInteractionCell)
+            // 交互格被堵住/被禁止：原版 JobOnThing 在这里返回 null，与"缺料"是两件事。
+            // ⚠️ IsForbidden 走活动区判定，需要一个"在图上"的 pawn（见调用处的注释）；
+            //    另外它内部会拿 MapHeld 当字典键，出作用域就必须整段跳过 —— 宁可少报一种原因，也不能炸 tick。
+            if (bench.def.hasInteractionCell && w != null && w.SpawnedOrAnyParentSpawned && w.MapHeld == map)
             {
                 IntVec3 cell = bench.InteractionCell;
                 if (cell.Impassable(map) || cell.IsForbidden(w)) return "DS_BA_Block_Spot";
