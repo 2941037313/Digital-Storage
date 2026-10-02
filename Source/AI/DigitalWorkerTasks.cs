@@ -617,7 +617,18 @@ namespace DigitalStorage.AI
 
         public override IEnumerable<Thing> CandidateSet(Map map, Pawn pawn, WorkGiver_Scanner scanner)
         {
-            return map.listerThings.ThingsInGroup(ThingRequestGroup.Filth);
+            // ⚠️ **不能**用 `map.listerThings.ThingsInGroup(ThingRequestGroup.Filth)` ——
+            // `ThingListGroupHelper`（ListerThings 的注册判据）里**没有 Filth 这一组**，
+            // 那个列表**永远是空的**（实测：清洁代理解析不到任何污物、一件活都不干）。
+            // 原版 WorkGiver_CleanFilth 走的是专用 lister `Map.listerFilthInHomeArea`（只含家区），
+            // 而我们拍板"放宽 Home 区"，所以这里退到 AllThings 过滤（全图污物）。
+            List<Thing> all = map.listerThings.AllThings;
+            List<Thing> filths = new List<Thing>();
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i] is Filth) filths.Add(all[i]);
+            }
+            return filths;
         }
 
         public override DigitalTask MakeTask(Thing t, CompDigitalWorker comp)
@@ -727,9 +738,15 @@ namespace DigitalStorage.AI
     {
         private float workDone;
 
+        /// <summary>
+        /// 这一件是"收获/伐木"（designation = <c>HarvestPlant</c>）还是"割除"（<c>CutPlant</c>）。
+        /// 两者在 <see cref="StillValid"/> 里判出来，决定收尾用哪种 <c>PlantDestructionMode</c> 与清谁的标记。
+        /// </summary>
+        private bool asHarvest;
+
         public override string Label
         {
-            get { return "伐木"; }
+            get { return asHarvest ? "收获/伐木" : "割除"; }
         }
 
         private Plant PlantTarget
@@ -741,7 +758,23 @@ namespace DigitalStorage.AI
         {
             Plant p = PlantTarget;
             if (p == null || p.Destroyed || !p.Spawned) return false;
-            return map.designationManager.DesignationOn(p, DesignationDefOf.CutPlant) != null;
+
+            // ⚠️ 三个设计器只打两种标记（RimWorld\Designator_Plants*.cs）：
+            //    Designator_PlantsCut        → DesignationDefOf.CutPlant     （"割除"）
+            //    Designator_PlantsHarvest    → DesignationDefOf.HarvestPlant （"收获"）
+            //    Designator_PlantsHarvestWood→ DesignationDefOf.HarvestPlant （"伐木"！同一枚标记）
+            // 所以两种都要认，而且收尾方式不同（见 Harvest）。
+            if (map.designationManager.DesignationOn(p, DesignationDefOf.HarvestPlant) != null)
+            {
+                asHarvest = true;
+                return true;
+            }
+            if (map.designationManager.DesignationOn(p, DesignationDefOf.CutPlant) != null)
+            {
+                asHarvest = false;
+                return true;
+            }
+            return false;
         }
 
         public override float Progress01
@@ -826,11 +859,21 @@ namespace DigitalStorage.AI
                 plant.def.plant.soundHarvestFinish.PlayOneShot(plant);
             }
 
-            plant.PlantCollected(pawn, PlantDestructionMode.Cut);
+            plant.PlantCollected(pawn, asHarvest ? PlantDestructionMode.Chop : PlantDestructionMode.Cut);
 
-            // 原版收尾 toil = Toils_Interact.DestroyThing（它自己带 !Destroyed 守卫）
-            if (!plant.Destroyed && plant.Spawned)
+            // ---- 收尾：照抄原版两条 driver 各自的 PlantWorkDoneToil ----
+            if (asHarvest)
             {
+                // JobDriver_PlantHarvest → Toils_General.RemoveDesignationsOnThing(HarvestPlant)
+                Designation d = pawn.Map.designationManager.DesignationOn(plant, DesignationDefOf.HarvestPlant);
+                if (d != null)
+                {
+                    pawn.Map.designationManager.RemoveDesignation(d);
+                }
+            }
+            else if (!plant.Destroyed && plant.Spawned)
+            {
+                // JobDriver_PlantCut → Toils_Interact.DestroyThing（它自己带 !Destroyed 守卫）
                 plant.Destroy();
             }
         }

@@ -232,9 +232,12 @@ namespace DigitalStorage.Components
                 if (++seen > MaxIterate) break;
                 if (t == null || t.Destroyed || !t.Spawned) continue;
 
-                // 不抢别人（含原版殖民者与**本建筑其它活**）已认领的目标
+                // 不抢别人（含原版殖民者）已认领的目标；
+                // ⚠️ 也必须跳过**本建筑自己**已认领的 —— 否则同一次扫描会把同一个目标
+                // 反复认领成多件活（并行 200 时 = 200 件活全砸在同一块矿上，
+                // 表现成"只有一个目标"，而且瞬间挖穿）
                 if (t.IsForbidden(w)) continue;
-                if (DigitalWorkerClaims.IsClaimedByOther(map, t, this)) continue;
+                if (DigitalWorkerClaims.OwnerOf(map, t) != null) continue;
                 if (!adapter.CanTarget(w, t)) continue;
 
                 if (adapter.TrustWorkGiver)
@@ -551,6 +554,12 @@ namespace DigitalStorage.Components
         {
             CompDigitalWorker owner = OwnerOf(map, t);
             return owner != null && owner != me;
+        }
+
+        /// <summary>被**任何**代理认领了（包括自己）—— 找活时必须跳过这种目标。</summary>
+        public static bool IsClaimedByAnyone(Map map, Thing t)
+        {
+            return OwnerOf(map, t) != null;
         }
 
         public static void TryClaim(Map map, Thing t, CompDigitalWorker me)
