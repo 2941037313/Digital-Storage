@@ -104,6 +104,10 @@
     <Compile Include="HarmonyPatches\Patch_TradeDeal_InSellablePosition.cs" />
     <Compile Include="HarmonyPatches\Patch_HaulAIUtility.cs" />
     <Compile Include="HarmonyPatches\Patch_JobDriver_Equip.cs" />
+    <!-- ⚠️ 这个项目是**显式文件清单**，新增 .cs 必须在这里加一行，否则构建照样成功、
+         但那个文件根本不参与编译（DLL 里连类型名都没有）。2026-10-02 就因此白跑了一轮：
+         跨图的 bill 发现层补丁没进 DLL，症状是"吃饭/建造/加油跨界正常，bill/手术报缺料"。 -->
+    <Compile Include="HarmonyPatches\Patch_WorkGiver_DoBill_RemoteIngredients.cs" />
 
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />

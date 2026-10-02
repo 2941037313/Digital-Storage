@@ -52,6 +52,7 @@ namespace DigitalStorage.HarmonyPatches
 
             int ok = 0;
             var failed = new List<string>();
+            var okNames = Prefs.DevMode ? new List<string>() : null;
 
             for (int i = 0; i < types.Length; i++)
             {
@@ -63,6 +64,7 @@ namespace DigitalStorage.HarmonyPatches
                 {
                     harmony.CreateClassProcessor(type).Patch();
                     ok++;
+                    okNames?.Add(type.Name);
                 }
                 catch (Exception ex)
                 {
@@ -74,6 +76,13 @@ namespace DigitalStorage.HarmonyPatches
             PatchSummary = failed.Count == 0
                 ? " 补丁类=" + ok
                 : " 补丁类=" + ok + " 失败=" + failed.Count + " [" + string.Join(",", failed.ToArray()) + "]";
+
+            // 【为什么值得多打这一行】2026-10-02 踩过：新补丁文件没写进 csproj 的 <Compile>，
+            // 构建成功、DLL 里连类型名都没有 ⇒ 那个补丁**根本没进程序集**，
+            // 而 `CreateClassProcessor` 也不会有任何报错（它压根没被枚举到），
+            // 计数只会静静地少一个 —— 光看 count 是发现不了的。所以 dev 模式把名字全列出来。
+            if (okNames != null)
+                Log.Warning("[DigitalStorage] 已挂补丁类：" + string.Join(",", okNames.ToArray()));
         }
     }
 }
