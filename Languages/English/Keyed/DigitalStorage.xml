@@ -71,6 +71,36 @@
        DS_Priority is reused by the new container-contents panel, so it stays. -->
   <DS_Priority>Haul Priority</DS_Priority>
 
+  <!-- ========== Crafting proxy (CompBillAutomation) ========== -->
+  <DS_TabBillAutomation>Craft automation</DS_TabBillAutomation>
+  <DS_BA_Toggle>Craft automation</DS_BA_Toggle>
+  <DS_BA_ToggleDesc>Turn this off and the crafting proxy stops working bills for nearby benches (scan range and overclock tier are kept).</DS_BA_ToggleDesc>
+  <DS_BA_ToggleState>Craft automation: {0}</DS_BA_ToggleState>
+  <DS_BA_On>on</DS_BA_On>
+  <DS_BA_Off>off</DS_BA_Off>
+  <DS_BA_Overclock>Overclock: {0}</DS_BA_Overclock>
+  <DS_BA_OverclockDesc>Click to cycle the overclock tier. Current draw {0} W.\n3GHz: 30% of humanity thanks you (speed x3, power x9)\n6GHz: 60% of humanity thanks you (speed x6, power x27)\n9GHz: 90% of humanity thanks you (speed x9, power x81)</DS_BA_OverclockDesc>
+  <DS_BA_OverclockMsg>{0} overclock: {1} (draw {2} W)</DS_BA_OverclockMsg>
+  <DS_BA_OC_Off>off</DS_BA_OC_Off>
+  <DS_BA_OC_3>3 GHz</DS_BA_OC_3>
+  <DS_BA_OC_6>6 GHz</DS_BA_OC_6>
+  <DS_BA_OC_9>9 GHz</DS_BA_OC_9>
+  <DS_BA_Watts>Draw: {0} W (self {1} + benches {2}, overclock x{3})</DS_BA_Watts>
+  <DS_BA_Stats>Produced {0}, dropped {1}, benches {2}</DS_BA_Stats>
+  <DS_BA_NoBench>No bench with a doable bill within 13x13.</DS_BA_NoBench>
+  <DS_BA_Idle>idle</DS_BA_Idle>
+  <DS_BA_NoBill>No bill to work (missing material / skill too low / conditions unmet)</DS_BA_NoBill>
+  <DS_BA_NoCoreMaterial>Material is not inside a digital storage core (automation only consumes from cores)</DS_BA_NoCoreMaterial>
+  <DS_BA_BenchOff>Bench is unpowered, out of fuel or broken</DS_BA_BenchOff>
+  <DS_BA_BenchBusy>A colonist is using this bench</DS_BA_BenchBusy>
+  <DS_BA_Block_Material>Missing material (not enough inside the core)</DS_BA_Block_Material>
+  <DS_BA_Block_Skill>Skill too low (recipe needs more)</DS_BA_Block_Skill>
+  <DS_BA_Block_Restricted>This bill is restricted to a specific pawn; the proxy will not take it</DS_BA_Block_Restricted>
+  <DS_BA_Block_Obstructed>Bench needs fuel, or has something on it to haul away</DS_BA_Block_Obstructed>
+  <DS_BA_Block_Uft>Recipe needs an unfinished thing (not supported yet)</DS_BA_Block_Uft>
+  <DS_BA_Done>Crafted: {0} (stored into digital storage)</DS_BA_Done>
+  <DS_BA_DoneDropped>Crafted: {0} (core full or disabled, dropped at the bench)</DS_BA_DoneDropped>
+
   <!-- ========== 4.0 update letter (GameComponent.FinalizeInit, once per save) ========== -->
   <DigitalStorage_Letter40_Label>Digital Storage 4.0 Update 2026.10.3</DigitalStorage_Letter40_Label>
   <DigitalStorage_Letter40_Text>Digital Storage 4.0 — released 2026.10.3\n\n4.0 is a heart transplant: items are no longer numbers in a ledger, they are real Things held inside the core. Apparel, weapons, quality and durability all survive, and vanilla hauling, trading and item scanners recognise them natively.\n\n✅ Existing 3.0 saves are migrated automatically:\n- Inventory stored in a 3.0 core (the old ledger) is turned back into real items inside the container; anything that does not fit is dropped at the core's feet instead of being lost.\n- Your storage filter is carried over (only the "blocked" side is kept, nothing is loosened).\n⚠️ Removed for good: cross-map logistics, storage interfaces, terminal chips, buffer warehouses and the on-building core upgrade component (capacity is now research, see below). Migration will not bring them back.\n- Interfaces, buffer warehouses, chips and implants that already exist in an old save can no longer be resolved and will disappear when the save is loaded (a few one-off "could not find Def" lines in the log).\nRecommended: back up your save before updating.\n\nWhat changed in 4.0:\n- Core capacity starts at 500 stacks and can be researched up to 1000 / 1500 / 3000 (existing cores expand the moment the research finishes)\n- Remote access from anywhere at any distance; bill ingredients go straight into a pawn's backpack instead of walking to the core\n- Auto-ingest is now a three-tier research path (1/5/10 stacks per 15 ticks), no longer limited by home area or distance\n- Caravans, orbital trade beacons and visiting traders can all sell straight from the core\n- Compatibility layer: Phinix and its Red Packet plugin are supported, including the "allow trading items that are not in storage" branch\n\nThank you for your support! Bug reports: QQ group 693252771.</DigitalStorage_Letter40_Text>

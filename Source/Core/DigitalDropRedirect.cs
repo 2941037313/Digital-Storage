@@ -54,6 +54,17 @@ namespace DigitalStorage.Core
             core = null;
         }
 
+        /// <summary>
+        /// 离 <paramref name="near"/> 最近的**可用核心**（没有则 null）。
+        ///
+        /// <para>给"制作代理的产物直塞"用：那边没有"整个 tick 一个收件人"的作用域语义，
+        /// 是逐件产物现挑核心，所以需要一个能单独调用的入口。</para>
+        /// </summary>
+        public static Building_StorageCore NearestUsableCore(Map map, IntVec3 near)
+        {
+            return FindNearestUsableCore(map, near);
+        }
+
         private static Building_StorageCore FindNearestUsableCore(Map map, IntVec3 near)
         {
             if (map == null) return null;

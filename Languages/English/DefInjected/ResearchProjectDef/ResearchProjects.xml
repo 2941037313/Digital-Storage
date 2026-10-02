@@ -24,6 +24,18 @@
   <DigitalStorage_CoreLevel4.label>core Lv4</DigitalStorage_CoreLevel4.label>
   <DigitalStorage_CoreLevel4.description>Storage core capacity 1500 -> 3000 stacks. Applies immediately to every core already built on the map; no rebuild or reload needed.</DigitalStorage_CoreLevel4.description>
 
+  <DigitalStorage_CraftProxy1.label>crafting proxy I</DigitalStorage_CraftProxy1.label>
+  <DigitalStorage_CraftProxy1.description>Unlock crafting proxy I: bills on workbenches within 13x13 are completed by the building itself - ingredients are taken from a digital storage core and products go straight back into it.\n\nSkill 5, speed 0.8x, 300W plus the draw of every bench in range.</DigitalStorage_CraftProxy1.description>
+
+  <DigitalStorage_CraftProxy2.label>crafting proxy II</DigitalStorage_CraftProxy2.label>
+  <DigitalStorage_CraftProxy2.description>Unlock crafting proxy II: skill 10, speed 1.0x, same 300W.</DigitalStorage_CraftProxy2.description>
+
+  <DigitalStorage_CraftProxy3.label>crafting proxy III</DigitalStorage_CraftProxy3.label>
+  <DigitalStorage_CraftProxy3.description>Unlock crafting proxy III: skill 15, speed 1.5x, same 300W.</DigitalStorage_CraftProxy3.description>
+
+  <DigitalStorage_CraftProxy4.label>crafting proxy IV</DigitalStorage_CraftProxy4.label>
+  <DigitalStorage_CraftProxy4.description>Unlock crafting proxy IV: skill 20, speed 2.0x, same 300W.\n\nOverclocking (3/6/9 GHz) multiplies speed by 3/6/9 at 9/27/81 times the power draw.</DigitalStorage_CraftProxy4.description>
+
   <!-- DigitalStorage_TerminalImplant 已删（4.0 砍芯片） -->
 
 </LanguageData>

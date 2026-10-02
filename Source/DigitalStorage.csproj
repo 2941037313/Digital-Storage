@@ -68,6 +68,8 @@
     <Compile Include="Components\AutoIngestDevTool.cs" />
     <Compile Include="Components\CompProperties_DigitalWorker.cs" />
     <Compile Include="Components\CompDigitalWorker.cs" />
+    <Compile Include="Components\CompProperties_BillAutomation.cs" />
+    <Compile Include="Components\CompBillAutomation.cs" />
 
     <Compile Include="Core\CoreTier.cs" />
     <Compile Include="Core\HaulSourceContents.cs" />
@@ -84,6 +86,12 @@
     <Compile Include="AI\CoreFinder.cs" />
     <Compile Include="AI\DigitalWorkerTasks.cs" />
     <Compile Include="AI\DigitalWorkBudget.cs" />
+    <Compile Include="AI\DigitalWorkerFactory.cs" />
+    <Compile Include="AI\BillAutomationScope.cs" />
+    <Compile Include="AI\BillBenchClaims.cs" />
+    <Compile Include="AI\BillSlot.cs" />
+    <Compile Include="AI\BillProbe.cs" />
+    <Compile Include="AI\BillCraftFunnel.cs" />
 
     <Compile Include="Effects\Mote_DS_IngestBeam.cs" />
     <Compile Include="Effects\Mote_DS_WorkHand.cs" />
@@ -93,6 +101,7 @@
     <Compile Include="Backpack\Patch_JobDriver_DoBill_LoadIngredients.cs" />
 
     <Compile Include="UI\ITab_DigitalStorage.cs" />
+    <Compile Include="UI\ITab_BillAutomation.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
     <Compile Include="UI\Dialog_StorageFilter.cs" />
     <Compile Include="UI\FloatMenuOptionProvider_DS_Withdraw.cs" />
@@ -120,6 +129,7 @@
     <Compile Include="HarmonyPatches\Patch_MakeLordsAsAppropriate_InstantLoad.cs" />
     <Compile Include="HarmonyPatches\Patch_ReservationManager_CanReserve.cs" />
     <Compile Include="HarmonyPatches\Patch_GenPlace_DropRedirect.cs" />
+    <Compile Include="HarmonyPatches\Patch_QualityUtility_SuppressCraftLetter.cs" />
 
     <!-- 原版热点优化（不是本 mod 的功能补丁，纯粹治原版在"框选一堆/标记一堆"时的每帧开销） -->
     <Compile Include="Performance\Patch_SelectionDrawer_BracketCull.cs" />
@@ -127,7 +137,6 @@
     <Compile Include="Performance\Patch_FleckMaker_MetaPuffThrottle.cs" />
     <Compile Include="Performance\Patch_FleckManager_CreationBudget.cs" />
     <Compile Include="Performance\DevDrawProfiler.cs" />
-
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />
 

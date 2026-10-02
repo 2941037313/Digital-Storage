@@ -579,61 +579,17 @@ namespace DigitalStorage.Components
         // 资质载体（假 pawn）
         // ===================================================================
 
+        /// <summary>
+        /// 造资质载体。<b>生成逻辑已抽到 <see cref="DigitalWorkerFactory"/></b>（制作代理的
+        /// <c>CompBillAutomation</c> 要用同一套 —— 组件补齐/不进注册表/清特质/固定资质
+        /// 四条坑，两处各写一份必然漂移）。
+        /// </summary>
         private void EnsureWorker()
         {
             if (worker != null && !worker.Destroyed) return;
-            try
-            {
-                // 先例：god hand MapComponent_GodAssistant.cs:18-33
-                worker = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
-                worker.Name = new NameTriple("", "数字工人",
-                    (Props.workTypes != null && Props.workTypes.Count > 0 ? Props.workTypes[0].defName : "?")
-                    + Props.skillLevel);
-
-                // ★ 补上"生成时不需要、被 spawn 时才建"的那批组件（pather / rotationTracker / natives /
-                //   filth / roping…）。不补的话，**任何读 pawn.DrawPos 的原版代码都会 NRE** ——
-                //   PawnTweener.TweenedPosRoot 直接解引用 pawn.pather（Verse\PawnTweener.cs:104），
-                //   而 pather 是 Pawn.SpawnSetup → PawnComponentsUtility.AddComponentsForSpawn 才建的。
-                //   实测踩过：原版挖掘特效的 sprayer 取 TargetInfo.CenterVector3（→ Pawn.DrawPos）时炸掉。
-                //   AddComponentsForSpawn 内部对"还没真的 spawn"的 pawn 是安全的
-                //   （它给 AddAndRemoveDynamicComponents 传 actAsIfSpawned: true，PawnComponentsUtility.cs:206）。
-                PawnComponentsUtility.AddComponentsForSpawn(worker);
-
-                // ① 不进地图注册表：即便作用域期间 Spawned 为 true，RegisterPawn 也会早退
-                //    （MapPawns.cs:847 `if (!p.mindState.Active) return;`）
-                worker.mindState.Active = false;
-
-                // ② 清掉随机特质 —— WorkTypeIsDisabled 会吃背景/特质，机器不该因抽到
-                //    "不能做熟练劳动"而罢工（Notify_DisabledWorkTypesChanged 会清 Pawn 侧缓存）
-                if (worker.story != null && worker.story.traits != null && worker.story.traits.allTraits != null)
-                {
-                    worker.story.traits.allTraits.Clear();
-                }
-                if (worker.relations != null)
-                {
-                    worker.relations.ClearAllRelations();
-                }
-
-                // ③ 固定资质：技能只进品质/产量，且**永不成长**（不调 skills.Learn）
-                if (worker.skills != null)
-                {
-                    for (int i = 0; i < worker.skills.skills.Count; i++)
-                    {
-                        worker.skills.skills[i].Level = Props.skillLevel;
-                    }
-                }
-                worker.Notify_DisabledWorkTypesChanged();
-
-                if (worker.workSettings != null)
-                {
-                    worker.workSettings.EnableAndInitialize();
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Error("[DigitalStorage] 生成数字工人失败：" + e);
-                worker = null;
-            }
+            string nick = (Props.workTypes != null && Props.workTypes.Count > 0 ? Props.workTypes[0].defName : "?")
+                + Props.skillLevel;
+            worker = DigitalWorkerFactory.Create(Props.skillLevel, "数字工人", nick);
         }
     }
 

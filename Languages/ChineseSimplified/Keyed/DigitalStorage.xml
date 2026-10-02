@@ -71,6 +71,36 @@
        DS_Priority 被新的容器内容物面板复用，保留。 -->
   <DS_Priority>搬运优先级</DS_Priority>
 
+  <!-- ========== 制作代理（CompBillAutomation）========== -->
+  <DS_TabBillAutomation>制作自动化</DS_TabBillAutomation>
+  <DS_BA_Toggle>制作自动化</DS_BA_Toggle>
+  <DS_BA_ToggleDesc>关掉后这台制作代理不再替工作台干活（扫描范围与超频档位保留）。</DS_BA_ToggleDesc>
+  <DS_BA_ToggleState>制作自动化：{0}</DS_BA_ToggleState>
+  <DS_BA_On>开</DS_BA_On>
+  <DS_BA_Off>关</DS_BA_Off>
+  <DS_BA_Overclock>超频：{0}</DS_BA_Overclock>
+  <DS_BA_OverclockDesc>点击切换超频档位。当前耗电 {0} W。\n3GHz：30% 的人类感谢你（速度 ×3，耗电 ×9）\n6GHz：60% 的人类感谢你（速度 ×6，耗电 ×27）\n9GHz：90% 的人类感谢你（速度 ×9，耗电 ×81）</DS_BA_OverclockDesc>
+  <DS_BA_OverclockMsg>{0} 超频：{1}（耗电 {2} W）</DS_BA_OverclockMsg>
+  <DS_BA_OC_Off>关闭</DS_BA_OC_Off>
+  <DS_BA_OC_3>3 GHz</DS_BA_OC_3>
+  <DS_BA_OC_6>6 GHz</DS_BA_OC_6>
+  <DS_BA_OC_9>9 GHz</DS_BA_OC_9>
+  <DS_BA_Watts>耗电：{0} W（自身 {1} + 范围内工作台 {2}，超频 ×{3}）</DS_BA_Watts>
+  <DS_BA_Stats>已产出 {0} 件，落地 {1} 件，在办工作台 {2} 台</DS_BA_Stats>
+  <DS_BA_NoBench>13×13 范围内没有正在做 bill 的工作台。</DS_BA_NoBench>
+  <DS_BA_Idle>待命</DS_BA_Idle>
+  <DS_BA_NoBill>没有可做的 bill（缺料 / 资质不够 / 条件不满足）</DS_BA_NoBill>
+  <DS_BA_NoCoreMaterial>材料不在数字存储核心里（自动化只吃核心里的料）</DS_BA_NoCoreMaterial>
+  <DS_BA_BenchOff>工作台断电、缺燃料或已损坏</DS_BA_BenchOff>
+  <DS_BA_BenchBusy>殖民者正在使用这台工作台</DS_BA_BenchBusy>
+  <DS_BA_Block_Material>缺料（核心里的材料不足）</DS_BA_Block_Material>
+  <DS_BA_Block_Skill>资质不够（配方要求更高技能）</DS_BA_Block_Skill>
+  <DS_BA_Block_Restricted>这条 bill 限定给特定小人，代理不抢</DS_BA_Block_Restricted>
+  <DS_BA_Block_Obstructed>工作台要先加燃料，或先搬走台上的东西</DS_BA_Block_Obstructed>
+  <DS_BA_Block_Uft>该配方需要未完成品（暂不支持）</DS_BA_Block_Uft>
+  <DS_BA_Done>制作完成：{0}（已存入数字存储核心）</DS_BA_Done>
+  <DS_BA_DoneDropped>制作完成：{0}（核心放不下或未启用，放在工作台旁）</DS_BA_DoneDropped>
+
   <!-- ========== 4.0 更新信封（GameComponent.FinalizeInit 每档弹一次）========== -->
   <DigitalStorage_Letter40_Label>数字存储 4.0 更新说明 2026.10.3</DigitalStorage_Letter40_Label>
   <DigitalStorage_Letter40_Text>数字存储 4.0 更新说明 2026.10.3\n\n4.0 是「换心脏」：物品不再是账本里的数字，而是真实存放在核心内部的 Thing。衣物、武器、品质与耐久差异全部能存，原版搬运、交易与各类物品扫描器也原生认它。\n\n✅ 3.0 老存档会**自动迁移**：\n· 核心里的库存（旧账本）会逐项还原成真实物品放进容器；容器装不下的会落在核心脚下，不会丢。\n· 你原来的存储筛选会被沿用（只保留「禁用」的那一侧，不会放宽）。\n⚠️ 已移除且不会复活的机制：跨图物流、存储接口、终端芯片、缓冲仓库、建筑上的核心升级组件（容量改挂研究，见下）。\n· 旧存档里已建好的接口 / 缓冲仓库、芯片与植入体不会再解析出来（读档时日志里会有几条一次性的「找不到 Def」）。\n建议：更新前先备份存档。\n\n4.0 变了什么：\n· 核心容量 500 堆起步，用研究「核心 Lv2 / Lv3 / Lv4」扩到 1000 / 1500 / 3000 堆（研究一完成，已有的核心立刻扩容）\n· 任何位置、任何距离隔空存取；做 bill 时材料直接进随身背包，小人不必先走到核心\n· 自动收纳改为三级研究（每 15 tick 吸 1/5/10 堆），且不再受活动区与距离限制\n· 商队、轨道交易信标、访客交易都能直接卖掉核心里的东西\n· 兼容层：Phinix 与红包插件已适配，含「允许交易不在储存区中的物品」那条分支\n\n感谢支持！Bug 反馈 Q 群 693252771。</DigitalStorage_Letter40_Text>

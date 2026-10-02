@@ -117,6 +117,60 @@
   </ResearchProjectDef>
 
   <!-- ==========================================================================
+       制作代理链（4 级）—— 用户拍板：资质 5/10/15/20，速度 0.8/1/1.5/2，固定 300W。
+       X = 4/5/6/7、Y = 7 排成一行（其余内容最高用到 Y=6，不打架）。
+       建筑本体见 Defs/ThingDefs_CraftWorkers.xml（1×1，扫描 13×13 方形）。
+       ========================================================================== -->
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CraftProxy1</defName>
+    <label>制作代理 I</label>
+    <description>解锁一级制作代理：13×13 范围内工作台上的 bill 由建筑自己完成 —— 材料从数字存储核心扣除，产物直接存入核心。\n\n资质 5 级，速度 0.8×，自身耗电 300W（另加范围内各工作台的耗电）。</description>
+    <baseCost>1000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_BasicStorage</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>4</researchViewX>
+    <researchViewY>7</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CraftProxy2</defName>
+    <label>制作代理 II</label>
+    <description>解锁二级制作代理：资质 10 级，速度 1.0×，耗电不变（仍是自身 300W）。</description>
+    <baseCost>1500</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_CraftProxy1</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>5</researchViewX>
+    <researchViewY>7</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CraftProxy3</defName>
+    <label>制作代理 III</label>
+    <description>解锁三级制作代理：资质 15 级，速度 1.5×，耗电不变。</description>
+    <baseCost>2000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_CraftProxy2</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>6</researchViewX>
+    <researchViewY>7</researchViewY>
+  </ResearchProjectDef>
+  <ResearchProjectDef>
+    <defName>DigitalStorage_CraftProxy4</defName>
+    <label>制作代理 IV</label>
+    <description>解锁四级制作代理：资质 20 级，速度 2.0×，耗电不变。\n\n配合建筑上的超频（3/6/9 GHz）可再提速 3/6/9 倍，代价是耗电 ×9/×27/×81。</description>
+    <baseCost>3000</baseCost>
+    <techLevel>Spacer</techLevel>
+    <prerequisites><li>DigitalStorage_CraftProxy3</li></prerequisites>
+    <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>
+    <tab>DigitalStorage_Tab</tab>
+    <researchViewX>7</researchViewX>
+    <researchViewY>7</researchViewY>
+  </ResearchProjectDef>
+
+  <!-- ==========================================================================
        代理建筑：**四条并行链**（挖掘 / 建造 / 清洁 / 种植），每条三级，
        四条链的三级全部汇入「超凡代理」。
 

@@ -7,6 +7,17 @@
 
   <!-- Input Interface 已删（4.0 砍接口建筑） -->
 
+  <!-- Crafting proxies (4 tiers). 注：4 类工作代理建筑（挖掘/建造/清洁/种植）
+       一直没做英文 DefInjected，是既有缺口，不在本次范围内。 -->
+  <DigitalStorage_WorkerCraftI.label>crafting proxy I</DigitalStorage_WorkerCraftI.label>
+  <DigitalStorage_WorkerCraftI.description>Completes bills on workbenches within 13x13 on its own: ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftI.description>
+  <DigitalStorage_WorkerCraftII.label>crafting proxy II</DigitalStorage_WorkerCraftII.label>
+  <DigitalStorage_WorkerCraftII.description>Completes bills on workbenches within 13x13 on its own: ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftII.description>
+  <DigitalStorage_WorkerCraftIII.label>crafting proxy III</DigitalStorage_WorkerCraftIII.label>
+  <DigitalStorage_WorkerCraftIII.description>Completes bills on workbenches within 13x13 on its own: ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftIII.description>
+  <DigitalStorage_WorkerCraftIV.label>crafting proxy IV</DigitalStorage_WorkerCraftIV.label>
+  <DigitalStorage_WorkerCraftIV.description>Completes bills on workbenches within 13x13 on its own: ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftIV.description>
+
   <!-- Terminal Chip 已删（4.0 砍芯片） -->
 
 </LanguageData>
