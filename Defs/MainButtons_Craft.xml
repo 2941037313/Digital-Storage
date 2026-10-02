@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- 底部菜单栏按钮：打开"制作自动化"三栏大窗口（用户要求：ITab 之外也能开）。
+       order 95 = 夹在原版 Factions(90) 与 Menu(500) 之间，不去挤前面的管理页签。
+       workerClass 直接开窗口，所以**不设** tabWindowClass（那是"底部栏 + 全屏标签页"的另一套机制）。 -->
+  <MainButtonDef>
+    <defName>DigitalStorage_CraftAutomation</defName>
+    <label>制作自动化</label>
+    <description>打开数字存储的制作面板：管理各台制作代理的配方订单、查看材料与进度、切换超频。</description>
+    <workerClass>DigitalStorage.UI.MainButtonWorker_CraftAutomation</workerClass>
+    <order>95</order>
+    <iconPath>2.0/代理建筑</iconPath>
+  </MainButtonDef>
+
+</Defs>

@@ -10,18 +10,28 @@ using Verse;
 namespace DigitalStorage.UI
 {
     /// <summary>
-    /// <b>"添加配方"窗口</b>：列出 13×13 范围内工作台能做、且研究已解锁的配方，点一下加进面板。
+    /// <b>"添加配方"窗口</b>（界面稿里的弹窗结构）：顶部<b>分类页签</b> + 搜索 + 列表，
+    /// 点一行就加进该制作代理的订单列表。
     ///
-    /// <para>这就是用户说的"打开菜单，列出能做的 bill" —— 列表来自
-    /// <see cref="CraftUnlocks"/>（台子类型 → 配方表），**不需要工作台上真的有 bill**。</para>
-    ///
-    /// <para>资质不够的配方照样显示（标红），让玩家知道"是这台机器等级不够"而不是"配方不存在"。</para>
+    /// <para>候选来自 <see cref="CraftUnlocks"/>：13×13 范围内工作台能做、且研究已解锁的配方。
+    /// 资质不够 / 已添加的**仍然显示**（灰色 + 标注），免得玩家以为"没有这个配方"。
+    /// 分类用 <see cref="CraftCategories"/> 按产物 def 的真实数据判定（武器 / 装备与衣物 / 制成品 /
+    /// 食物 / 药品与耗材 / 建筑与家具 / 其他）。</para>
     /// </summary>
     public class Dialog_DS_AddCraft : Window
     {
+        private static readonly Color ColPanelDark = new Color(0.106f, 0.125f, 0.145f);
+        private static readonly Color ColPanel = new Color(0.133f, 0.153f, 0.176f);
+        private static readonly Color ColLite = new Color(0.173f, 0.200f, 0.227f);
+        private static readonly Color ColLine = new Color(0.212f, 0.239f, 0.271f);
+        private static readonly Color ColDim = new Color(0.529f, 0.561f, 0.596f);
+        private static readonly Color ColBad = new Color(0.769f, 0.333f, 0.247f);
+        private static readonly Color ColAccent = new Color(0.788f, 0.663f, 0.380f);
+
         private readonly CompBillAutomation comp;
         private readonly List<RecipeDef> shown = new List<RecipeDef>();
         private string search = "";
+        private int catIndex;
         private Vector2 scroll;
 
         public Dialog_DS_AddCraft(CompBillAutomation comp)
@@ -30,88 +40,131 @@ namespace DigitalStorage.UI
             this.doCloseX = true;
             this.closeOnClickedOutside = true;
             this.absorbInputAroundWindow = true;
+            this.onlyOneOfTypeAllowed = true;
         }
 
         public override Vector2 InitialSize
         {
-            get { return new Vector2(640f, 640f); }
+            get { return new Vector2(560f, 620f); }
         }
 
         public override void DoWindowContents(Rect inRect)
         {
+            Widgets.DrawBoxSolid(inRect, ColPanelDark);
+            Widgets.DrawBox(inRect, 1);
+
+            Rect r = new Rect(inRect.x + 8f, inRect.y + 6f, inRect.width - 16f, inRect.height - 12f);
+
             Text.Font = GameFont.Medium;
-            Widgets.Label(new Rect(0f, 0f, inRect.width, 30f), "DS_BA_AddTitle".Translate());
+            Widgets.Label(new Rect(r.x, r.y, r.width - 30f, 26f), "DS_BA_AddTitle".Translate());
             Text.Font = GameFont.Small;
+            float y = r.y + 28f;
 
-            search = Widgets.TextField(new Rect(0f, 32f, inRect.width, 26f), search);
+            // ---- 分类页签 ----
+            float tabX = r.x;
+            float tabY = y;
+            for (int i = 0; i < CraftCategories.Tabs.Length; i++)
+            {
+                string label = CraftCategories.LabelKey(CraftCategories.Tabs[i]).Translate();
+                float w = Mathf.Max(52f, Text.CalcSize(label).x + 16f);
+                if (tabX + w > r.xMax)
+                {
+                    tabX = r.x;
+                    tabY += 24f;
+                }
+                Rect tab = new Rect(tabX, tabY, w, 22f);
+                if (catIndex == i) Widgets.DrawBoxSolid(tab, ColLite);
+                else if (Mouse.IsOver(tab)) Widgets.DrawBoxSolid(tab, ColPanel);
+                GUI.color = (catIndex == i) ? ColAccent : Color.white;
+                Text.Anchor = TextAnchor.MiddleCenter;
+                Widgets.Label(tab, label);
+                Text.Anchor = TextAnchor.UpperLeft;
+                GUI.color = Color.white;
+                if (Widgets.ButtonInvisible(tab)) { catIndex = i; scroll = Vector2.zero; }
+                tabX += w + 3f;
+            }
+            y = tabY + 26f;
 
-            Rect listRect = new Rect(0f, 64f, inRect.width, inRect.height - 64f - 40f);
+            Widgets.DrawBoxSolid(new Rect(r.x, y - 2f, r.width, 1f), ColLine);
+
+            // ---- 搜索 ----
+            search = Widgets.TextField(new Rect(r.x, y + 2f, r.width, 24f), search);
+            y += 30f;
+
+            // ---- 列表 ----
             BuildList();
-
+            Rect listRect = new Rect(r.x, y, r.width, r.yMax - y - 26f);
             if (shown.Count == 0)
             {
+                GUI.color = ColDim;
                 Widgets.Label(listRect, "DS_BA_NoRecipeAvailable".Translate());
+                GUI.color = Color.white;
             }
             else
             {
-                const float rowH = 42f;
-                Rect inner = new Rect(0f, 0f, listRect.width - 16f, Math.Max(listRect.height, shown.Count * rowH));
+                const float rowH = 36f;
+                Rect inner = new Rect(0f, 0f, listRect.width - 18f, Math.Max(listRect.height, shown.Count * rowH + 4f));
                 Widgets.BeginScrollView(listRect, ref scroll, inner);
 
-                float y = 0f;
+                float ly = 0f;
                 for (int i = 0; i < shown.Count; i++)
                 {
-                    RecipeDef r = shown[i];
-                    Rect row = new Rect(0f, y, inner.width, rowH - 2f);
-                    if (i % 2 == 0) Widgets.DrawAltRect(row);
+                    RecipeDef recipe = shown[i];
+                    Rect row = new Rect(2f, ly, inner.width - 4f, rowH - 2f);
+                    bool added = comp.HasPlan(recipe);
+                    bool skillOk = SkillOk(recipe);
 
-                    bool added = comp.HasPlan(r);
-                    bool skillOk = SkillOk(r);
+                    if (Mouse.IsOver(row)) Widgets.DrawBoxSolid(row, ColLite);
+                    else if (i % 2 == 0) Widgets.DrawBoxSolid(row, ColPanel);
 
-                    Widgets.Label(new Rect(row.x + 4f, row.y + 2f, 240f, 18f), r.LabelCap);
-                    Widgets.Label(new Rect(row.x + 4f, row.y + 20f, row.width - 90f, 18f), IngredientsLine(r));
+                    GUI.color = (added || !skillOk) ? ColDim : Color.white;
+                    ThingDef prod = CraftCategories.MainProduct(recipe);
+                    if (prod != null) Widgets.DefIcon(new Rect(row.x + 3f, row.y + 3f, 26f, 26f), prod);
+                    Widgets.Label(new Rect(row.x + 34f, row.y + 2f, row.width - 120f, 18f), recipe.LabelCap);
+                    Text.Font = GameFont.Tiny;
+                    Widgets.Label(new Rect(row.x + 34f, row.y + 19f, row.width - 120f, 16f), IngredientsLine(recipe));
+                    Text.Font = GameFont.Small;
+                    GUI.color = Color.white;
 
-                    string right = added
-                        ? "DS_BA_AlreadyAdded".Translate()
-                        : (skillOk ? "DS_BA_ClickToAdd".Translate() : "DS_BA_SkillShort".Translate());
                     Text.Anchor = TextAnchor.MiddleRight;
-                    Widgets.Label(new Rect(row.xMax - 200f, row.y + 11f, 196f, 18f), right);
+                    if (added) GUI.color = ColAccent;
+                    else if (!skillOk) GUI.color = ColBad;
+                    else GUI.color = ColDim;
+                    Widgets.Label(new Rect(row.xMax - 250f, row.y + 9f, 246f, 18f),
+                        added ? "DS_BA_AlreadyAdded".Translate().ToString()
+                              : (skillOk ? "DS_BA_ClickToAdd".Translate().ToString() : NeedSkillText(recipe)));
+                    GUI.color = Color.white;
                     Text.Anchor = TextAnchor.UpperLeft;
 
-                    if (!added && Mouse.IsOver(row) && !skillOk)
-                    {
-                        TooltipHandler.TipRegion(row, "DS_BA_NeedSkill".Translate(SkillLine(r)));
-                    }
-
-                    if (!added && Widgets.ButtonInvisible(row))
-                    {
-                        comp.AddPlan(r);
-                    }
-                    y += rowH;
+                    if (!added && Widgets.ButtonInvisible(row)) comp.AddPlan(recipe);
+                    ly += rowH;
                 }
 
                 Widgets.EndScrollView();
             }
 
-            if (Widgets.ButtonText(new Rect(inRect.center.x - 60f, inRect.yMax - 32f, 120f, 28f), "DS_BA_Close".Translate()))
-            {
-                Close();
-            }
+            GUI.color = ColDim;
+            Widgets.Label(new Rect(r.x, r.yMax - 22f, r.width, 20f), "DS_CA_AddHint".Translate());
+            GUI.color = Color.white;
         }
 
         private void BuildList()
         {
             shown.Clear();
             IList<RecipeDef> all = comp.UnlockedRecipes;
+            CraftCategory want = CraftCategories.Tabs[Mathf.Clamp(catIndex, 0, CraftCategories.Tabs.Length - 1)];
+
             for (int i = 0; i < all.Count; i++)
             {
                 RecipeDef r = all[i];
                 if (r == null) continue;
+                if (want != CraftCategory.All && CraftCategories.Of(r) != want) continue;
+
                 if (!string.IsNullOrEmpty(search))
                 {
-                    string label = r.LabelCap;
-                    bool hit = (label != null && label.IndexOf(search, System.StringComparison.OrdinalIgnoreCase) >= 0)
-                        || r.defName.IndexOf(search, System.StringComparison.OrdinalIgnoreCase) >= 0;
+                    string label = r.LabelCap.ToString();
+                    bool hit = label.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0
+                        || r.defName.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0;
                     if (!hit) continue;
                 }
                 shown.Add(r);
@@ -120,7 +173,7 @@ namespace DigitalStorage.UI
 
         private static string IngredientsLine(RecipeDef r)
         {
-            if (r.ingredients == null || r.ingredients.Count == 0) return "";
+            if (r.ingredients == null || r.ingredients.Count == 0) return "DS_CA_NoMaterials".Translate().ToString();
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < r.ingredients.Count; i++)
             {
@@ -130,17 +183,16 @@ namespace DigitalStorage.UI
             return sb.ToString();
         }
 
-        private static string SkillLine(RecipeDef r)
+        private string NeedSkillText(RecipeDef r)
         {
-            if (r.skillRequirements == null || r.skillRequirements.Count == 0) return "";
+            if (r.skillRequirements == null || r.skillRequirements.Count == 0) return "DS_BA_SkillShort".Translate().ToString();
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < r.skillRequirements.Count; i++)
             {
                 if (i > 0) sb.Append(", ");
-                sb.Append(r.skillRequirements[i].skill.LabelCap).Append(' ')
-                    .Append(r.skillRequirements[i].minLevel);
+                sb.Append(r.skillRequirements[i].skill.LabelCap).Append(' ').Append(r.skillRequirements[i].minLevel);
             }
-            return sb.ToString();
+            return "DS_BA_NeedSkill".Translate(sb.ToString()).ToString();
         }
 
         /// <summary>代理的固定资质够不够这个配方的 skillRequirements。</summary>

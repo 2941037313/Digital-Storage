@@ -119,6 +119,47 @@
   <DS_BA_NeedSkill>需要：{0}</DS_BA_NeedSkill>
   <DS_BA_Block_Unsupported>这种工作台不支持代工（换不了账单）</DS_BA_Block_Unsupported>
   <DS_BA_Block_Research>研究未解锁</DS_BA_Block_Research>
+
+  <!-- ========== 制作自动化 · 三栏面板（Window_CraftAutomation）========== -->
+  <DS_CA_NoProxy>本图没有制作代理 —— 先造一台「制作代理」</DS_CA_NoProxy>
+  <DS_CA_NoProxyHint>本图没有制作代理：造一台之后，这里就能管理它的配方、材料与进度。</DS_CA_NoProxyHint>
+  <DS_CA_Orders>订单</DS_CA_Orders>
+  <DS_CA_NoOrder>这一类里没有订单</DS_CA_NoOrder>
+  <DS_CA_PickOrder>左边选一条订单看详情</DS_CA_PickOrder>
+  <DS_CA_AddRecipe>添加配方…</DS_CA_AddRecipe>
+  <DS_CA_AddHint>点一行加入订单列表 · 灰行 = 资质不够或已添加</DS_CA_AddHint>
+  <DS_CA_OpenPanel>打开制作面板</DS_CA_OpenPanel>
+  <DS_CA_NavAll>全部</DS_CA_NavAll>
+  <DS_CA_NavOk>生产中</DS_CA_NavOk>
+  <DS_CA_NavBad>阻塞</DS_CA_NavBad>
+  <DS_CA_NavWarn>待处理</DS_CA_NavWarn>
+  <DS_CA_NavIdle>已挂起</DS_CA_NavIdle>
+  <DS_CA_NavDone>已完成</DS_CA_NavDone>
+  <DS_CA_Mode>模式</DS_CA_Mode>
+  <DS_CA_Running>在产</DS_CA_Running>
+  <DS_CA_Status>状态</DS_CA_Status>
+  <DS_CA_Progress>当前进度</DS_CA_Progress>
+  <DS_CA_Percent>{0}%</DS_CA_Percent>
+  <DS_CA_RemainTime>本件剩余约 {0} 秒</DS_CA_RemainTime>
+  <DS_CA_Needs>所需材料（从数字存储核心扣除）</DS_CA_Needs>
+  <DS_CA_NoMaterials>该配方无需材料</DS_CA_NoMaterials>
+  <DS_CA_Have>需要 {0} · 核心 {1}</DS_CA_Have>
+  <DS_CA_Sub>{0} · 需要 {1}</DS_CA_Sub>
+  <DS_CA_Working>正在生产</DS_CA_Working>
+  <DS_CA_Waiting>等待中</DS_CA_Waiting>
+  <DS_CA_Up>上移</DS_CA_Up>
+  <DS_CA_Down>下移</DS_CA_Down>
+  <DS_CA_Delete>删除</DS_CA_Delete>
+  <DS_CA_SetForever>改为无限</DS_CA_SetForever>
+  <DS_BA_Stats2>已产出 {0} · 配方 {1}</DS_BA_Stats2>
+  <DS_Cat_All>全部</DS_Cat_All>
+  <DS_Cat_Weapon>武器</DS_Cat_Weapon>
+  <DS_Cat_Apparel>装备与衣物</DS_Cat_Apparel>
+  <DS_Cat_Manufactured>制成品</DS_Cat_Manufactured>
+  <DS_Cat_Food>食物</DS_Cat_Food>
+  <DS_Cat_Medical>药品与耗材</DS_Cat_Medical>
+  <DS_Cat_Building>建筑与家具</DS_Cat_Building>
+  <DS_Cat_Other>其他</DS_Cat_Other>
   <DS_BA_Done>制作完成：{0}（已存入数字存储核心）</DS_BA_Done>
   <DS_BA_DoneDropped>制作完成：{0}（核心放不下或未启用，放在工作台旁）</DS_BA_DoneDropped>
 

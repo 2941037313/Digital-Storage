@@ -119,6 +119,47 @@
   <DS_BA_NeedSkill>Requires: {0}</DS_BA_NeedSkill>
   <DS_BA_Block_Unsupported>This bench type cannot be automated (bill stack cannot be swapped)</DS_BA_Block_Unsupported>
   <DS_BA_Block_Research>Research not unlocked</DS_BA_Block_Research>
+
+  <!-- ========== Craft automation · three-column window ========== -->
+  <DS_CA_NoProxy>No crafting proxy on this map - build one first</DS_CA_NoProxy>
+  <DS_CA_NoProxyHint>No crafting proxy on this map: build one and you can manage its recipes, materials and progress here.</DS_CA_NoProxyHint>
+  <DS_CA_Orders>Orders</DS_CA_Orders>
+  <DS_CA_NoOrder>No orders in this filter</DS_CA_NoOrder>
+  <DS_CA_PickOrder>Pick an order on the left to see details</DS_CA_PickOrder>
+  <DS_CA_AddRecipe>Add recipe…</DS_CA_AddRecipe>
+  <DS_CA_AddHint>Click a row to add it · grey rows are skill-locked or already added</DS_CA_AddHint>
+  <DS_CA_OpenPanel>Open craft panel</DS_CA_OpenPanel>
+  <DS_CA_NavAll>All</DS_CA_NavAll>
+  <DS_CA_NavOk>Running</DS_CA_NavOk>
+  <DS_CA_NavBad>Blocked</DS_CA_NavBad>
+  <DS_CA_NavWarn>Waiting</DS_CA_NavWarn>
+  <DS_CA_NavIdle>Suspended</DS_CA_NavIdle>
+  <DS_CA_NavDone>Finished</DS_CA_NavDone>
+  <DS_CA_Mode>Mode</DS_CA_Mode>
+  <DS_CA_Running>Running</DS_CA_Running>
+  <DS_CA_Status>Status</DS_CA_Status>
+  <DS_CA_Progress>Progress</DS_CA_Progress>
+  <DS_CA_Percent>{0}%</DS_CA_Percent>
+  <DS_CA_RemainTime>about {0} s left</DS_CA_RemainTime>
+  <DS_CA_Needs>Materials (taken from digital storage cores)</DS_CA_Needs>
+  <DS_CA_NoMaterials>This recipe needs no materials</DS_CA_NoMaterials>
+  <DS_CA_Have>need {0} · core {1}</DS_CA_Have>
+  <DS_CA_Sub>{0} · requires {1}</DS_CA_Sub>
+  <DS_CA_Working>working</DS_CA_Working>
+  <DS_CA_Waiting>waiting</DS_CA_Waiting>
+  <DS_CA_Up>Up</DS_CA_Up>
+  <DS_CA_Down>Down</DS_CA_Down>
+  <DS_CA_Delete>Delete</DS_CA_Delete>
+  <DS_CA_SetForever>Set to forever</DS_CA_SetForever>
+  <DS_BA_Stats2>produced {0} · recipes {1}</DS_BA_Stats2>
+  <DS_Cat_All>All</DS_Cat_All>
+  <DS_Cat_Weapon>Weapons</DS_Cat_Weapon>
+  <DS_Cat_Apparel>Apparel &amp; gear</DS_Cat_Apparel>
+  <DS_Cat_Manufactured>Manufactured</DS_Cat_Manufactured>
+  <DS_Cat_Food>Food</DS_Cat_Food>
+  <DS_Cat_Medical>Medicine &amp; drugs</DS_Cat_Medical>
+  <DS_Cat_Building>Building &amp; furniture</DS_Cat_Building>
+  <DS_Cat_Other>Other</DS_Cat_Other>
   <DS_BA_Done>Crafted: {0} (stored into digital storage)</DS_BA_Done>
   <DS_BA_DoneDropped>Crafted: {0} (core full or disabled, dropped at the bench)</DS_BA_DoneDropped>
 
