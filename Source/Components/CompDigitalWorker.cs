@@ -52,8 +52,24 @@ namespace DigitalStorage.Components
         private int nextScanTick;
         private bool enabled = true;
 
-        /// <summary>候选集遍历上限（防某个 lister 把一帧吃光）。</summary>
+        /// <summary>候选集遍历上限（防某个 lister 把一帧吃光）。**每次 giver 调用**的上限。</summary>
         private const int MaxIterate = 4000;
+
+        /// <summary>
+        /// <b>一次扫描（跨所有 add、所有 giver）的总枚举额度</b>。
+        ///
+        /// <para>⚠️ 2026 实测踩坑：原先只有 <see cref="MaxIterate"/>（每次 add 4000），
+        /// 而一次扫描最多 <see cref="AddsPerScan"/> 个 add ⇒ 最坏 <b>60 × 4000 = 24 万次枚举</b>，
+        /// 实测 33ms/帧（240000 × ~137ns），是当时卡顿的第一大头（`DS-scan` 占 CompTick 的 65%）。
+        /// 用户实测场景：4 个超凡代理 + 全图 2.5 万个标记，每个候选还要过一遍
+        /// <c>HasJobOnThing</c>，乘积爆炸。</para>
+        ///
+        /// <para>额度取 6000 ≈ 0.8ms/次扫描：稳态下第一个可认领的候选通常在枚举前几百个内
+        /// （已认领的会被快速跳过、完成的会从候选集里消失），所以 60 个 add 照样能填满。</para>
+        /// </summary>
+        private const int MaxEnumerationsPerScan = 6000;
+
+        private int scanBudget;
 
         /// <summary>一次扫描最多新增几件活（实测不卡，给大一点让并行舰队快速填满）。</summary>
         private const int AddsPerScan = 60;
@@ -163,10 +179,13 @@ namespace DigitalStorage.Components
                         interval = Math.Min(interval, FillScanIntervalTicks);   // 没填满 ⇒ 快扫
                     }
                     nextScanTick = now + interval;
+                    scanBudget = MaxEnumerationsPerScan;   // 本次扫描的总枚举额度（跨 add / 跨 giver）
                     for (int added = 0; added < AddsPerScan; added++)
                     {
+                        if (scanBudget <= 0) break;
                         if (!TryAddOneWork(map, w)) break;
                     }
+                    Performance.DevDrawProfiler.Bump("枚举/帧", MaxEnumerationsPerScan - scanBudget);
                 }
                 Performance.DevDrawProfiler.Mark("DS-scan", p);
 
@@ -224,6 +243,7 @@ namespace DigitalStorage.Components
             {
                 WorkTypeDef wt = types[i];
                 if (wt == null) continue;
+                if (scanBudget <= 0) return false;          // 枚举额度用完 ⇒ 本次扫描到此为止
                 if (CountWorksOf(wt) >= cap) continue;
                 if (TryScanWorkType(map, w, wt)) return true;
             }
@@ -258,6 +278,7 @@ namespace DigitalStorage.Components
 
             for (int g = 0; g < givers.Count; g++)
             {
+                if (scanBudget <= 0) return false;          // 枚举额度用完 ⇒ 换下一个工作类型也没意义
                 if (TryScanGiver(map, w, workType, givers[g])) return true;
             }
             return false;
@@ -279,6 +300,7 @@ namespace DigitalStorage.Components
             int seen = 0;
             foreach (Thing t in set)
             {
+                if (--scanBudget < 0) break;      // 本次扫描的枚举额度（跨 add / 跨 giver）
                 if (++seen > MaxIterate) break;
                 if (t == null || t.Destroyed || !t.Spawned) continue;
 
@@ -295,6 +317,7 @@ namespace DigitalStorage.Components
                     bool hasJob;
                     try
                     {
+                        Performance.DevDrawProfiler.Bump("试岗/帧", 1);   // HasJobOnThing 调用次数
                         hasJob = scanner.HasJobOnThing(w, t, false);
                     }
                     catch (Exception e)
