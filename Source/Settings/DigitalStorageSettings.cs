@@ -39,6 +39,18 @@ namespace DigitalStorage.Settings
         /// </summary>
         public static int workerCompletionsPerTick = 16;
 
+        /// <summary>
+        /// <b>每帧最多创建多少个 fleck（气泡特效）</b>（0 = 无限制）。
+        ///
+        /// <para>实测症状：250×250 全图标记一次 ⇒ <c>DesignationManager.AddDesignation</c>
+        /// 给每个标记喷 4~6 个元气泡 ⇒ 几万个 fleck 同一瞬间创建、各自活 1~2 秒并逐帧绘制
+        /// ⇒ "标记完闪一下、卡几秒"（实测 Flecks 吃 2.9~3.1ms/帧、峰值 29ms）。
+        /// fleck 是纯视觉对象，丢掉只影响观感。</para>
+        ///
+        /// <para>默认 500/帧（≈3 万/秒）：正常游玩远低于此，无感；只有病态洪泛会被削平。</para>
+        /// </summary>
+        public static int fleckBudgetPerFrame = 500;
+
         public override void ExposeData()
         {
             Scribe_Values.Look(ref costMultiplier, "costMultiplier", 1.0f);
@@ -46,6 +58,7 @@ namespace DigitalStorage.Settings
             Scribe_Values.Look(ref autoIngestEnabled, "autoIngestEnabled", true);
             Scribe_Values.Look(ref perfOptimizationsEnabled, "perfOptimizationsEnabled", true);
             Scribe_Values.Look(ref workerCompletionsPerTick, "workerCompletionsPerTick", 16);
+            Scribe_Values.Look(ref fleckBudgetPerFrame, "fleckBudgetPerFrame", 500);
             base.ExposeData();
         }
 
@@ -81,6 +94,12 @@ namespace DigitalStorage.Settings
             budget = listing.Slider(budget, 0f, 120f);
             workerCompletionsPerTick = Mathf.RoundToInt(budget);
             listing.Label("DS_WorkerBudgetDesc".Translate());
+            listing.Gap(6f);
+            listing.Label("DS_FleckBudget".Translate(fleckBudgetPerFrame));
+            float flecks = fleckBudgetPerFrame;
+            flecks = listing.Slider(flecks, 0f, 5000f);
+            fleckBudgetPerFrame = Mathf.RoundToInt(flecks);
+            listing.Label("DS_FleckBudgetDesc".Translate());
             listing.Gap(24f);
 
             Text.Font = GameFont.Medium;

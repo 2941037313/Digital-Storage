@@ -39,8 +39,13 @@ namespace DigitalStorage.Performance
                 lastTick = tick;
                 callsThisTick = 0;
             }
-            if (callsThisTick >= MaxCallsPerTick) return false;
+            if (callsThisTick >= MaxCallsPerTick)
+            {
+                DevDrawProfiler.Bump("气喷拦", 1);
+                return false;
+            }
             callsThisTick++;
+            DevDrawProfiler.Bump("气喷过", 1);
             return true;
         }
     }

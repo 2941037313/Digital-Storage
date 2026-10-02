@@ -124,6 +124,7 @@
     <Compile Include="Performance\Patch_SelectionDrawer_BracketCull.cs" />
     <Compile Include="Performance\Patch_DesignationManager_BatchDraw.cs" />
     <Compile Include="Performance\Patch_FleckMaker_MetaPuffThrottle.cs" />
+    <Compile Include="Performance\Patch_FleckManager_CreationBudget.cs" />
     <Compile Include="Performance\DevDrawProfiler.cs" />
 
     <Compile Include="Settings\DigitalStorageMod.cs" />
