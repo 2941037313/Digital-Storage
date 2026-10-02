@@ -136,19 +136,24 @@ namespace DigitalStorage.Components
             Pawn w = Worker;
             if (w == null) return;
 
+            long heap0 = Performance.DevDrawProfiler.HeapStamp();
             DigitalWorkerScope.Enter(w, map, parent.PositionHeld);
             try
             {
                 // 1) 丢掉失效的（目标没了 / 设计取消 / 被别人订走）
+                long p = Performance.DevDrawProfiler.Stamp();
                 for (int i = works.Count - 1; i >= 0; i--)
                 {
                     if (!works[i].task.StillValid(w, map)) ReleaseWorkAt(i);
                 }
+                Performance.DevDrawProfiler.Mark("DS-valid", p);
 
                 // 2) 补到并行上限（按 workTypes 各自的配额；限流见 AddsPerScan）
+                p = Performance.DevDrawProfiler.Stamp();
                 int now = Find.TickManager.TicksGame;
                 if (now >= nextScanTick)
                 {
+                    Performance.DevDrawProfiler.Bump("扫描", 1);
                     int interval = Math.Max(1, Props.scanIntervalTicks);
                     int totalCap = TotalParallelCap();
                     if (totalCap > 0 && works.Count < totalCap)
@@ -161,8 +166,10 @@ namespace DigitalStorage.Components
                         if (!TryAddOneWork(map, w)) break;
                     }
                 }
+                Performance.DevDrawProfiler.Mark("DS-scan", p);
 
                 // 3) 干活（每件活各自累积）
+                p = Performance.DevDrawProfiler.Stamp();
                 for (int i = 0; i < works.Count; i++)
                 {
                     try
@@ -176,19 +183,29 @@ namespace DigitalStorage.Components
                         i--;
                     }
                 }
+                Performance.DevDrawProfiler.Mark("DS-work", p);
 
                 // 4) 收掉干完的
+                p = Performance.DevDrawProfiler.Stamp();
                 for (int i = works.Count - 1; i >= 0; i--)
                 {
-                    if (works[i].task.Finished) ReleaseWorkAt(i);
+                    if (works[i].task.Finished)
+                    {
+                        Performance.DevDrawProfiler.Bump("完成", 1);
+                        ReleaseWorkAt(i);
+                    }
                 }
+                Performance.DevDrawProfiler.Mark("DS-finish", p);
             }
             finally
             {
                 DigitalWorkerScope.Exit(w);
             }
 
+            long pv = Performance.DevDrawProfiler.Stamp();
             UpdateVisuals(map);
+            Performance.DevDrawProfiler.Mark("DS-visual", pv);
+            Performance.DevDrawProfiler.MarkAlloc("DS-allocMB", heap0);
         }
 
         /// <summary>再找一件活（受"每类并行配额"限制）。找到并认领返回 true。</summary>

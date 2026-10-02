@@ -42,6 +42,7 @@ namespace DigitalStorage.Performance
         private static readonly string[] Keys =
         {
             "Ticks", "MapUpd", "DSWork",
+            "DS-valid", "DS-scan", "DS-work", "DS-finish", "DS-visual", "DS-allocMB",
             "MapMesh", "DynThings", "Designations", "Overlays", "Motes", "Flecks", "SelDraw"
         };
 
@@ -49,6 +50,8 @@ namespace DigitalStorage.Performance
         private static readonly Dictionary<string, double> windowMs = new Dictionary<string, double>();
         private static readonly Dictionary<string, double> windowMax = new Dictionary<string, double>();
         private static readonly Dictionary<string, int> counters = new Dictionary<string, int>();
+        private static readonly Dictionary<string, int> frameCounts = new Dictionary<string, int>();
+        private static readonly Dictionary<string, double> windowCounts = new Dictionary<string, double>();
 
         private static int frameStamp = -1;
         private static int frames;
@@ -109,6 +112,43 @@ namespace DigitalStorage.Performance
             counters[key] = value;
         }
 
+        /// <summary>取一个时间戳（关掉时返回 0，配 <see cref="Mark"/> 用，调用点为"零开销"）。</summary>
+        internal static long Stamp()
+        {
+            return Enabled ? Stopwatch.GetTimestamp() : 0L;
+        }
+
+        /// <summary>结算一段 <see cref="Stamp"/> 起的时间。</summary>
+        internal static void Mark(string key, long since)
+        {
+            if (since == 0L || !Enabled) return;
+            Add(key, Ms(since));
+        }
+
+        /// <summary>取一个堆大小戳（配 <see cref="MarkAlloc"/> 用）。</summary>
+        internal static long HeapStamp()
+        {
+            return Enabled ? GC.GetTotalMemory(false) : 0L;
+        }
+
+        /// <summary>结算一段的"托管堆净增"（≈分配量），累加到同名 key 上（值为 MB）。</summary>
+        internal static void MarkAlloc(string key, long heapSince)
+        {
+            if (heapSince == 0L || !Enabled) return;
+            long now = GC.GetTotalMemory(false);
+            if (now > heapSince) Add(key, (now - heapSince) / 1048576.0);
+        }
+
+        /// <summary>本帧计数（次数型量级：扫描了几次、完成了几件）。日志里给"每帧平均"。</summary>
+        internal static void Bump(string key, int delta)
+        {
+            if (!Enabled) return;
+            CheckFrame();
+            int cur;
+            frameCounts.TryGetValue(key, out cur);
+            frameCounts[key] = cur + delta;
+        }
+
         private static void CheckFrame()
         {
             if (frameStamp == Time.frameCount) return;
@@ -116,6 +156,7 @@ namespace DigitalStorage.Performance
             else FlushFrame();
             frameStamp = Time.frameCount;
             frameMs.Clear();
+            frameCounts.Clear();
             frameTotal = 0.0;
         }
 
@@ -147,6 +188,13 @@ namespace DigitalStorage.Performance
             if (lastHeap >= 0L && heap > lastHeap) allocated += heap - lastHeap;
             lastHeap = heap;
 
+            foreach (KeyValuePair<string, int> kv in frameCounts)
+            {
+                double sum;
+                windowCounts.TryGetValue(kv.Key, out sum);
+                windowCounts[kv.Key] = sum + kv.Value;
+            }
+
             if (frames >= WindowFrames)
             {
                 LogWindow();
@@ -163,6 +211,7 @@ namespace DigitalStorage.Performance
             windowDeltaPeak = 0.0;
             windowMs.Clear();
             windowMax.Clear();
+            windowCounts.Clear();
             allocated = 0L;
             lastHeap = GC.GetTotalMemory(false);
             heapStart = lastHeap;
@@ -223,6 +272,10 @@ namespace DigitalStorage.Performance
             if (counters.TryGetValue("标记", out des)) sb.Append(" 标记=").Append(des);
             int tasks;
             if (counters.TryGetValue("任务", out tasks)) sb.Append(" 任务=").Append(tasks);
+            foreach (KeyValuePair<string, double> kv in windowCounts)
+            {
+                if (frames > 0) sb.Append(' ').Append(kv.Key).Append("/帧=").Append(F(kv.Value / frames));
+            }
             Log.Warning(sb.ToString());
         }
 

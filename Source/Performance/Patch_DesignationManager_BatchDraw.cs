@@ -254,6 +254,9 @@ namespace DigitalStorage.Performance
         /// <summary>从原版列表全量重建 —— 就是原版那一遍重算，只在失同步时发生。</summary>
         public void Resync(List<Designation> list)
         {
+            // 诊断：正常运行时这个计数应当**接近 0**（只有读档/失同步才重建）。
+            // 若日志里"重同步/帧"很高，说明增量维护没接上，优化等于没做。
+            DevDrawProfiler.Bump("重同步", 1);
             order.Clear();
             slot.Clear();
             Ensure(list.Count);
