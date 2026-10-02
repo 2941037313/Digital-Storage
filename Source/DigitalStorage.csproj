@@ -89,7 +89,10 @@
     <Compile Include="AI\DigitalWorkerFactory.cs" />
     <Compile Include="AI\BillAutomationScope.cs" />
     <Compile Include="AI\BillBenchClaims.cs" />
-    <Compile Include="AI\BillSlot.cs" />
+    <Compile Include="AI\CraftPlan.cs" />
+    <Compile Include="AI\CraftLine.cs" />
+    <Compile Include="AI\CraftUnlocks.cs" />
+    <Compile Include="AI\BillStackSwap.cs" />
     <Compile Include="AI\BillProbe.cs" />
     <Compile Include="AI\BillCraftFunnel.cs" />
 
@@ -102,6 +105,7 @@
 
     <Compile Include="UI\ITab_DigitalStorage.cs" />
     <Compile Include="UI\ITab_BillAutomation.cs" />
+    <Compile Include="UI\Dialog_DS_AddCraft.cs" />
     <Compile Include="UI\Dialog_WithdrawAmount.cs" />
     <Compile Include="UI\Dialog_StorageFilter.cs" />
     <Compile Include="UI\FloatMenuOptionProvider_DS_Withdraw.cs" />

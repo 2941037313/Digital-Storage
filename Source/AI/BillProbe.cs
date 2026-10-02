@@ -9,34 +9,29 @@ using Verse.AI;
 namespace DigitalStorage.AI
 {
     /// <summary>
-    /// <b>取活</b>：问原版"这张工作台下一个该做哪条 bill、要哪些料"，然后把答案装进槽位。
+    /// <b>取活</b>：把"我们自己那条 bill"临时换进工作台，问原版要原料。
     ///
-    /// <para><b>核心：<c>WorkGiver_DoBill.JobOnThing(pawn, bench)</c> 是公开入口</b>
-    /// （<c>RimWorld\WorkGiver_DoBill.cs:139</c>），它返回的 job 里已经装好了原版亲手挑的原料
-    /// （<c>TryStartNewDoBillJob:329-352</c>：<c>targetQueueB</c> = 真实 Thing、<c>countQueue</c> = 各取多少、
-    /// <c>bill</c> = 那一条）。**job 本身从不上岗** —— 我们只要里面的数据。</para>
-    ///
-    /// <para>为什么不自己按 <c>recipe.ingredients</c> 挑：那要复刻原版的营养换算
-    /// （<c>IngredientValueGetter.ValuePerUnitOf</c>）、混料规则（<c>allowMixingIngredients</c> ⇒
-    /// <c>TryFindBestBillIngredientsInSet_NoMix/_AllowMix</c>）、stuff 取整… 本 mod 已经立过规矩
-    /// ——见 <c>Patch_WorkGiver_DoBill_RemoteIngredients</c>："本 mod 不发明任何挑选规则，
-    /// 也就不会和原版漂移"。</para>
+    /// <para><b>为什么要换</b>：用户拍板"全程在面板操作、不需要操作工作台" ⇒ 台子上不会再有 bill。
+    /// 而原版 <c>WorkGiver_DoBill.JobOnThing</c>（公开入口）只认台子 <c>BillStack</c> 里已有的 bill。
+    /// 于是把我们的 bill 换进去一瞬（<see cref="BillStackSwap"/>），拿到它亲手挑好的原料后立刻还原 ——
+    /// 营养换算、混料规则、stuff 取整、核心容器候选、地面候选全都不用重写。</para>
     ///
     /// <para><b>成本</b>：原版候选来源第一处就是本图 haul source（我们的核心，
-    /// <c>WorkGiver_DoBill.cs:481-496</c>），且**在区域遍历之前**（<c>:525-528</c>）；
-    /// 核心里有料 ⇒ 只扫一遍容器内容物就返回，不做寻路。核心里没料时才会做全图区域遍历，
-    /// 那种情况我们用自己的退避（<see cref="CraftBackoffTicks"/>）压住。</para>
+    /// <c>WorkGiver_DoBill.cs:481-496</c>），且**在区域遍历之前**（<c>:525-528</c>）就返回 ⇒
+    /// 核心里有料时只扫一遍容器内容物。核心里没料才会做全图区域遍历，那种情况用退避压住。
+    /// 另外台子上**本来就不该有东西**（<c>IngredientStackCells = GenAdj.CellsOccupiedBy(this)</c>，
+    /// 即台子自己占的格子），所以原版那句"先搬走台上的东西"不会误伤我们。</para>
     /// </summary>
     internal static class BillProbe
     {
-        /// <summary>取活失败（没活/没料/条件不满足）后的重试间隔。</summary>
+        /// <summary>取活失败（没料/条件不满足）后的重试间隔。</summary>
         private const int RetryTicks = 30;
 
         /// <summary>
-        /// "核心里凑不齐、但地面上有"的退避（2 秒）。
+        /// "核心里凑不齐、但地面上有" / "这台子换不了 BillStack" 的退避（2 秒）。
         ///
-        /// <para>⚠️ 刻意**不写** <c>bill.nextTickToSearchForIngredients</c>：那是原版给**真人**用的
-        /// 负缓存，我们占了它会让真人也不能用地面上的料做这条 bill。</para>
+        /// <para>⚠️ 刻意**不写** <c>bill.nextTickToSearchForIngredients</c>：那是原版给真人用的负缓存，
+        /// 而且我们的 bill 是临时的，写它也没意义。</para>
         /// </summary>
         private const int CraftBackoffTicks = 120;
 
@@ -60,44 +55,57 @@ namespace DigitalStorage.AI
             return doBillDefs;
         }
 
-        /// <summary>
-        /// 给槽位取一件活。返回 true 表示槽位已装好（<c>Bill/Ingredients/WorkLeft</c> 就绪）。
-        /// </summary>
-        public static bool TryAcquire(CompBillAutomation comp, BillSlot slot, Map map, Pawn w, int now)
+        /// <summary>给一条在产线取一件活。返回 true 表示 <c>Ingredients/WorkLeft</c> 已就绪。</summary>
+        public static bool TryAcquire(CompBillAutomation comp, CraftPlan plan, CraftLine line, Map map, Pawn w, int now)
         {
-            slot.ClearWork();
-            slot.BlockKey = "DS_BA_NoBill";
+            line.ClearWork();
+            line.BlockKey = "DS_BA_NoBill";
 
-            Thing bench = slot.Bench;
+            if (plan == null || plan.recipe == null || !plan.Active) return false;
+
+            Thing bench = line.Bench;
             if (bench == null || bench.Destroyed || !bench.Spawned) return false;
 
             IBillGiver giver = bench as IBillGiver;
             if (giver == null) return false;
-            if (!giver.BillStack.AnyShouldDoNow) return false;
 
-            // 断电 / 缺燃料 / 故障 ⇒ 停（用户拍板：代理不代劳加燃料）。
-            // 用 CurrentlyUsableForBills 而不是 UsableForBillsAfterFueling：后者不管燃料。
-            if (!giver.CurrentlyUsableForBills()) { slot.BlockKey = "DS_BA_BenchOff"; return false; }
-            if (bench.IsBurning()) { slot.BlockKey = "DS_BA_BenchOff"; return false; }
+            // 断电 / 缺燃料 / 故障 ⇒ 停（用户拍板：代理不代劳加燃料）
+            if (!giver.CurrentlyUsableForBills()) { line.BlockKey = "DS_BA_BenchOff"; line.NextAcquireTick = now + RetryTicks; return false; }
+            if (bench.IsBurning()) { line.BlockKey = "DS_BA_BenchOff"; line.NextAcquireTick = now + RetryTicks; return false; }
 
-            // 真人正在用这台 ⇒ 让。等价于原版 JobOnThing 里那句 pawn.CanReserve(台子)，
-            // 但不需要借地图（我们只读，不占预订）。
+            // 真人正在用这台 ⇒ 让（等价于原版 JobOnThing 里那句 pawn.CanReserve(台子)，但不需要借地图）
             if (map.reservationManager != null
                 && map.reservationManager.IsReservedByAnyoneOf(bench, Faction.OfPlayer))
             {
-                slot.BlockKey = "DS_BA_BenchBusy";
-                slot.NextAcquireTick = now + RetryTicks;
+                line.BlockKey = "DS_BA_BenchBusy";
+                line.NextAcquireTick = now + RetryTicks;
+                return false;
+            }
+
+            if (line.Bill == null || line.TempStack == null)
+            {
+                line.BlockKey = "DS_BA_Block_Unsupported";
+                line.NextAcquireTick = now + CraftBackoffTicks;
                 return false;
             }
 
             List<WorkGiverDef> defs = DoBillDefs();
             if (defs.Count == 0) return false;
 
-            bool noCoreMaterial = false;
-            bool obstructed = false;
+            Job got = null;
+            BillStack original = null;
+            bool swapped = false;
             DigitalWorkerScope.Enter(w, map, bench.PositionHeld);
             try
             {
+                if (!BillStackSwap.TrySwapIn(bench, line.TempStack, out original))
+                {
+                    line.BlockKey = "DS_BA_Block_Unsupported";
+                    line.NextAcquireTick = now + CraftBackoffTicks;
+                    return false;
+                }
+                swapped = true;
+
                 for (int i = 0; i < defs.Count; i++)
                 {
                     WorkGiverDef d = defs[i];
@@ -108,140 +116,134 @@ namespace DigitalStorage.AI
                     catch (Exception) { continue; }
                     if (doBill == null) continue;
 
-                    Job got;
-                    try { got = doBill.JobOnThing(w, bench, false); }
+                    Job candidate;
+                    try { candidate = doBill.JobOnThing(w, bench, false); }
                     catch (Exception e)
                     {
                         Log.ErrorOnce("[DigitalStorage] 制作代理取活失败（跳过这个 WorkGiver）："
                             + d.defName + " :: " + e, d.shortHash * 31 + 991);
                         continue;
                     }
-                    if (got == null) continue;
-                    if (got.bill == null)
+                    if (candidate == null || candidate.bill == null) continue;
+                    if (candidate.bill != line.Bill)
                     {
-                        // 原版给的是"加燃料 job"或"先把台上杂物搬走 job" —— 两种都意味着**这台子现在开不了工**。
-                        obstructed = true;
+                        // 临时栈里只该有我们这一条 bill；出现别的说明有东西改了台子，安全起见放弃
                         continue;
                     }
-
-                    // 只认普通生产 bill。医疗/机械/自动（基因舱等）各自有状态机，不在这条链上。
-                    Bill_Production bp = got.bill as Bill_Production;
-                    if (bp == null) continue;
-                    if (got.bill is Bill_Medical || got.bill is Bill_Mech || got.bill is Bill_Autonomous) continue;
-                    if (bp.recipe == null) continue;
-                    // v1 不做未完成品类（艺术/雕塑/生物塑型）：它们的原料要先变成 UnfinishedThing，是另一条链。
-                    if (bp.recipe.UsesUnfinishedThing) continue;
-                    if (bp.suspended || bp.DeletedOrDereferenced) continue;
-
-                    Thing[] things;
-                    int[] counts;
-                    if (!ExtractIngredients(got, map, out things, out counts))
-                    {
-                        // 原版选了地面上的料（核心里凑不齐）⇒ 用户拍板"物品在核心里才可以被自动化使用"
-                        noCoreMaterial = true;
-                        continue;
-                    }
-
-                    slot.Probe = got;
-                    slot.Bill = bp;
-                    slot.Ingredients = things;
-                    slot.Counts = counts;
-                    slot.BaseRate = ComputeBaseRate(bp, bench, w);
-                    slot.WorkAmount = bp.GetWorkAmount(LastIngredient(things, got));
-                    slot.WorkLeft = slot.WorkAmount;
-                    slot.NextAcquireTick = 0;
-                    slot.BlockKey = null;
-                    Performance.DevDrawProfiler.Bump("账单取活", 1);
-
-                    // 与 JobDriver_DoBill 的两个 toil 对齐（:100 Notify_DoBillStarted / DoRecipeWork init:76）。
-                    // Bill_Production 自己没重写，但子类/mod 扩展可能在用 ⇒ 该调的还是要调。
-                    try
-                    {
-                        bp.Notify_DoBillStarted(w);
-                        bp.Notify_BillWorkStarted(w);
-                    }
-                    catch (Exception e)
-                    {
-                        Log.ErrorOnce("[DigitalStorage] bill.Notify_* 抛异常（已忽略）：" + e, 771133);
-                    }
-                    return true;
+                    got = candidate;
+                    break;
                 }
             }
             finally
             {
+                if (swapped) BillStackSwap.Restore(bench, original);
                 DigitalWorkerScope.Exit(w);
             }
 
-            if (noCoreMaterial)
+            if (got == null)
             {
-                slot.BlockKey = "DS_BA_NoCoreMaterial";
-                slot.NextAcquireTick = now + CraftBackoffTicks;
+                line.BlockKey = Diagnose(bench, plan, map, w);
+                line.NextAcquireTick = now + RetryTicks;
+                return false;
             }
-            else if (obstructed)
+
+            Thing[] things;
+            int[] counts;
+            if (!ExtractIngredients(got, map, out things, out counts))
             {
-                slot.BlockKey = "DS_BA_Block_Obstructed";
-                slot.NextAcquireTick = now + RetryTicks;
+                // 原版选了地面上的料（核心里凑不齐）⇒ 用户拍板"物品在核心里才可以被自动化使用"
+                line.BlockKey = "DS_BA_NoCoreMaterial";
+                line.NextAcquireTick = now + CraftBackoffTicks;
+                return false;
             }
-            else
+
+            line.Probe = got;
+            line.Ingredients = things;
+            line.Counts = counts;
+            line.BaseRate = ComputeBaseRate(plan.recipe, bench, w);
+            line.WorkAmount = line.Bill.GetWorkAmount(LastIngredient(things, got));
+            line.WorkLeft = line.WorkAmount;
+            line.NextAcquireTick = 0;
+            line.BlockKey = null;
+            Performance.DevDrawProfiler.Bump("账单取活", 1);
+
+            // 与 JobDriver_DoBill 的两个 toil 对齐（:100 Notify_DoBillStarted / DoRecipeWork init:76）
+            try
             {
-                slot.BlockKey = Diagnose(giver, bench, map, w);
-                slot.NextAcquireTick = now + RetryTicks;
+                line.Bill.Notify_DoBillStarted(w);
+                line.Bill.Notify_BillWorkStarted(w);
             }
-            return false;
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] bill.Notify_* 抛异常（已忽略）：" + e, 771133);
+            }
+            return true;
         }
 
         /// <summary>
-        /// 取活全部失败时，用**便宜的只读判据**给面板一个具体原因。
+        /// 取活失败时用**便宜的只读判据**给面板一个具体原因。
         ///
-        /// <para>为什么值得写：面板只显示"没有可做的 bill"等于没说 —— 到底是缺料、资质不够、
-        /// bill 被绑给某个小人，还是未完成品类被跳过？本 mod 在"诊断只打计数"上吃过亏
-        /// （见 obsidian 里那条教训：探针必须能自证）。</para>
+        /// <para>为什么值得写：面板只显示"做不了"等于没说 —— 到底是缺料、资质不够、研究没了，
+        /// 还是台子换不了栈？本 mod 在"诊断只打计数"上吃过亏（探针必须能自证）。</para>
         ///
         /// <para>⚠️ <c>Bill.PawnAllowedToStartAnew</c> 会写全局静态 <c>JobFailReason</c>（右键菜单用它显示
-        /// "技能不符"之类），诊断完必须 <c>Clear()</c>，否则残留在玩家的右键菜单里。</para>
+        /// "技能不符"之类），诊断完必须 <c>Clear()</c>。</para>
         /// </summary>
-        private static string Diagnose(IBillGiver giver, Thing bench, Map map, Pawn w)
+        private static string Diagnose(Thing bench, CraftPlan plan, Map map, Pawn w)
         {
-            BillStack stack = giver.BillStack;
-            if (stack == null || stack.Count == 0) return "DS_BA_NoBill";
+            RecipeDef recipe = plan.recipe;
 
-            // 交互格被堵住/被禁止：原版 JobOnThing 在这里返回 null，与"缺料"是两件事，
-            // 不单独报出来会把排查引到错误方向（本 mod 在"诊断给错方向"上吃过亏）。
+            if (!recipe.AvailableNow) return "DS_BA_Block_Research";
+            if (recipe.FirstSkillRequirementPawnDoesntSatisfy(w) != null) return "DS_BA_Block_Skill";
+
+            bool pawnOk = plan.lines.Count > 0 && plan.lines[0].Bill != null
+                ? SafeAllowed(plan.lines[0].Bill, w)
+                : SafeAllowedTransient(recipe, bench, w);
+            if (!pawnOk) return "DS_BA_Block_Restricted";
+
+            // 交互格被堵住/被禁止：原版 JobOnThing 在这里返回 null，与"缺料"是两件事
             if (bench.def.hasInteractionCell)
             {
                 IntVec3 cell = bench.InteractionCell;
                 if (cell.Impassable(map) || cell.IsForbidden(w)) return "DS_BA_Block_Spot";
             }
+            return "DS_BA_Block_Material";
+        }
 
-            bool anyDoable = false;      // 有 bill 想做
-            bool materialOnly = false;   // 有 bill 通过了所有便宜判据 ⇒ 失败原因只能是"缺料"
-            bool skillBad = false;
-            bool restricted = false;
-            bool uft = false;
-
-            for (int i = 0; i < stack.Count; i++)
+        private static bool SafeAllowed(Bill_Production bill, Pawn w)
+        {
+            try
             {
-                Bill b = stack[i];
-                if (b == null || b.DeletedOrDereferenced || b.suspended) continue;
-                if (!b.ShouldDoNow()) continue;
-                anyDoable = true;
-
-                bool ok = b.PawnAllowedToStartAnew(w);
+                bool ok = bill.PawnAllowedToStartAnew(w);
                 JobFailReason.Clear();
-                if (!ok) { restricted = true; continue; }
-
-                if (b.recipe == null) continue;
-                if (b.recipe.FirstSkillRequirementPawnDoesntSatisfy(w) != null) { skillBad = true; continue; }
-                if (b.recipe.UsesUnfinishedThing) { uft = true; continue; }
-                materialOnly = true;
+                return ok;
             }
+            catch (Exception)
+            {
+                JobFailReason.Clear();
+                return true;
+            }
+        }
 
-            if (!anyDoable) return "DS_BA_NoBill";
-            if (materialOnly) return "DS_BA_Block_Material";
-            if (skillBad) return "DS_BA_Block_Skill";
-            if (restricted) return "DS_BA_Block_Restricted";
-            if (uft) return "DS_BA_Block_Uft";
-            return "DS_BA_NoBill";
+        /// <summary>没有现成 bill 时（诊断路径）临时造一条来问原版同一个问题。</summary>
+        private static bool SafeAllowedTransient(RecipeDef recipe, Thing bench, Pawn w)
+        {
+            try
+            {
+                Bill_Production bill = new Bill_Production(recipe);
+                IBillGiver giver = bench as IBillGiver;
+                if (giver != null)
+                {
+                    BillStack stack = new BillStack(giver);
+                    stack.AddBill(bill);
+                }
+                return SafeAllowed(bill, w);
+            }
+            catch (Exception)
+            {
+                JobFailReason.Clear();
+                return true;
+            }
         }
 
         /// <summary>
@@ -252,9 +254,8 @@ namespace DigitalStorage.AI
         /// <para>**刻意不额外乘技能**：<c>workSpeedStat</c> 自己就吃技能（做饭类是 <c>CookSpeed</c>），
         /// 再乘一次就是双算。</para>
         /// </summary>
-        private static float ComputeBaseRate(Bill_Production bill, Thing bench, Pawn w)
+        private static float ComputeBaseRate(RecipeDef r, Thing bench, Pawn w)
         {
-            RecipeDef r = bill.recipe;
             float rate = (r.workSpeedStat == null) ? 1f : w.GetStatValue(r.workSpeedStat);
             Building_WorkTable table = bench as Building_WorkTable;
             if (r.workTableSpeedStat != null && table != null)
@@ -265,9 +266,9 @@ namespace DigitalStorage.AI
         }
 
         /// <summary>
-        /// 原版 <c>Toils_Recipe.DoRecipeWork</c> 的 <c>workLeft = bill.GetWorkAmount(thing)</c> 里那个
-        /// <c>thing</c>，取的是 <c>TargetIndex.B.Thing</c> —— 对非未完成品配方就是**最后一件被取走的原料**
-        /// （<c>JobDriver_DoBill.CollectIngredientsToils</c> 逐件设 targetB）。
+        /// 原版 <c>DoRecipeWork</c> 里 <c>workLeft = bill.GetWorkAmount(thing)</c> 的那个 <c>thing</c>：
+        /// 取 <c>TargetIndex.B.Thing</c> —— 对非未完成品配方就是**最后一件被取走的原料**
+        /// （<c>CollectIngredientsToils</c> 逐件设 targetB）。
         /// </summary>
         private static Thing LastIngredient(Thing[] things, Job job)
         {

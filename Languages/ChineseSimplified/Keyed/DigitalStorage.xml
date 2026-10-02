@@ -86,7 +86,7 @@
   <DS_BA_OC_6>6 GHz</DS_BA_OC_6>
   <DS_BA_OC_9>9 GHz</DS_BA_OC_9>
   <DS_BA_Watts>耗电：{0} W（自身 {1} + 范围内工作台 {2}，超频 ×{3}）</DS_BA_Watts>
-  <DS_BA_Stats>已产出 {0} 件，落地 {1} 件，在办工作台 {2} 台</DS_BA_Stats>
+  <DS_BA_Stats>已产出 {0} 件，落地 {1} 件，配方 {2} 条</DS_BA_Stats>
   <DS_BA_NoBench>13×13 范围内没有正在做 bill 的工作台。</DS_BA_NoBench>
   <DS_BA_Idle>待命</DS_BA_Idle>
   <DS_BA_NoBill>没有可做的 bill（缺料 / 资质不够 / 条件不满足）</DS_BA_NoBill>
@@ -99,6 +99,26 @@
   <DS_BA_Block_Obstructed>工作台要先加燃料，或先搬走台上的东西</DS_BA_Block_Obstructed>
   <DS_BA_Block_Uft>该配方需要未完成品（暂不支持）</DS_BA_Block_Uft>
   <DS_BA_Block_Spot>工作台的站位格被堵住或被禁止</DS_BA_Block_Spot>
+  <DS_BA_Add>添加配方…</DS_BA_Add>
+  <DS_BA_AddTitle>添加制作配方（范围内工作台能做的）</DS_BA_AddTitle>
+  <DS_BA_Close>关闭</DS_BA_Close>
+  <DS_BA_Forever>无限</DS_BA_Forever>
+  <DS_BA_Remain>剩余 {0}</DS_BA_Remain>
+  <DS_BA_Lines>在产 {0}/{1} 台</DS_BA_Lines>
+  <DS_BA_Suspend>挂起</DS_BA_Suspend>
+  <DS_BA_Resume>恢复</DS_BA_Resume>
+  <DS_BA_Suspended>已挂起</DS_BA_Suspended>
+  <DS_BA_PlanFinished>已完成</DS_BA_PlanFinished>
+  <DS_BA_PlanDone>「{0}」订单完成（共 {1} 件）</DS_BA_PlanDone>
+  <DS_BA_Empty>还没有配方。点右上角「添加配方…」，从范围内工作台能做的配方里挑一个。</DS_BA_Empty>
+  <DS_BA_NoBench>范围内没有可用的工作台</DS_BA_NoBench>
+  <DS_BA_NoRecipeAvailable>没有可添加的配方 —— 这个 13×13 范围内没有能做东西的工作台（或那些配方都还没研究出来）。</DS_BA_NoRecipeAvailable>
+  <DS_BA_AlreadyAdded>已添加</DS_BA_AlreadyAdded>
+  <DS_BA_ClickToAdd>点击添加</DS_BA_ClickToAdd>
+  <DS_BA_SkillShort>资质不足</DS_BA_SkillShort>
+  <DS_BA_NeedSkill>需要：{0}</DS_BA_NeedSkill>
+  <DS_BA_Block_Unsupported>这种工作台不支持代工（换不了账单）</DS_BA_Block_Unsupported>
+  <DS_BA_Block_Research>研究未解锁</DS_BA_Block_Research>
   <DS_BA_Done>制作完成：{0}（已存入数字存储核心）</DS_BA_Done>
   <DS_BA_DoneDropped>制作完成：{0}（核心放不下或未启用，放在工作台旁）</DS_BA_DoneDropped>
 

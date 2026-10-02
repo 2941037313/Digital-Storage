@@ -10,7 +10,7 @@ namespace DigitalStorage.AI
     /// 一次结算的结果。
     ///
     /// <para><b>为什么要三态而不是 bool</b>：<see cref="BillCraftFunnel.TryComplete"/> 失败有两种完全不同的原因 ——
-    /// "这次作废"（bill 被真人做完 / 台子断电 / 原料被抢）应当**丢掉进度重新取活**；
+    /// "这次作废"（配方被挂起/做完、台子断电、原料被抢）应当**丢掉进度重新取活**；
     /// 而"这一 tick 拿不到完成预算"只是限流，活其实已经干完了，**必须保留进度**等下一 tick 的票。
     /// 用 bool 就会把后者降级成"重做一遍"，在预算吃紧时表现为产量凭空掉一半。</para>
     /// </summary>
@@ -22,30 +22,30 @@ namespace DigitalStorage.AI
     }
 
     /// <summary>
-    /// <b>一个槽位 = 一张工作台 = 一个虚拟工匠</b>。
+    /// <b>一条在产的生产线 = 一张工作台 + 这个配方这一轮的进度。</b>
     ///
-    /// <para>槽位里放的是"这一轮要做的那条 bill + 原版亲手挑好的原料"（<see cref="BillProbe"/> 填），
-    /// 然后每 tick 扣工作量，够了就交给 <see cref="BillCraftFunnel"/> 结算。</para>
+    /// <para>它替代了旧结构里的 <c>BillSlot</c>（那时一个槽位对应"台子上已有的 bill"）。
+    /// 现在台子上不需要有任何 bill：<see cref="Bill"/> 是**我们自己造的**原版 bill，
+    /// 只为借原版选料器用一次（见 <see cref="BillProbe"/> / <see cref="BillStackSwap"/>）。</para>
     ///
-    /// <para><b>为什么不进存档</b>：进行中的进度是纯派生状态（真原版也存 <c>JobDriver_DoBill.workLeft</c>，
-    /// 但我们更省事）—— 关键是**扣料只发生在完成那一刻**，所以读档丢进度**不会丢料**，
-    /// 最多是这一件重新开始。认领表同理（谁先扫到谁拿）。</para>
+    /// <para>进度与原料都是派生状态（不进存档）；扣料只发生在完成那一刻。</para>
     /// </summary>
-    internal sealed class BillSlot
+    internal sealed class CraftLine
     {
-        /// <summary>认领的工作台（一定是 <c>IBillGiver</c>）。</summary>
+        public CraftPlan Plan;
+
+        /// <summary>这条线借用的工作台（一定实现了 <c>IBillGiver</c>）。</summary>
         public Thing Bench;
 
-        /// <summary>本轮扫描有没有再见到它（没见到 = 拆了/超范围/被别人认领/没活了 ⇒ 释放）。</summary>
-        public bool Seen;
-
-        /// <summary>原版 <c>WorkGiver_DoBill.JobOnThing</c> 给的 job。**只当数据用**：原料队列 + <c>bill</c>，job 从不上岗。</summary>
-        public Job Probe;
-
-        /// <summary>正在做的那条 bill。</summary>
+        /// <summary>我们自己的原版 bill 对象，宿主是 <see cref="TempStack"/>。选料时临时换进台子。</summary>
         public Bill_Production Bill;
 
-        /// <summary>原版选好的原料（指向核心容器里的真实 Thing）与每件取多少（=<c>job.countQueue</c>）。</summary>
+        /// <summary><see cref="Bill"/> 的宿主栈（只为了让 <c>bill.billStack</c> 非空）。</summary>
+        public BillStack TempStack;
+
+        /// <summary>原版 <c>WorkGiver_DoBill.JobOnThing</c> 给的 job：只取里面的 bill + 原料，job 从不上岗。</summary>
+        public Job Probe;
+
         public Thing[] Ingredients;
         public int[] Counts;
 
@@ -55,10 +55,9 @@ namespace DigitalStorage.AI
         public float WorkAmount;
         public float WorkLeft;
 
-        /// <summary>下次允许取活的 tick（失败退避，见 <c>CompProperties_BillAutomation.noWorkRetryTicks</c>）。</summary>
         public int NextAcquireTick;
 
-        /// <summary>没在干活时的原因（Keyed 键名后缀，如 <c>DS_BA_NoMaterial</c>）；null = 正在干活。</summary>
+        /// <summary>没在干活时的原因（Keyed 键名）；null = 正在干活。</summary>
         public string BlockKey;
 
         // ---- 表现件（手 / 黄条）----
@@ -71,7 +70,6 @@ namespace DigitalStorage.AI
             get { return Bill != null && Ingredients != null; }
         }
 
-        /// <summary>0~1 进度（给建筑底下那根黄色读条用）。</summary>
         public float Progress01
         {
             get
@@ -81,11 +79,10 @@ namespace DigitalStorage.AI
             }
         }
 
-        /// <summary>丢掉这一轮（保留槽位本身与认领）。</summary>
+        /// <summary>丢掉这一轮（保留线与台子认领）。</summary>
         public void ClearWork()
         {
             Probe = null;
-            Bill = null;
             Ingredients = null;
             Counts = null;
             BaseRate = 1f;
@@ -93,26 +90,24 @@ namespace DigitalStorage.AI
             WorkLeft = 0f;
         }
 
-        /// <summary>彻底释放槽位（连带表现件）。</summary>
+        /// <summary>彻底释放这条线（连带表现件）。</summary>
         public void ClearAll()
         {
             ClearWork();
             CleanupVisual();
             Bench = null;
-            Seen = false;
+            Bill = null;
+            TempStack = null;
+            Plan = null;
             NextAcquireTick = 0;
             BlockKey = null;
         }
 
         // ===================================================================
-        // 表现：目标（工作台）上那只手 + 目标底下的黄色读条
+        // 表现：工作台上那只手 + 底下的黄色读条
         // ===================================================================
 
-        /// <summary>
-        /// 与 <c>CompDigitalWorker.UpdateVisuals</c> 同构（原版 <c>EffecterDefOf.ProgressBar</c> +
-        /// <c>Mote_DS_WorkHand</c>），只是目标换成工作台。
-        /// <c>index &gt;= cap</c> 时收掉 —— 槽位可能几十个，全画就是"手海"。
-        /// </summary>
+        /// <summary>与 <c>CompDigitalWorker.UpdateVisuals</c> 同构；<c>index &gt;= cap</c> 时收掉（防"手海"）。</summary>
         public void TickVisual(Map map, int index, int cap)
         {
             Thing t = Bench;
@@ -122,7 +117,6 @@ namespace DigitalStorage.AI
                 return;
             }
 
-            // ---- 手 ----
             if (Hand == null || Hand.Destroyed || !Hand.Spawned)
             {
                 ThingDef def = DefDatabase<ThingDef>.GetNamedSilentFail("DS_WorkHand");
@@ -152,7 +146,6 @@ namespace DigitalStorage.AI
                 }
             }
 
-            // ---- 黄色读条（原版 EffecterDefOf.ProgressBar + MoteProgressBar）----
             if (Bar == null) Bar = EffecterDefOf.ProgressBar.Spawn();
             Bar.EffectTick(new TargetInfo(t), TargetInfo.Invalid);
 

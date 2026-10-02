@@ -86,7 +86,7 @@
   <DS_BA_OC_6>6 GHz</DS_BA_OC_6>
   <DS_BA_OC_9>9 GHz</DS_BA_OC_9>
   <DS_BA_Watts>Draw: {0} W (self {1} + benches {2}, overclock x{3})</DS_BA_Watts>
-  <DS_BA_Stats>Produced {0}, dropped {1}, benches {2}</DS_BA_Stats>
+  <DS_BA_Stats>Produced {0}, dropped {1}, recipes {2}</DS_BA_Stats>
   <DS_BA_NoBench>No bench with a doable bill within 13x13.</DS_BA_NoBench>
   <DS_BA_Idle>idle</DS_BA_Idle>
   <DS_BA_NoBill>No bill to work (missing material / skill too low / conditions unmet)</DS_BA_NoBill>
@@ -99,6 +99,26 @@
   <DS_BA_Block_Obstructed>Bench needs fuel, or has something on it to haul away</DS_BA_Block_Obstructed>
   <DS_BA_Block_Uft>Recipe needs an unfinished thing (not supported yet)</DS_BA_Block_Uft>
   <DS_BA_Block_Spot>The bench's interaction cell is blocked or forbidden</DS_BA_Block_Spot>
+  <DS_BA_Add>Add recipe…</DS_BA_Add>
+  <DS_BA_AddTitle>Add a crafting recipe (from benches in range)</DS_BA_AddTitle>
+  <DS_BA_Close>Close</DS_BA_Close>
+  <DS_BA_Forever>forever</DS_BA_Forever>
+  <DS_BA_Remain>{0} left</DS_BA_Remain>
+  <DS_BA_Lines>running {0}/{1}</DS_BA_Lines>
+  <DS_BA_Suspend>suspend</DS_BA_Suspend>
+  <DS_BA_Resume>resume</DS_BA_Resume>
+  <DS_BA_Suspended>suspended</DS_BA_Suspended>
+  <DS_BA_PlanFinished>finished</DS_BA_PlanFinished>
+  <DS_BA_PlanDone>Order finished: {0} ({1} produced)</DS_BA_PlanDone>
+  <DS_BA_Empty>No recipes yet. Click "Add recipe…" and pick one from what the benches in range can craft.</DS_BA_Empty>
+  <DS_BA_NoBench>No usable bench in range</DS_BA_NoBench>
+  <DS_BA_NoRecipeAvailable>Nothing to add - no bench in this 13x13 can craft anything (or those recipes are not researched yet).</DS_BA_NoRecipeAvailable>
+  <DS_BA_AlreadyAdded>already added</DS_BA_AlreadyAdded>
+  <DS_BA_ClickToAdd>click to add</DS_BA_ClickToAdd>
+  <DS_BA_SkillShort>skill too low</DS_BA_SkillShort>
+  <DS_BA_NeedSkill>Requires: {0}</DS_BA_NeedSkill>
+  <DS_BA_Block_Unsupported>This bench type cannot be automated (bill stack cannot be swapped)</DS_BA_Block_Unsupported>
+  <DS_BA_Block_Research>Research not unlocked</DS_BA_Block_Research>
   <DS_BA_Done>Crafted: {0} (stored into digital storage)</DS_BA_Done>
   <DS_BA_DoneDropped>Crafted: {0} (core full or disabled, dropped at the bench)</DS_BA_DoneDropped>
 

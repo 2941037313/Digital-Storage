@@ -10,44 +10,57 @@ using Verse;
 namespace DigitalStorage.Components
 {
     /// <summary>
-    /// <b>制作代理</b>：由建筑自己把范围内工作台上的 bill 做掉，殖民者不参与。
+    /// <b>制作代理</b>：由建筑自己把"面板里选的配方"做出来，殖民者不参与。
     ///
-    /// <para><b>路线（与 <see cref="CompDigitalWorker"/> 同族，但活来自 bill 而不是 WorkGiver）</b>：
-    /// 每 tick 扫范围内的 <c>IBillGiver</c>，每张台子一个槽位；取活时借原版
-    /// <c>WorkGiver_DoBill.JobOnThing</c>（**公开入口**，job 里已装好原版挑的料，job 本身从不上岗），
-    /// 然后自己扣工作量，够了就走 <c>GenRecipe.MakeRecipeProducts</c> 那套唯一漏斗结算。
-    /// 细节与出处见 <c>docs/实现方案-bill自动化.md</c>。</para>
+    /// <para><b>控制面是面板，不是工作台</b>（用户拍板）：13×13 范围内的工作台只负责
+    /// <b>解锁配方</b>（<see cref="CraftUnlocks"/>），玩家在自己的面板里挑配方、设次数，
+    /// 然后代理扣料 / 假装读条 / 产物进核心 —— **全程不用碰工作台**。</para>
     ///
-    /// <para><b>为什么不做真 job/真 toil</b>：假 pawn 过不了 <c>GotoThing</c> 的寻路层，
-    /// 而且 job 会被写进存档。本 mod 整套代理体系就是"脱离 job 直调产出"，
-    /// 见 obsidian <c>代码Wiki/rimworld/代理工人-脱离job直调产出.md</c>。</para>
+    /// <para><b>一条配方 = 一个 <see cref="CraftPlan"/>，同时在产多少件 = 范围内"能做它且可用"的工作台数</b>
+    /// （用户拍板）。每条在产线（<see cref="CraftLine"/>）占一张台子，所以"三个台能做 ⇒ 并发 3"。</para>
     ///
-    /// <para><b>速度</b>：<c>原版公式(recipe.workSpeedStat × 台子 workTableSpeedStat)</c>
-    /// × <c>Props.workSpeedMult</c> × 超频倍率。不发经验（假工人资质恒定）。</para>
+    /// <para><b>取活怎么不重写选料器</b>：把自己那条转瞬即逝的原版 bill 临时换进台子的
+    /// <c>BillStack</c>（<see cref="BillStackSwap"/>），调公开入口
+    /// <c>WorkGiver_DoBill.JobOnThing</c>，拿到原版亲手挑好的原料后立刻还原。
+    /// 详见 <c>docs/实现方案-bill自动化.md</c> 与 obsidian
+    /// <c>代码Wiki/rimworld/复用原版bill链-JobOnThing是公开取活入口.md</c>。</para>
     ///
-    /// <para><b>耗电</b>（用户拍板）：<c>(300 + Σ台子耗电) × 超频倍率</c>；
-    /// 台子没有电力组件时按 100W 折算；台子自己的电**照交**（不豁免）。
-    /// 台子断电/缺燃料 ⇒ 这台不干（代理不代劳加燃料）。</para>
+    /// <para><b>耗电</b>（用户拍板）：<c>(300 + Σ范围内工作台耗电) × 超频倍率</c>；
+    /// 没有电力组件的工作台按 100W 折算；工作台自己的电**照交**（不豁免）。</para>
     /// </summary>
     public class CompBillAutomation : ThingComp
     {
-        /// <summary>槽位（一台工作台 = 一个）。不进存档：进度丢了不丢料（扣料只在完成那一刻）。</summary>
-        private readonly List<BillSlot> slots = new List<BillSlot>();
+        // ===================================================================
+        // 状态
+        // ===================================================================
 
-        /// <summary>槽位是在哪张图上建的（认领表按图分桶，放手时要同一个 map 引用）。</summary>
-        private Map slotsMap;
+        /// <summary>面板里的配方列表（**进存档**）。</summary>
+        private List<CraftPlan> plans = new List<CraftPlan>();
+
+        /// <summary>本次扫描到的、范围内能承载 bill 的建筑（不存）。</summary>
+        private readonly List<Thing> benches = new List<Thing>();
+
+        /// <summary>这些建筑的 def 集合（去重用）。</summary>
+        private readonly HashSet<ThingDef> benchDefs = new HashSet<ThingDef>();
+
+        /// <summary>面板"添加配方"菜单的候选（= 范围内台子能做的配方并集，随扫描刷新）。</summary>
+        private readonly List<RecipeDef> unlocked = new List<RecipeDef>();
 
         private Pawn worker;
+        private int nextWorkerAttemptTick = -99999;
         private int nextScanTick;
         private bool enabled = true;
 
         /// <summary>超频档位：0 = 关，1 = 3GHz，2 = 6GHz，3 = 9GHz。</summary>
         private int overclockTier;
 
-        /// <summary>缓存的实际耗电（W）。每 tick 只与 <c>CompPowerTrader.PowerOutput</c> 比一次。</summary>
+        /// <summary>缓存的实际耗电（W）；每 tick 只与 <c>PowerOutput</c> 比一次。</summary>
         private float cachedWatts = -1f;
 
-        // ---- 左上角提示的聚合缓冲（超频 ×9 时产物按秒刷，逐件弹会把消息栏刷爆）----
+        /// <summary>台子认领表按图分桶，放手时要用同一个 map 引用。</summary>
+        private Map slotsMap;
+
+        // 左上角提示的聚合缓冲
         private readonly Dictionary<string, int> pendingStored = new Dictionary<string, int>();
         private readonly Dictionary<string, int> pendingDropped = new Dictionary<string, int>();
         private int lastMessageTick = -99999;
@@ -55,17 +68,45 @@ namespace DigitalStorage.Components
         private int completedCount;
         private int droppedCount;
 
+        // 复用的临时表
+        private readonly HashSet<Thing> usedBenches = new HashSet<Thing>();
+
         public CompProperties_BillAutomation Props
         {
             get { return (CompProperties_BillAutomation)props; }
         }
 
-        /// <summary>有电才能干活 —— 沿用核心"取出的唯一门就是电"的既有口径。</summary>
+        /// <summary>给面板看的配方列表。</summary>
+        internal IList<CraftPlan> PlansForReading
+        {
+            get { return plans; }
+        }
+
+        /// <summary>给"添加配方"窗口看的候选配方。</summary>
+        internal IList<RecipeDef> UnlockedRecipes
+        {
+            get { return unlocked; }
+        }
+
+        public int CompletedCount
+        {
+            get { return completedCount; }
+        }
+
+        public int DroppedCount
+        {
+            get { return droppedCount; }
+        }
+
+        // ===================================================================
+        // 开关 / 电力 / 超频
+        // ===================================================================
+
         public bool Powered
         {
             get
             {
-                CompPowerTrader p = parent.GetComp<CompPowerTrader>();
+                CompPowerTrader p = parent.TryGetComp<CompPowerTrader>();
                 return p == null || p.PowerOn;
             }
         }
@@ -122,13 +163,13 @@ namespace DigitalStorage.Components
             }
         }
 
-        /// <summary>范围内台子的耗电合计（没有电力组件的台子按 <c>benchWithoutPowerWatts</c> 折算）。</summary>
+        /// <summary>范围内工作台的耗电合计（没有电力组件的按 <c>benchWithoutPowerWatts</c> 折算）。</summary>
         public float BenchWatts()
         {
             float sum = 0f;
-            for (int i = 0; i < slots.Count; i++)
+            for (int i = 0; i < benches.Count; i++)
             {
-                Thing bench = slots[i].Bench;
+                Thing bench = benches[i];
                 if (bench == null || bench.Destroyed) continue;
                 CompPowerTrader p = bench.TryGetComp<CompPowerTrader>();
                 sum += (p == null) ? Props.benchWithoutPowerWatts : p.Props.PowerConsumption;
@@ -136,20 +177,368 @@ namespace DigitalStorage.Components
             return sum;
         }
 
-        /// <summary>给面板看的槽位快照（只读用途）。<c>BillSlot</c> 是 internal ⇒ 本属性也是 internal。</summary>
-        internal IList<BillSlot> SlotsForReading
+        // ===================================================================
+        // 主循环
+        // ===================================================================
+
+        public override void CompTick()
         {
-            get { return slots; }
+            if (!CanWork)
+            {
+                ReleaseAll();
+                return;
+            }
+
+            Map map = parent.Map;
+            if (map == null) return;
+
+            int now = Find.TickManager.TicksGame;
+
+            // ① 扫描工作台（低频）+ 刷新"能做哪些配方"
+            if (now >= nextScanTick)
+            {
+                nextScanTick = now + Math.Max(1, Props.scanIntervalTicks);
+                RescanBenches(map);
+                SyncLines(map);
+                RecalcWatts();
+            }
+
+            if (cachedWatts < 0f) RecalcWatts();
+            ReassertPower();
+
+            // 左上角提示要在这里刷（列表可能刚好清空；放在早退之后最后一条提示就发不出去）
+            FlushMessages(now);
+
+            if (plans.Count == 0) return;
+
+            Pawn w = Worker;
+            if (w == null) return;
+
+            AdvanceAll(w, map, now);
+            ProbeAll(map, w, now);
+            UpdateVisuals(map);
         }
 
-        public int CompletedCount
+        /// <summary>
+        /// 扫"以建筑为中心的 13×13 方形"（<see cref="CompProperties_BillAutomation.scanRadius"/>）里
+        /// 能承载 bill 的建筑。
+        ///
+        /// <para>候选来源用 <c>listerThings.ThingsInGroup(PotentialBillGiver)</c> —— 原版
+        /// <c>WorkGiver_DoBill.ShouldSkip:128</c> 用的就是这条（有 lister 分支，不是全图遍历）。
+        /// **只认 <c>Building</c>**：Pawn / Corpse 也是 <c>IBillGiver</c>（手术、屠宰），
+        /// 但它们不是"工作台"，也不该出现在制作面板里。</para>
+        /// </summary>
+        private void RescanBenches(Map map)
         {
-            get { return completedCount; }
+            if (slotsMap != null && slotsMap != map) ReleaseAll();
+            slotsMap = map;
+
+            benches.Clear();
+            benchDefs.Clear();
+
+            int radius = Math.Max(0, Props.scanRadius);
+            CellRect rect = CellRect.CenteredOn(parent.PositionHeld, radius);
+            List<Thing> all = map.listerThings.ThingsInGroup(ThingRequestGroup.PotentialBillGiver);
+
+            for (int i = 0; i < all.Count; i++)
+            {
+                Thing t = all[i];
+                if (t == null || t.Destroyed || !t.Spawned || t == parent) continue;
+                if (!(t is Building)) continue;
+                if (!(t is IBillGiver)) continue;
+                if (!rect.Contains(t.PositionHeld)) continue;
+                if (t.def.recipes == null || t.def.recipes.Count == 0) continue;
+
+                benches.Add(t);
+                benchDefs.Add(t.def);
+            }
+
+            CraftUnlocks.MenuRecipes(benchDefs, unlocked);
         }
 
-        public int DroppedCount
+        // ===================================================================
+        // 生产线调度
+        // ===================================================================
+
+        /// <summary>
+        /// 让"在产线数"对齐"可用台子数"（用户拍板的并发口径）。
+        /// <list type="number">
+        /// <item>先释放：配方被挂起/做完、台子没了/断电/不再能做该配方；</item>
+        /// <item>再补足：从空闲台子里给活跃配方配线，受 <c>maxSlots</c> 与认领表限制。</item>
+        /// </list>
+        /// 台子认领（<see cref="BillBenchClaims"/>）保证**一台工作台同一时间只服务一条线**，
+        /// 也保证两台制作代理范围重叠时不会抢同一台。
+        /// </summary>
+        private void SyncLines(Map map)
         {
-            get { return droppedCount; }
+            for (int p = plans.Count - 1; p >= 0; p--)
+            {
+                CraftPlan plan = plans[p];
+                for (int i = plan.lines.Count - 1; i >= 0; i--)
+                {
+                    CraftLine line = plan.lines[i];
+                    Thing b = line.Bench;
+                    if (!plan.Active || b == null || b.Destroyed || !b.Spawned
+                        || !BenchUsable(b) || !CanCraft(b, plan.recipe))
+                    {
+                        ReleaseLine(plan, i);
+                    }
+                }
+            }
+
+            usedBenches.Clear();
+            for (int p = 0; p < plans.Count; p++)
+            {
+                CraftPlan plan = plans[p];
+                for (int i = 0; i < plan.lines.Count; i++)
+                {
+                    if (plan.lines[i].Bench != null) usedBenches.Add(plan.lines[i].Bench);
+                }
+            }
+
+            int free = Math.Max(1, Props.maxSlots) - TotalLines();
+            for (int p = 0; p < plans.Count && free > 0; p++)
+            {
+                CraftPlan plan = plans[p];
+                if (!plan.Active) continue;
+
+                int want = FreeBenchCountFor(plan.recipe);
+                for (int i = plan.lines.Count; i < want && free > 0; i++)
+                {
+                    Thing bench = PickBench(plan.recipe);
+                    if (bench == null) break;
+
+                    if (!BillBenchClaims.TryClaim(map, bench, this))
+                    {
+                        usedBenches.Add(bench);   // 别人占了 ⇒ 本轮别再挑它
+                        continue;
+                    }
+                    usedBenches.Add(bench);
+                    plan.lines.Add(MakeLine(plan, bench));
+                    free--;
+                }
+            }
+        }
+
+        private CraftLine MakeLine(CraftPlan plan, Thing bench)
+        {
+            CraftLine line = new CraftLine();
+            line.Plan = plan;
+            line.Bench = bench;
+
+            // 我们自己造一条原版 bill：只用于借原版选料器（换进台子一瞬），次数由 CraftPlan 自己记。
+            // repeatMode 设成 Forever 是为了让原版 ShouldDoNow 恒真（我们的次数逻辑在 plan 上）。
+            Bill_Production bill = new Bill_Production(plan.recipe);
+            bill.repeatMode = BillRepeatModeDefOf.Forever;
+
+            IBillGiver giver = bench as IBillGiver;
+            BillStack stack = new BillStack(giver);
+            stack.AddBill(bill);        // 顺带把 bill.billStack 指过去（Bill.Map / DeletedOrDereferenced 要用）
+            line.Bill = bill;
+            line.TempStack = stack;
+            return line;
+        }
+
+        private void ReleaseLine(CraftPlan plan, int i)
+        {
+            CraftLine line = plan.lines[i];
+            if (slotsMap != null) BillBenchClaims.Release(slotsMap, line.Bench, this);
+            line.ClearAll();
+            plan.lines.RemoveAt(i);
+        }
+
+        /// <summary>放手全部（断电 / 关掉 / 拆除 / 换图）。</summary>
+        public void ReleaseAll()
+        {
+            for (int p = 0; p < plans.Count; p++)
+            {
+                CraftPlan plan = plans[p];
+                for (int i = plan.lines.Count - 1; i >= 0; i--) plan.lines[i].ClearAll();
+                plan.lines.Clear();
+            }
+            if (slotsMap != null) BillBenchClaims.ReleaseAll(slotsMap, this);
+            slotsMap = null;
+            benches.Clear();
+            usedBenches.Clear();
+            pendingStored.Clear();
+            pendingDropped.Clear();
+        }
+
+        private int TotalLines()
+        {
+            int n = 0;
+            for (int p = 0; p < plans.Count; p++) n += plans[p].lines.Count;
+            return n;
+        }
+
+        // ===================================================================
+        // 查询（调度 + 面板共用，避免两套判据漂移）
+        // ===================================================================
+
+        /// <summary>这台工作台现在能不能用来开工（原版口径：供电 + 燃料 + 未故障）。</summary>
+        internal static bool BenchUsable(Thing bench)
+        {
+            IBillGiver giver = bench as IBillGiver;
+            if (giver == null) return false;
+            if (!bench.Spawned || bench.Destroyed) return false;
+            return giver.CurrentlyUsableForBills() && !bench.IsBurning();
+        }
+
+        /// <summary>这种建筑能不能做这个配方（= 台子解锁配方的判据，与菜单同源）。</summary>
+        internal static bool CanCraft(Thing bench, RecipeDef recipe)
+        {
+            if (bench == null || recipe == null || bench.def == null) return false;
+            List<RecipeDef> list = bench.def.recipes;
+            if (list == null) return false;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] == recipe) return true;
+            }
+            return false;
+        }
+
+        /// <summary>范围内能做这个配方的工作台数量（**不管可用性**，面板显示"共几台"用）。</summary>
+        internal int BenchTotalFor(RecipeDef recipe)
+        {
+            int n = 0;
+            for (int i = 0; i < benches.Count; i++)
+            {
+                if (CanCraft(benches[i], recipe)) n++;
+            }
+            return n;
+        }
+
+        /// <summary>范围内"能做且可用"的工作台数量（面板显示 + 并发上限）。</summary>
+        internal int UsableBenchCountFor(RecipeDef recipe)
+        {
+            int n = 0;
+            for (int i = 0; i < benches.Count; i++)
+            {
+                if (CanCraft(benches[i], recipe) && BenchUsable(benches[i])) n++;
+            }
+            return n;
+        }
+
+        /// <summary>还能再给这个配方配几条线（可用 + 未被占用 + 认领得动）。</summary>
+        private int FreeBenchCountFor(RecipeDef recipe)
+        {
+            int n = 0;
+            for (int i = 0; i < benches.Count; i++)
+            {
+                Thing b = benches[i];
+                if (!CanCraft(b, recipe) || !BenchUsable(b)) continue;
+                if (usedBenches.Contains(b)) continue;
+                n++;
+            }
+            return n;
+        }
+
+        private Thing PickBench(RecipeDef recipe)
+        {
+            for (int i = 0; i < benches.Count; i++)
+            {
+                Thing b = benches[i];
+                if (!CanCraft(b, recipe) || !BenchUsable(b)) continue;
+                if (usedBenches.Contains(b)) continue;
+                return b;
+            }
+            return null;
+        }
+
+        // ===================================================================
+        // 推进 + 结算
+        // ===================================================================
+
+        private void AdvanceAll(Pawn w, Map map, int now)
+        {
+            float speedMult = Math.Max(0.01f, Props.workSpeedMult) * OverclockSpeedMult;
+
+            for (int p = 0; p < plans.Count; p++)
+            {
+                CraftPlan plan = plans[p];
+                for (int i = plan.lines.Count - 1; i >= 0; i--)
+                {
+                    CraftLine line = plan.lines[i];
+                    if (!line.HasWork) continue;
+
+                    if (!StillValid(plan, line, map))
+                    {
+                        line.ClearWork();
+                        line.NextAcquireTick = 0;
+                        line.BlockKey = null;
+                        continue;
+                    }
+
+                    line.WorkLeft -= Math.Max(0f, line.BaseRate) * speedMult;
+
+                    try
+                    {
+                        line.Bill.Notify_PawnDidWork(w);   // 原版 DoRecipeWork:104（Bill_Production 是空实现）
+                    }
+                    catch (Exception)
+                    {
+                        // 子类可能重写；它抛异常不该弄死我们的 tick
+                    }
+
+                    if (line.WorkLeft > 0f) continue;
+
+                    CraftResult result = BillCraftFunnel.TryComplete(this, plan, line, map, w);
+                    if (result == CraftResult.NoBudget)
+                    {
+                        line.WorkLeft = 0f;      // 活干完了、只差预算 ⇒ 保留进度，下一 tick 再收尾
+                        continue;
+                    }
+
+                    line.ClearWork();
+                    line.NextAcquireTick = 0;
+
+                    if (plan.Done)
+                    {
+                        NotifyPlanDone(plan);
+                        break;                   // 这条配方做完了：本 tick 不再管它的线（SyncLines 会收）
+                    }
+                }
+            }
+        }
+
+        /// <summary>这条线这一轮还作不作数（台子 / 电量 / 配方解锁 / 原料都还在）。</summary>
+        private static bool StillValid(CraftPlan plan, CraftLine line, Map map)
+        {
+            if (plan == null || !plan.Active) return false;
+            if (!BenchUsable(line.Bench)) return false;
+
+            // 真人接手了这台 ⇒ 让
+            if (map.reservationManager != null
+                && map.reservationManager.IsReservedByAnyoneOf(line.Bench, Faction.OfPlayer)) return false;
+
+            // 原料还在容器里、数量还够（可能被真人或别的代理拿走了）
+            for (int i = 0; i < line.Ingredients.Length; i++)
+            {
+                Thing t = line.Ingredients[i];
+                if (t == null || t.Destroyed) return false;
+                Building_StorageCore core = t.ParentHolder as Building_StorageCore;
+                if (core == null || core.Map != map) return false;
+                if (line.Counts[i] > t.stackCount) return false;
+            }
+            return true;
+        }
+
+        private void ProbeAll(Map map, Pawn w, int now)
+        {
+            int probes = Math.Max(1, Props.maxProbesPerTick);
+            for (int p = 0; p < plans.Count && probes > 0; p++)
+            {
+                CraftPlan plan = plans[p];
+                if (!plan.Active) continue;
+
+                for (int i = 0; i < plan.lines.Count && probes > 0; i++)
+                {
+                    CraftLine line = plan.lines[i];
+                    if (line.HasWork || now < line.NextAcquireTick) continue;
+                    probes--;
+                    BillProbe.TryAcquire(this, plan, line, map, w, now);
+                }
+            }
         }
 
         /// <summary>资质载体（懒建）。造失败要退避 —— 否则会每 tick 跑一次 <c>PawnGenerator</c>。</summary>
@@ -167,237 +556,51 @@ namespace DigitalStorage.Components
             }
         }
 
-        private int nextWorkerAttemptTick = -99999;
-
         // ===================================================================
-        // 主循环
+        // 面板操作（ITab 调用）
         // ===================================================================
 
-        public override void CompTick()
+        internal bool HasPlan(RecipeDef recipe)
         {
-            // 断电 / 被拆 / 关掉 ⇒ 立刻全放手（不占着台子）
-            if (!CanWork)
+            for (int i = 0; i < plans.Count; i++)
             {
-                ReleaseAll();
-                return;
+                if (plans[i].recipe == recipe) return true;
             }
-
-            Map map = parent.Map;
-            if (map == null) return;
-
-            int now = Find.TickManager.TicksGame;
-
-            // ① 扫描工作台（低频；台子集合不变时结果也不变）
-            if (now >= nextScanTick)
-            {
-                nextScanTick = now + Math.Max(1, Props.scanIntervalTicks);
-                RescanBenches(map);
-                RecalcWatts();
-            }
-
-            // ② 电力复读：CompPowerTrader.SetUpPowerVars 会在电网变化/研究完成时被调
-            //    （PowerNetManager.cs:125/160、ResearchManager.cs:450），把 PowerOutput 打回
-            //    -props.PowerConsumption ⇒ 每 tick 只做一次 float 比较，被改了才写回。
-            if (slots.Count == 0 && cachedWatts < 0f) { RecalcWatts(); }
-            ReassertPower();
-
-            // 左上角提示要在这里刷：槽位可能刚好在上一段被清空（bill 做完了），
-            // 若把 FlushMessages 放在 `slots.Count == 0 return` 之后，最后那条提示就永远发不出去。
-            FlushMessages(now);
-
-            if (slots.Count == 0) return;
-
-            Pawn w = Worker;
-            if (w == null) return;
-
-            // ③ 推进已有的活（先推进：完成的槽位本 tick 就能接上新活）
-            AdvanceAll(w, map, now);
-
-            // ④ 给空槽位取活（配额 + 每槽退避）
-            int probes = Math.Max(1, Props.maxProbesPerTick);
-            for (int i = 0; i < slots.Count && probes > 0; i++)
-            {
-                BillSlot s = slots[i];
-                if (s.HasWork || now < s.NextAcquireTick) continue;
-                probes--;
-                BillProbe.TryAcquire(this, s, map, w, now);
-            }
-
-            // ⑤ 表现（提示已在前面刷过）
-            UpdateVisuals(map);
+            return false;
         }
 
-        /// <summary>
-        /// 推进所有槽位。完成的交给 <see cref="BillCraftFunnel"/>。
-        /// 「拿不到完成预算」与「这次作废」要分开：前者**不能丢进度**（活都干完了，等下一 tick 的票就行）。
-        /// </summary>
-        private void AdvanceAll(Pawn w, Map map, int now)
+        /// <summary>添加一条配方（默认无限模式）。已存在则不加。</summary>
+        internal void AddPlan(RecipeDef recipe)
         {
-            float speedMult = Math.Max(0.01f, Props.workSpeedMult) * OverclockSpeedMult;
-
-            for (int i = slots.Count - 1; i >= 0; i--)
-            {
-                BillSlot s = slots[i];
-                if (!s.HasWork) continue;
-
-                if (!StillValid(s, map))
-                {
-                    s.ClearWork();
-                    s.NextAcquireTick = 0;
-                    s.BlockKey = null;
-                    continue;
-                }
-
-                s.WorkLeft -= Math.Max(0f, s.BaseRate) * speedMult;
-
-                try
-                {
-                    s.Bill.Notify_PawnDidWork(w);   // 原版 DoRecipeWork:104（Bill_Production 是空实现）
-                }
-                catch (Exception)
-                {
-                    // 子类可能重写；它抛异常不该弄死我们的 tick
-                }
-
-                if (s.WorkLeft > 0f) continue;
-
-                CraftResult result = BillCraftFunnel.TryComplete(this, s, map, w);
-                if (result == CraftResult.NoBudget)
-                {
-                    s.WorkLeft = 0f;      // 保持"差一点"，下一 tick 再收尾（不重做）
-                    continue;
-                }
-                s.ClearWork();
-                s.NextAcquireTick = 0;
-            }
+            if (recipe == null || HasPlan(recipe)) return;
+            CraftPlan plan = new CraftPlan();
+            plan.recipe = recipe;
+            plan.mode = CraftPlan.ModeForever;
+            plans.Add(plan);
         }
 
-        /// <summary>这一轮还作不作数（台子/电量/bill 状态/原料都还在）。</summary>
-        private static bool StillValid(BillSlot s, Map map)
+        internal void RemovePlan(CraftPlan plan)
         {
-            Thing bench = s.Bench;
-            if (bench == null || bench.Destroyed || !bench.Spawned) return false;
-
-            IBillGiver giver = bench as IBillGiver;
-            if (giver == null) return false;
-            if (!giver.CurrentlyUsableForBills()) return false;
-
-            Bill_Production bill = s.Bill;
-            if (bill == null || bill.recipe == null || bill.DeletedOrDereferenced || bill.suspended) return false;
-
-            // 真人接手了这台 ⇒ 让
-            if (map.reservationManager != null
-                && map.reservationManager.IsReservedByAnyoneOf(bench, Faction.OfPlayer)) return false;
-
-            // 原料还在容器里、数量还够（可能被真人或别的代理拿走了）
-            for (int i = 0; i < s.Ingredients.Length; i++)
-            {
-                Thing t = s.Ingredients[i];
-                if (t == null || t.Destroyed) return false;
-                Building_StorageCore core = t.ParentHolder as Building_StorageCore;
-                if (core == null || core.Map != map) return false;
-                if (s.Counts[i] > t.stackCount) return false;
-            }
-            return true;
+            if (plan == null) return;
+            for (int i = plan.lines.Count - 1; i >= 0; i--) ReleaseLine(plan, i);
+            plans.Remove(plan);
         }
 
-        // ===================================================================
-        // 扫描与认领
-        // ===================================================================
-
-        /// <summary>
-        /// 扫"以建筑为中心的 13×13 方形"（<see cref="CompProperties_BillAutomation.scanRadius"/>）里的工作台。
-        ///
-        /// <para>候选来源用 <c>listerThings.ThingsInGroup(PotentialBillGiver)</c> —— 原版
-        /// <c>WorkGiver_DoBill.ShouldSkip:128</c> 用的就是这条，它是有 lister 分支的组，不是全图遍历。</para>
-        ///
-        /// <para>只有"还有活要做"的台子才占槽位（<c>BillStack.AnyShouldDoNow</c>）：
-        /// 空台子/达标台子不占并发数，也不需要代理去认领。</para>
-        /// </summary>
-        private void RescanBenches(Map map)
+        /// <summary>上下移动（决定台子不够时谁先拿到线）。</summary>
+        internal void MovePlan(CraftPlan plan, int dir)
         {
-            if (slotsMap != null && slotsMap != map)
-            {
-                ReleaseAll();      // 换图（穿梭机/传送门搬走了）：旧图的认领要放手
-            }
-            slotsMap = map;
-
-            for (int i = 0; i < slots.Count; i++) slots[i].Seen = false;
-
-            int radius = Math.Max(0, Props.scanRadius);
-            CellRect rect = CellRect.CenteredOn(parent.PositionHeld, radius);
-            List<Thing> all = map.listerThings.ThingsInGroup(ThingRequestGroup.PotentialBillGiver);
-
-            for (int i = 0; i < all.Count; i++)
-            {
-                Thing t = all[i];
-                if (t == null || t.Destroyed || !t.Spawned) continue;
-                if (t == parent) continue;
-                if (!rect.Contains(t.PositionHeld)) continue;
-
-                IBillGiver giver = t as IBillGiver;
-                if (giver == null) continue;
-                if (!giver.BillStack.AnyShouldDoNow) continue;
-
-                BillSlot slot = FindSlot(t);
-                if (slot == null)
-                {
-                    if (slots.Count >= Math.Max(1, Props.maxSlots)) continue;
-                    if (!BillBenchClaims.TryClaim(map, t, this)) continue;
-                    slot = new BillSlot();
-                    slot.Bench = t;
-                    slots.Add(slot);
-                }
-                else if (BillBenchClaims.OwnerOf(map, t) != this)
-                {
-                    continue;   // 不是我的（被别人抢了）⇒ 本轮当没见到
-                }
-                slot.Seen = true;
-            }
-
-            // 本轮没再见到的：拆了 / 超范围 / 没活了 / 断电 ⇒ 释放（顺手放手认领）
-            for (int i = slots.Count - 1; i >= 0; i--)
-            {
-                if (!slots[i].Seen) ReleaseSlotAt(i);
-            }
-        }
-
-        private BillSlot FindSlot(Thing bench)
-        {
-            for (int i = 0; i < slots.Count; i++)
-            {
-                if (slots[i].Bench == bench) return slots[i];
-            }
-            return null;
-        }
-
-        private void ReleaseSlotAt(int i)
-        {
-            BillSlot s = slots[i];
-            if (slotsMap != null) BillBenchClaims.Release(slotsMap, s.Bench, this);
-            s.ClearAll();
-            slots.RemoveAt(i);
-        }
-
-        /// <summary>放手全部（断电 / 关掉 / 拆除 / 换图）。</summary>
-        public void ReleaseAll()
-        {
-            for (int i = slots.Count - 1; i >= 0; i--)
-            {
-                slots[i].ClearAll();
-            }
-            slots.Clear();
-            if (slotsMap != null) BillBenchClaims.ReleaseAll(slotsMap, this);
-            slotsMap = null;
-            pendingStored.Clear();
-            pendingDropped.Clear();
+            int i = plans.IndexOf(plan);
+            if (i < 0) return;
+            int j = i + dir;
+            if (j < 0 || j >= plans.Count) return;
+            plans[i] = plans[j];
+            plans[j] = plan;
         }
 
         // ===================================================================
         // 电力
         // ===================================================================
 
-        /// <summary>按"当前台子集合 + 超频档位 + 开关"重算并写回耗电。</summary>
         public void RecalcWatts()
         {
             float w = Props.basePowerWatts;
@@ -408,12 +611,13 @@ namespace DigitalStorage.Components
 
         /// <summary>
         /// 把缓存值复读回 <c>CompPowerTrader</c>。原版会在若干时机调 <c>SetUpPowerVars</c>
-        /// 把输出打回 <c>-Props.PowerConsumption</c>（电网变化、研究完成），所以不能只写一次。
+        /// 把输出打回 <c>-Props.PowerConsumption</c>（电网变化 <c>PowerNetManager.cs:125/160</c>、
+        /// 研究完成 <c>ResearchManager.cs:450</c>），所以不能只写一次。
         /// </summary>
         private void ReassertPower()
         {
             if (cachedWatts < 0f) return;
-            CompPowerTrader p = parent.GetComp<CompPowerTrader>();
+            CompPowerTrader p = parent.TryGetComp<CompPowerTrader>();
             if (p == null) return;
             float want = -cachedWatts;
             if (!Mathf.Approximately(p.PowerOutput, want)) p.PowerOutput = want;
@@ -426,15 +630,19 @@ namespace DigitalStorage.Components
         private void UpdateVisuals(Map map)
         {
             int cap = Math.Max(0, Props.maxVisualSlots);
-            for (int i = 0; i < slots.Count; i++)
+            int index = 0;
+            for (int p = 0; p < plans.Count; p++)
             {
-                slots[i].TickVisual(map, i, cap);
+                CraftPlan plan = plans[p];
+                for (int i = 0; i < plan.lines.Count; i++)
+                {
+                    plan.lines[i].TickVisual(map, index, cap);
+                    index++;
+                }
             }
         }
 
-        /// <summary>
-        /// 记一笔产物（给左上角提示聚合）。<paramref name="stored"/> = 已进核心。
-        /// </summary>
+        /// <summary>记一笔产物（给左上角提示聚合）。<paramref name="stored"/> = 已进核心。</summary>
         internal void NoteProduct(Thing p, bool stored)
         {
             if (p == null) return;
@@ -450,13 +658,18 @@ namespace DigitalStorage.Components
             else droppedCount++;
         }
 
+        /// <summary>某条配方的订单做完（次数模式清零）时提示一次。</summary>
+        internal void NotifyPlanDone(CraftPlan plan)
+        {
+            if (plan == null || plan.recipe == null) return;
+            Messages.Message("DS_BA_PlanDone".Translate(plan.recipe.LabelCap, plan.completed),
+                new TargetInfo(parent.PositionHeld, parent.MapHeld), MessageTypeDefOf.TaskCompletion, false);
+        }
+
         /// <summary>
-        /// 按 <see cref="CompProperties_BillAutomation.messageIntervalTicks"/> 的节奏，把这段时间
-        /// 做完的产物汇成**一条**左上角消息（用户拍板：产物直塞核心 + 左上角弹提示）。
-        ///
-        /// <para>用 <c>Messages.Message</c> 而不是信件：信件是屏幕中央的弹窗且会打断操作，
-        /// 工厂按秒出货时那是灾难。品质信（大师/传奇）已被
-        /// <see cref="BillAutomationScope"/> 抑制，品质信息在这里用"传奇 XX"补回来。</para>
+        /// 按 <see cref="CompProperties_BillAutomation.messageIntervalTicks"/> 的节奏，把这段时间做好的产物
+        /// 汇成**一条**左上角消息（用户拍板：产物直塞核心 + 左上角弹提示）。品质信在生成时被抑制，
+        /// 品质信息用"传奇 XX"补在这里。
         /// </summary>
         private void FlushMessages(int now)
         {
@@ -521,11 +734,10 @@ namespace DigitalStorage.Components
             yield return new Command_Action
             {
                 defaultLabel = "DS_BA_Overclock".Translate(OverclockLabel()),
-                defaultDesc = "DS_BA_OverclockDesc".Translate(OverclockLabel(), CurrentWatts.ToString("#####0")),
+                defaultDesc = "DS_BA_OverclockDesc".Translate(CurrentWatts.ToString("#####0")),
                 action = () =>
                 {
-                    int next = (overclockTier + 1) % 4;
-                    OverclockTier = next;
+                    OverclockTier = (overclockTier + 1) % 4;
                     Messages.Message("DS_BA_OverclockMsg".Translate(parent.LabelShort, OverclockLabel(), CurrentWatts.ToString("#####0")),
                         new TargetInfo(parent.PositionHeld, parent.MapHeld), MessageTypeDefOf.SilentInput, false);
                 }
@@ -554,16 +766,11 @@ namespace DigitalStorage.Components
             if (!Powered) return "制作代理：断电";
             if (!enabled) return "制作代理：已关闭";
 
-            int working = 0;
-            for (int i = 0; i < slots.Count; i++)
-            {
-                if (slots[i].HasWork) working++;
-            }
-
-            string s = "制作代理：在产 " + working + " / 共 " + slots.Count + " 台 · 耗电 "
+            int lines = TotalLines();
+            string s = "制作代理：在产 " + lines + " 条线 · 配方 " + plans.Count + " 条 · 耗电 "
                 + CurrentWatts.ToString("#####0") + "W（速度 " + Props.workSpeedMult.ToString("0.0")
                 + "× × 超频 " + OverclockSpeedMult.ToString("0") + "×，资质 " + Props.skillLevel + "）";
-            if (slots.Count == 0) s += " · 范围内没有在做 bill 的工作台";
+            if (benches.Count == 0) s += " · 13×13 内没有工作台";
             return s;
         }
 
@@ -586,12 +793,16 @@ namespace DigitalStorage.Components
             base.PostExposeData();
             Scribe_Values.Look(ref enabled, "billAutoEnabled", true);
             Scribe_Values.Look(ref overclockTier, "billAutoOverclock", 0);
-            // 刻意不 Scribe worker / slots：工人与进行中的活都是可重建的派生状态。
-            // 扣料只在完成那一刻发生 ⇒ 读档丢进度不丢料。
+            Scribe_Collections.Look(ref plans, "billAutoPlans", LookMode.Deep);
+
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
-                slots.Clear();
-                slotsMap = null;
+                if (plans == null) plans = new List<CraftPlan>();
+                // 配方 def 被删（换 mod/换版本）时安静丢掉那条，别让面板里出现空行
+                for (int i = plans.Count - 1; i >= 0; i--)
+                {
+                    if (plans[i] == null || plans[i].recipe == null) plans.RemoveAt(i);
+                }
                 cachedWatts = -1f;
                 RecalcWatts();
             }

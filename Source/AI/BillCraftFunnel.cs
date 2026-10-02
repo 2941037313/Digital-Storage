@@ -28,17 +28,19 @@ namespace DigitalStorage.AI
     /// </summary>
     internal static class BillCraftFunnel
     {
-        public static CraftResult TryComplete(CompBillAutomation comp, BillSlot slot, Map map, Pawn w)
+        public static CraftResult TryComplete(CompBillAutomation comp, CraftPlan plan, CraftLine line, Map map, Pawn w)
         {
-            Bill_Production bill = slot.Bill;
-            if (bill == null || bill.recipe == null || bill.DeletedOrDereferenced) return CraftResult.Invalid;
-            if (bill.suspended) return CraftResult.Invalid;
+            if (plan == null || plan.recipe == null || !plan.Active) return CraftResult.Invalid;
 
-            // 与真人抢跑的闸门。原版自己也有这一步（CheckIfRecipeCanFinishNow:380-391）——
-            // 真人先干完的话 repeatCount 已归零、TargetCount 已达标，这里就会 false ⇒ 我们丢弃这次、**不扣料**。
-            if (!bill.ShouldDoNow()) return CraftResult.Invalid;
+            Bill_Production bill = line.Bill;
+            if (bill == null || bill.DeletedOrDereferenced) return CraftResult.Invalid;
 
-            Thing bench = slot.Bench;
+            // 作废闸门：配方还在不在（研究被撤销 / def 没了）/ 台子还能不能用。
+            // 注意这里**没有** bill.ShouldDoNow()：那是原版按 bill 的 repeatCount 判"还要不要做"，
+            // 而我们的次数记在 CraftPlan 上（临时的 bill 是 Forever，恒真）。plan.Active 就是同一件事。
+            if (!plan.recipe.AvailableNow) return CraftResult.Invalid;
+
+            Thing bench = line.Bench;
             if (bench == null || bench.Destroyed || !bench.Spawned) return CraftResult.Invalid;
             IBillGiver giver = bench as IBillGiver;
             if (giver == null) return CraftResult.Invalid;
@@ -52,15 +54,15 @@ namespace DigitalStorage.AI
             //    同时记住来源容器，出错能原样放回。
             List<Thing> ingredients = new List<Thing>();
             List<ThingOwner> owners = new List<ThingOwner>();
-            for (int i = 0; i < slot.Ingredients.Length; i++)
+            for (int i = 0; i < line.Ingredients.Length; i++)
             {
-                Thing t = slot.Ingredients[i];
+                Thing t = line.Ingredients[i];
                 if (t == null || t.Destroyed) { Rollback(ingredients, owners); return CraftResult.Invalid; }
 
                 Building_StorageCore core = t.ParentHolder as Building_StorageCore;
                 if (core == null || core.Map != map) { Rollback(ingredients, owners); return CraftResult.Invalid; }
 
-                int need = slot.Counts[i];
+                int need = line.Counts[i];
                 if (need <= 0) continue;
 
                 if (need >= t.stackCount)
@@ -114,6 +116,8 @@ namespace DigitalStorage.AI
             }
 
             // ④ bill 状态 + 统计钩子。顺序照抄 Toils_Recipe.cs:133 → :200-201 → :221。
+            //    我们的 bill 是 Forever ⇒ Notify_IterationCompleted 不会动次数（次数在 plan 上），
+            //    但它会回调 recipe.Worker.Notify_IterationCompleted —— 那是 mod 的扩展点，必须走。
             try
             {
                 bill.Notify_BillWorkFinished(w);
@@ -123,19 +127,16 @@ namespace DigitalStorage.AI
                 {
                     Find.QuestManager.Notify_ThingsProduced(w, products);
                 }
-                // TargetCount 模式靠资源计数判"够了没"。本 mod 已有 ResourceCounter 补丁把核心内容物算进去，
-                // 所以这里刷新一次就够（原版是在 toil 的 AddFinishAction 里刷，Toils_Recipe.cs:174-180）。
-                if (bill.repeatMode == BillRepeatModeDefOf.TargetCount)
-                {
-                    map.resourceCounter.UpdateResourceCounts();
-                }
             }
             catch (Exception e)
             {
                 Log.Error("[DigitalStorage] 制作代理 bill 结算回调抛异常（产物已出，忽略）：" + e);
             }
 
-            // ⑤ 产物：直塞核心，塞不进就落在台子旁（绝不吞）
+            // ⑤ 记账（**唯一入口**：次数/统计都在 CraftPlan.NoteCompleted 里）
+            plan.NoteCompleted();
+
+            // ⑥ 产物：直塞核心，塞不进就落在台子旁（绝不吞）
             StoreProducts(comp, products, map, bench);
             Performance.DevDrawProfiler.Bump("账单完成", 1);
             return CraftResult.Done;
