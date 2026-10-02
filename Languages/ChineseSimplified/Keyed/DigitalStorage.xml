@@ -81,6 +81,8 @@
   <DS_BA_Overclock>超频：{0}</DS_BA_Overclock>
   <DS_BA_OverclockDesc>点击切换超频档位。当前耗电 {0} W。\n3GHz：30% 的人类感谢你（速度 ×3，耗电 ×9）\n6GHz：60% 的人类感谢你（速度 ×6，耗电 ×27）\n9GHz：90% 的人类感谢你（速度 ×9，耗电 ×81）</DS_BA_OverclockDesc>
   <DS_BA_OverclockMsg>{0} 超频：{1}（耗电 {2} W）</DS_BA_OverclockMsg>
+  <DS_BA_ShowRange>显示范围</DS_BA_ShowRange>
+  <DS_BA_ShowRangeDesc>在地图上画出这台制作代理的 {0}×{0} 工作范围（能吃到哪些工作台一眼可见）。开着就一直显示，不影响性能。</DS_BA_ShowRangeDesc>
   <DS_BA_OC_Off>关闭</DS_BA_OC_Off>
   <DS_BA_OC_3>3 GHz</DS_BA_OC_3>
   <DS_BA_OC_6>6 GHz</DS_BA_OC_6>

@@ -3,7 +3,10 @@
 
   <!-- 数字存储建筑基类 -->
   <ThingDef Name="DigitalStorage_BuildingBase" ParentName="BuildingBase" Abstract="True">
-    <designationCategory>Furniture</designationCategory>
+    <!-- 专有分类（用户要求：不要继续挂在家具类别下）。
+         DigitalStorage = 建造菜单页签；DigitalStorage_Buildings = 物品分类（筛选树/交易分组）。
+         两个 def 都在 Defs/Categories_DigitalStorage.xml。 -->
+    <designationCategory>DigitalStorage</designationCategory>
     <passability>PassThroughOnly</passability>
     <castEdgeShadows>true</castEdgeShadows>
     <canOverlapZones>false</canOverlapZones>
@@ -18,7 +21,7 @@
       <li Class="CompProperties_Forbiddable" />
     </comps>
     <thingCategories>
-      <li>BuildingsFurniture</li>
+      <li>DigitalStorage_Buildings</li>
     </thingCategories>
   </ThingDef>
 

@@ -81,6 +81,8 @@
   <DS_BA_Overclock>Overclock: {0}</DS_BA_Overclock>
   <DS_BA_OverclockDesc>Click to cycle the overclock tier. Current draw {0} W.\n3GHz: 30% of humanity thanks you (speed x3, power x9)\n6GHz: 60% of humanity thanks you (speed x6, power x27)\n9GHz: 90% of humanity thanks you (speed x9, power x81)</DS_BA_OverclockDesc>
   <DS_BA_OverclockMsg>{0} overclock: {1} (draw {2} W)</DS_BA_OverclockMsg>
+  <DS_BA_ShowRange>Show range</DS_BA_ShowRange>
+  <DS_BA_ShowRangeDesc>Draw this crafting proxy's {0}x{0} working range on the map, so you can see which benches it covers. Stays visible while toggled on; costs nothing.</DS_BA_ShowRangeDesc>
   <DS_BA_OC_Off>off</DS_BA_OC_Off>
   <DS_BA_OC_3>3 GHz</DS_BA_OC_3>
   <DS_BA_OC_6>6 GHz</DS_BA_OC_6>

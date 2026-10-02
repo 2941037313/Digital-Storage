@@ -148,6 +148,7 @@
     <Compile Include="Settings\DigitalStorageSettings.cs" />
 
     <Compile Include="Services\DigitalStorageGameComponent.cs" />
+    <Compile Include="Services\MapComponent_CraftRange.cs" />
 
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

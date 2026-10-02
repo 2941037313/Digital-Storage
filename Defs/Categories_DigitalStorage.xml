@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- ==========================================================================
+       本 mod 专有分类（用户要求：不要继续挂在家具类别下）
+
+       ① DesignationCategoryDef = **建造菜单（建筑师）页签**。原版页签的 order：
+          Orders 900 / Zone 800 / Structure 700 / Production 600 / Furniture 500 /
+          Power 400 / Security 300 / Misc 250 / Floors 200 / Joy 100 / Ship 50 / Temperature 25。
+          取 550：夹在 Production(600) 与 Furniture(500) 之间 —— 离"生产/家具"近，又不挤任何原版页签。
+          本 def 不需要 specialDesignatorClasses：分类里的可建造物会自动生成 Designator_Build
+          （DesignationCategoryDef.ResolveDesignators 扫 designationCategory == this 的 BuildableDef）。
+
+       ② ThingCategoryDef = **物品分类**（存储筛选树 / 交易 / 列表分组用它）。
+          挂到 Buildings 之下，于是筛选树里会出现"数字存储"这一支，而不是混进"家具"。
+
+       两者都由 Defs/ThingDefs_Buildings.xml 的 DigitalStorage_BuildingBase 统一引用，
+       所以核心 / 4 类代理 / 制作代理会一起搬家，不用逐个改。
+       ========================================================================== -->
+
+  <DesignationCategoryDef>
+    <defName>DigitalStorage</defName>
+    <label>数字存储</label>
+    <order>550</order>
+  </DesignationCategoryDef>
+
+  <ThingCategoryDef>
+    <defName>DigitalStorage_Buildings</defName>
+    <label>数字存储</label>
+    <parent>Buildings</parent>
+    <iconPath>磁盘-小</iconPath>
+  </ThingCategoryDef>
+
+</Defs>

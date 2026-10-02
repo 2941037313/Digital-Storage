@@ -54,6 +54,14 @@ namespace DigitalStorage.Components
         /// <summary>超频档位：0 = 关，1 = 3GHz，2 = 6GHz，3 = 9GHz。</summary>
         private int overclockTier;
 
+        /// <summary>是否在地图上画出 13×13 扫描范围（gizmo 切换，进存档）。</summary>
+        private bool showRange;
+
+        /// <summary>扫描范围格子缓存（<see cref="RangeCellsForDrawing"/> 用；建筑不动就不重建）。</summary>
+        private List<IntVec3> rangeCells;
+        private IntVec3 rangeCachedCenter = IntVec3.Invalid;
+        private int rangeCachedRadius = -1;
+
         /// <summary>缓存的实际耗电（W）；每 tick 只与 <c>PowerOutput</c> 比一次。</summary>
         private float cachedWatts = -1f;
 
@@ -86,6 +94,38 @@ namespace DigitalStorage.Components
         internal IList<RecipeDef> UnlockedRecipes
         {
             get { return unlocked; }
+        }
+
+        /// <summary>是否把扫描范围画在地图上（gizmo 切换；<see cref="MapComponent_CraftRange"/> 每帧读它）。</summary>
+        public bool ShowRange
+        {
+            get { return showRange; }
+        }
+
+        /// <summary>
+        /// 扫描范围的格子（13×13 方形，与 <see cref="CompProperties_BillAutomation.scanRadius"/> 同源）。
+        ///
+        /// <para><b>缓存</b>：地图绘制阶段每帧都会问一次，但建筑不会动、半径也不变
+        /// ⇒ 只在"位置/半径变了"时重建那 169 个格子。</para>
+        /// </summary>
+        public List<IntVec3> RangeCellsForDrawing()
+        {
+            int radius = Math.Max(0, Props.scanRadius);
+            IntVec3 center = parent.PositionHeld;
+
+            if (rangeCells == null || rangeCachedCenter != center || rangeCachedRadius != radius)
+            {
+                rangeCachedCenter = center;
+                rangeCachedRadius = radius;
+                CellRect rect = CellRect.CenteredOn(center, radius);
+                if (rangeCells == null) rangeCells = new List<IntVec3>(rect.Area);
+                else rangeCells.Clear();
+                foreach (IntVec3 c in rect)
+                {
+                    rangeCells.Add(c);
+                }
+            }
+            return rangeCells;
         }
 
         public int CompletedCount
@@ -746,6 +786,15 @@ namespace DigitalStorage.Components
                         new TargetInfo(parent.PositionHeld, parent.MapHeld), MessageTypeDefOf.SilentInput, false);
                 }
             };
+
+            // 显示扫描范围（用户要求）：开着就一直在地图上画 13×13 边框，方便摆工作台。
+            yield return new Command_Toggle
+            {
+                defaultLabel = "DS_BA_ShowRange".Translate(),
+                defaultDesc = "DS_BA_ShowRangeDesc".Translate(Props.scanRadius * 2 + 1),
+                isActive = () => showRange,
+                toggleAction = () => { showRange = !showRange; }
+            };
         }
 
         /// <summary>当前超频档位名（面板/描述用）。</summary>
@@ -797,6 +846,7 @@ namespace DigitalStorage.Components
             base.PostExposeData();
             Scribe_Values.Look(ref enabled, "billAutoEnabled", true);
             Scribe_Values.Look(ref overclockTier, "billAutoOverclock", 0);
+            Scribe_Values.Look(ref showRange, "billAutoShowRange", false);
             Scribe_Collections.Look(ref plans, "billAutoPlans", LookMode.Deep);
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
