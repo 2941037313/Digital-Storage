@@ -247,7 +247,9 @@ namespace DigitalStorage.Components
                 if (!(t is Building)) continue;
                 if (!(t is IBillGiver)) continue;
                 if (!rect.Contains(t.PositionHeld)) continue;
-                if (t.def.recipes == null || t.def.recipes.Count == 0) continue;
+                // 能做东西才收（AllRecipes 见 CanCraft 的注释：不能只看 def.recipes）
+                List<RecipeDef> rs = t.def.AllRecipes;
+                if (rs == null || rs.Count == 0) continue;
 
                 benches.Add(t);
                 benchDefs.Add(t.def);
@@ -388,7 +390,9 @@ namespace DigitalStorage.Components
         internal static bool CanCraft(Thing bench, RecipeDef recipe)
         {
             if (bench == null || recipe == null || bench.def == null) return false;
-            List<RecipeDef> list = bench.def.recipes;
+            // AllRecipes：合并"XML 显式 <recipes>"与"产品 def 的 recipeMaker ⇒ recipeUsers"两路。
+            // 用 def.recipes 会漏掉后者（工作台的配方绝大多数在后一路）。
+            List<RecipeDef> list = bench.def.AllRecipes;
             if (list == null) return false;
             for (int i = 0; i < list.Count; i++)
             {

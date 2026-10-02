@@ -25,7 +25,11 @@ namespace DigitalStorage.AI
             if (cache.TryGetValue(benchDef, out list)) return list;
 
             list = new List<RecipeDef>();
-            List<RecipeDef> defs = benchDef.recipes;
+            // ⚠️ 必须用 AllRecipes 而不是 def.recipes：XML 里 <recipes> 通常只写显式的几个，
+            //    工作台的配方绝大多数来自"产品 def 上的 <recipeMaker> + recipeUsers"这一路，
+            //    只有 AllRecipes 会把两路合并（ThingDef.cs:545-570 的第二趟扫描就是干这个的）。
+            //    ⚠️ AllRecipes 返回的是它自己的缓存表，**只能读，不能改**。
+            List<RecipeDef> defs = benchDef.AllRecipes;
             if (defs != null)
             {
                 for (int i = 0; i < defs.Count; i++)
