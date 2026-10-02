@@ -321,6 +321,8 @@ namespace DigitalStorage.Components
             InPrisonArea,
             /// <summary>在工作台的**材料区**（= 工作台自己占的格子）—— 见 <see cref="IsOnBillGiver"/>。</summary>
             OnBillGiver,
+            /// <summary>在**建造工地**上（蓝图 / 框架正在等的材料）—— 见 <see cref="IsConstructionMaterial"/>。</summary>
+            OnConstructionSite,
             Reserved,
             RecentlyWithdrawn
         }
@@ -347,6 +349,7 @@ namespace DigitalStorage.Components
             // 容器内 / 背包里的东西 Spawned == false，一条判断就够。
             if (!t.Spawned) return Reject.NotOnMap;
             if (IsOnBillGiver(t, map)) return Reject.OnBillGiver;
+            if (IsConstructionMaterial(t, map)) return Reject.OnConstructionSite;
             if (IsInPrisonArea(t, map)) return Reject.InPrisonArea;
             if (map.reservationManager.IsReserved(t)) return Reject.Reserved;
             if (IsRecentlyWithdrawn(t)) return Reject.RecentlyWithdrawn;
@@ -371,6 +374,54 @@ namespace DigitalStorage.Components
         {
             Building edifice = t.PositionHeld.GetEdifice(map);
             return edifice is IBillGiver;
+        }
+
+        /// <summary>
+        /// 这件东西是不是躺在**建造工地**上（蓝图 / 框架）。
+        ///
+        /// <para><b>为什么必须排除</b>（用户 2026-10-02 实测："有时（不是 100%）pawn 完成建造工作后
+        /// 会进入几秒等待 job"）：把材料送到工地的那一步，落地是**合法的**
+        /// （原版 <c>Toils_Haul.DepositHauledThingInContainer</c> 在目标不是 <c>IThingHolder</c> 时
+        /// 没有"落地"分支，是直接销毁；而<b>本 mod 的 <c>JobDriver_DS_Withdraw.PlaceHauled</c></b>
+        /// 容器放不进时会落地），落地的那件东西**既不设禁止、也不被预订**
+        /// ⇒ 在我们的判据里是完全合法的候选 ⇒ 被自动收纳当场吸回核心
+        /// ⇒ 工地永远等不到材料、建造者没活干 ⇒ 表现为"干完这一步之后站着等几秒"。</para>
+        ///
+        /// <para><b>为什么是"有时不是 100%"</b>：纯粹的竞态 —— 建造者若在自动收纳的下一个
+        /// 15 tick 相位之前赶到并开工，就没事。4.0 的收纳是瞬移，收得越快这个窗口越致命，
+        /// 所以 3.0（账本时代）从没暴露过。</para>
+        ///
+        /// <para><b>判据</b>：脚下 + 8 邻格里有任何 <see cref="IConstructible"/>。
+        /// <b>不能</b>用 <c>c.GetEdifice(map)</c> —— 它只返回 <c>Building</c>，
+        /// 而 <c>Blueprint</c> 是 <c>ThingWithComps</c>（只有 <c>Frame</c> 是 <c>Building</c>），
+        /// 于是蓝图会被整个漏掉。必须扫格子上的 Thing 再判接口。</para>
+        ///
+        /// <para><b>已知代价</b>（有意接受）：紧贴工地那一圈格子里的散落物本轮不收纳。
+        /// 蓝图/框架按设计寿命很短，所以这个窗口很小；而"把工地材料吸走导致停工"是硬故障。
+        /// 诊断工具会把它显示成 <see cref="Reject.OnConstructionSite"/>，不会被静默吞掉。</para>
+        /// </summary>
+        private static bool IsConstructionMaterial(Thing t, Map map)
+        {
+            IntVec3 pos = t.PositionHeld;
+            if (!pos.IsValid) return false;
+
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    IntVec3 c = new IntVec3(pos.x + dx, 0, pos.z + dz);
+                    if (!c.InBounds(map)) continue;
+
+                    List<Thing> list = map.thingGrid.ThingsListAt(c);
+                    for (int k = 0; k < list.Count; k++)
+                    {
+                        Thing other = list[k];
+                        if (other == null || other == t) continue;
+                        if (other is IConstructible) return true;
+                    }
+                }
+            }
+            return false;
         }
 
         /// <summary>

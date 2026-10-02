@@ -5,6 +5,7 @@ using LudeonTK;
 using RimWorld;
 using UnityEngine;
 using Verse;
+using Verse.AI;
 
 namespace DigitalStorage.Components
 {
@@ -212,6 +213,131 @@ namespace DigitalStorage.Components
 
             SB.AppendLine("=== [DS 强制收纳] 结束 ===");
             Log.Warning(SB.ToString());
+        }
+
+        // ===================================================================
+        // 入口 4：点殖民者 → 它现在在等什么 / 该不该有活
+        // ===================================================================
+
+        /// <summary>
+        /// 点一个 pawn，打印它**现在这个 job 的全部可读状态** + 本图建造活的有无，
+        /// 用来回答"它为什么站着等"。
+        ///
+        /// <para><b>为什么要这一条</b>：用户实测"有时（不是 100%）pawn 完成建造工作后进入几秒等待 job"。
+        /// 这类问题的分支很多（没活 / 有活但没派到它 / 派了活但瞬间放弃 / 排队等材料），
+        /// 而**能一次分清它们的只有两样东西**：当前 job 的 toil 与 job 事件序列。
+        /// 前者这条工具直接打；后者用第二个动作打开原版的 <c>Pawn_JobTracker.debugLog</c>
+        /// （原版自带的逐事件日志，会写进 Player.log）。</para>
+        /// </summary>
+        [DebugAction(Category, "这个 pawn 在等什么（点 pawn）",
+            actionType = DebugActionType.ToolMapForPawns,
+            allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void DiagnosePawn(Pawn p)
+        {
+            if (p == null) return;
+            Map map = p.Map;
+            if (map == null) return;
+
+            MoteMaker.ThrowText(p.DrawPos, map, "DS pawn 诊断 → 日志");
+
+            SB.Length = 0;
+            SB.AppendLine("=== [DS pawn] " + p.LabelShort + "  " + p.def.defName
+                          + "  阵营=" + (p.Faction == null ? "无" : p.Faction.Name)
+                          + "  倒地=" + p.Downed + "  死亡=" + p.Dead + " ===");
+
+            Job cur = p.CurJob;
+            if (cur == null)
+            {
+                SB.AppendLine("  当前 job = null（**它现在没有任何工作** —— 原版会在下一个思考周期给它派活）");
+            }
+            else
+            {
+                SB.AppendLine("  当前 job = " + cur.def.defName + "   「" + cur.GetReport(p) + "」");
+                SB.AppendLine("    targetA=" + cur.targetA + " / B=" + cur.targetB + " / C=" + cur.targetC
+                              + " / count=" + cur.count
+                              + " / targetQueueB=" + (cur.targetQueueB == null ? 0 : cur.targetQueueB.Count));
+                if (cur.bill != null) SB.AppendLine("    bill = " + cur.bill.Label);
+            }
+
+            JobDriver drv = p.jobs == null ? null : p.jobs.curDriver;
+            if (drv != null)
+            {
+                SB.AppendLine("  driver = " + drv.GetType().Name
+                              + "  ended=" + drv.ended
+                              + "  toils[" + drv.CurToilIndex + "] = " + drv.CurToilString);
+            }
+            SB.AppendLine("  jobs.debugLog = " + (p.jobs != null && p.jobs.debugLog)
+                          + "（点「切换这个 pawn 的 job 调试日志」可打开，日志里就会有逐事件序列）");
+            if (p.jobs != null && p.jobs.jobQueue != null && p.jobs.jobQueue.Count > 0)
+            {
+                SB.Append("  排队中的 job（" + p.jobs.jobQueue.Count + "）：");
+                for (int i = 0; i < p.jobs.jobQueue.Count; i++) SB.Append(p.jobs.jobQueue[i].job.def.defName + " ");
+                SB.AppendLine();
+            }
+
+            // 工作类型是否启用 —— "没活干"最常见的其实是"这个工作类型被关了"
+            if (p.workSettings != null && p.workSettings.EverWork)
+            {
+                SB.AppendLine("  工作类型：建造=" + p.workSettings.GetPriority(WorkTypeDefOf.Construction)
+                              + " / 搬运=" + p.workSettings.GetPriority(WorkTypeDefOf.Hauling)
+                              + "  （0 = 关闭）");
+            }
+            else
+            {
+                SB.AppendLine("  工作类型：workSettings 不可用（非玩家派系 / 机械体 / 无工作能力）");
+            }
+
+            // 本图工地盘点：有活却没派给它，还是压根没活
+            AppendConstructionWorkload(map, p);
+
+            SB.AppendLine("=== [DS pawn] 结束 ===");
+            Log.Warning(SB.ToString());
+        }
+
+        /// <summary>
+        /// 盘一下本图还有多少建造活，以及我们的取料工作能不能接手。
+        /// "有活" + "它就是不去" ⇒ 问题在工作分配；"没活" ⇒ 站着等是正常的。
+        /// </summary>
+        private static void AppendConstructionWorkload(Map map, Pawn p)
+        {
+            List<Thing> frames = map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingFrame);
+            List<Thing> blueprints = map.listerThings.ThingsInGroup(ThingRequestGroup.Blueprint);
+            SB.AppendLine("  本图工地：框架 " + frames.Count + " / 蓝图 " + blueprints.Count);
+
+            int canMake = 0;
+            int cap = 12;
+            for (int i = 0; i < frames.Count && i < cap; i++)
+            {
+                IConstructible c = frames[i] as IConstructible;
+                if (c != null && AI.DSConstructionDelivery.CanMakeJob(p, c, false)) canMake++;
+            }
+            for (int i = 0; i < blueprints.Count && i < cap; i++)
+            {
+                IConstructible c = blueprints[i] as IConstructible;
+                if (c != null && AI.DSConstructionDelivery.CanMakeJob(p, c, false)) canMake++;
+            }
+            SB.AppendLine("  我们的「从核心取料送工地」现在能接手的（前 " + cap + " 个里数）：" + canMake + " 个");
+            if (canMake > 0)
+                SB.AppendLine("     ⇒ 有活。若它就是站着不干，看上面工作类型里「建造 / 搬运」的优先级是不是 0，");
+            if (canMake > 0)
+                SB.AppendLine("       或者它刚从这个工作类型上被踢下来（把 debugLog 打开看事件序列）。");
+        }
+
+        /// <summary>
+        /// 打开/关闭原版自带的**逐 job 事件日志**（<c>Pawn_JobTracker.debugLog</c>）。
+        /// 打开后这个 pawn 的每次 StartJob / EndCurrentJob（带 JobCondition 和当时的 toil）
+        /// 都会写进 <c>Player.log</c> —— 抓"几秒等待"的完整因果链靠它。
+        /// </summary>
+        [DebugAction(Category, "切换这个 pawn 的 job 调试日志（点 pawn）",
+            actionType = DebugActionType.ToolMapForPawns,
+            allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void ToggleJobDebugLog(Pawn p)
+        {
+            if (p == null || p.jobs == null) return;
+            p.jobs.debugLog = !p.jobs.debugLog;
+            if (p.Map != null)
+                MoteMaker.ThrowText(p.DrawPos, p.Map, "DS job日志 " + (p.jobs.debugLog ? "开" : "关"));
+            Log.Warning("[DS] " + p.LabelShort + " 的 job 调试日志 = " + p.jobs.debugLog);
         }
 
         // ===================================================================
@@ -487,6 +613,7 @@ namespace DigitalStorage.Components
                 case CompAutoIngest.Reject.NotOnMap: return "不在图上（在别人背包/容器里）——不能对它 DeSpawn";
                 case CompAutoIngest.Reject.InPrisonArea: return "在关押区（牢房或有囚犯的房间）——囚犯的饭不能被收";
                 case CompAutoIngest.Reject.OnBillGiver: return "在工作台的材料区（= 工作台自己占的格）——收了会触发原版把料搬走的循环";
+                case CompAutoIngest.Reject.OnConstructionSite: return "在建造工地上（蓝图/框架正等着这批材料）——原版送料是直接丢地上且不设禁止/不预订的，收了会让工地停工";
                 case CompAutoIngest.Reject.Reserved: return "已被某个 pawn 预订";
                 case CompAutoIngest.Reject.RecentlyWithdrawn: return "刚被取出（300 tick 保护窗口内）";
                 default: return r.ToString();
