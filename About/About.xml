@@ -11,7 +11,7 @@
 
 功能特性：
 - 存储核心：3x3 建筑，通电即用，500 堆上限；研究「核心 Lv2 / Lv3 / Lv4」可扩到 1000 / 1500 / 3000 堆（研究完成后已有核心立刻扩容）
-- 全图隔空存取：任何位置、任何距离取放，小人不必走到核心旁边
+- 全图隔空存取：任何位置、任何距离取放，小人不必走到核心旁边（含跨图：别的图上的核心也能供货，本图优先）
 - 建造投料 / bill 取料：材料直接到手；做 bill 时先进随身背包，0 步开工
 - 自动收纳：三级研究解锁，全图吸取散落物品（牢房与工作台材料区不收）
 - 代理建筑（数字工人）：12 台专用建筑自己干活，小人不用跑腿 —— 挖掘 / 建造与拆除 / 清洁 / 种植（播种 · 收割 · 伐木）。三级速度 0.8×/1.2×/2.0× 与资质 8/15/20；超凡代理一台接管全部五类工作，每类并行 75 件
@@ -21,7 +21,7 @@
 - 原版系统原生覆盖：资源计数、食物与药品警报、财富、bill 的 ×N 计数等
 - 兼容层：Phinix 与红包插件已适配，其它遍历 SlotGroup 的 mod 也能看见核心内容物
 
-⚠️ 3.0 老存档会自动迁移：核心库存逐项还原成真实物品放进容器、旧筛选沿用。已移除的机制（接口、芯片、缓冲仓库）不会复活（跨图取料保留：可用任意地图上通电核心里的物资）；旧存档里已建好的接口 / 缓冲仓库、芯片与植入体会随之失效（日志里会有几条一次性的「找不到 Def」）。核心容量升级以**研究**形式回归。建议更新前先备份存档。
+⚠️ 3.0 老存档会自动迁移：核心库存逐项还原成真实物品放进容器、旧筛选沿用。已移除的机制（接口、芯片、缓冲仓库、核心升级组件）不会复活；旧存档里已建好的接口 / 缓冲仓库、芯片与植入体会随之失效（日志里会有几条一次性的「找不到 Def」）。核心容量挂在研究「核心 Lv2 / Lv3 / Lv4」上。建议更新前先备份存档。
 
 A storage mod inspired by AE2. Items live as real Things inside a powered Storage Core: no map footprint, no tick cost, no rot. Remote access from anywhere, auto-ingest, trade support, and a compatibility layer for mods that scan storage groups. Proxy buildings do the colony's work for you (mining, construction and deconstruction, cleaning, and growing — sowing, harvesting and tree chopping), and a crafting proxy runs the recipes of nearby workbenches on its own: it picks ingredients through the vanilla bill chain, takes them from the core, and delivers the products straight back into it.</description>
   <packageId>cagier.digitalstorage</packageId>
