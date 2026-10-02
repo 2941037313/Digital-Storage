@@ -65,6 +65,7 @@
     <Compile Include="Compatibility\PhinixCompatPatch.cs" />
     <Compile Include="Components\CompProperties_AutoIngest.cs" />
     <Compile Include="Components\CompAutoIngest.cs" />
+    <Compile Include="Components\AutoIngestDevTool.cs" />
 
     <Compile Include="Core\HaulSourceContents.cs" />
     <Compile Include="Core\ItemGroup.cs" />

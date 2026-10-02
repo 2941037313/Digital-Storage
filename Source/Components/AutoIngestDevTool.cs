@@ -1,0 +1,357 @@
+using System.Collections.Generic;
+using System.Text;
+using DigitalStorage.AI;
+using LudeonTK;
+using RimWorld;
+using UnityEngine;
+using Verse;
+
+namespace DigitalStorage.Components
+{
+    /// <summary>
+    /// 自动收纳的**开发者排查工具**：点地图格子 → 逐条打印"这里的某个东西为什么没被吸进核心"。
+    ///
+    /// <para><b>为什么需要它</b>：自动收纳的判定链很长，而且<b>大部分闸门是静默的</b> ——
+    /// 不吸就是不吸，没有任何日志。这条链按执行顺序是：</para>
+    ///
+    /// <list type="number">
+    /// <item><b>核心层</b>：核心存在 / `CompAutoIngest.Enabled` / 通电 / 设置里的总开关 / 研究 / 15 tick 相位</item>
+    /// <item><b>候选层</b>：候选**只来自原版待搬表** `map.listerHaulables.ThingsPotentiallyNeedingHauling()`
+    ///   —— 不在这张表里的东西我们**根本看不见**，而"为什么不在表里"由原版
+    ///   `ListerHaulables.ShouldBeHaulable:194` 回答（四道门，全部静默）</item>
+    /// <item><b>过滤层</b>：<see cref="CompAutoIngest.RejectReason"/>（不在图上 / 工作台材料区 / 关押区 / 被预订 / 刚取出）</item>
+    /// <item><b>目的地层</b>：<see cref="CompAutoIngest.WouldVanillaHaulIntoCore"/> ——
+    ///   走原版 `StoreUtility.TryFindBestBetterNonSlotGroupStorageFor`（`acceptSamePriority: false`！）
+    ///   外加一条"格子型储存有同级或更高优先级就让给格子"的保护</item>
+    /// </list>
+    ///
+    /// <para><b>本工具的原则：只报事实，不复刻判定。</b> 每一行都是**真的调用了那个原版方法**之后的结果
+    /// （`ShouldBeHaulable` 的四道门是逐条问同一个 API，不是自己另写一套近似）——
+    /// 本 mod 在诊断上已经吃过一次亏：另写一份近似判断会和真闸门漂移，制造"全绿但就是不工作"的假象。</para>
+    /// </summary>
+    internal static class AutoIngestDevTool
+    {
+        private const string Category = "DigitalStorage";
+
+        private static readonly StringBuilder SB = new StringBuilder();
+
+        // ===================================================================
+        // 入口 1：点格子
+        // ===================================================================
+
+        [DebugAction(Category, "为何没被自动收纳（点格子）",
+            actionType = DebugActionType.ToolMap,
+            allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void DiagnoseCell()
+        {
+            Map map = Find.CurrentMap;
+            if (map == null) return;
+
+            // ⚠️ 必须写全 `Verse.UI` —— 本 mod 自己有个 DigitalStorage.UI 命名空间，
+            // 裸写 `UI.MouseCell()` 会被解析成 DigitalStorage.UI（编译期就报 CS0234）。
+            IntVec3 cell = Verse.UI.MouseCell();
+            if (!cell.InBounds(map)) return;
+
+            // 点击反馈：光看日志窗口容易不知道点没点上
+            MoteMaker.ThrowText(cell.ToVector3Shifted(), map, "DS 诊断 → 日志");
+
+            SB.Length = 0;
+            List<Thing> things = map.thingGrid.ThingsListAt(cell);
+
+            SB.AppendLine("=== [DS 诊断] 格子 " + cell + "  共 " + things.Count + " 个 Thing ===");
+            AppendGlobalState(map);
+
+            if (things.Count == 0)
+            {
+                SB.AppendLine("  （这一格上没有任何 Thing）");
+            }
+
+            for (int i = 0; i < things.Count; i++)
+            {
+                AppendThing(map, cell, things[i], i);
+            }
+
+            SB.AppendLine("=== [DS 诊断] 结束 ===");
+            Log.Warning(SB.ToString());
+        }
+
+        // ===================================================================
+        // 入口 2：全图汇总（找"到底有哪些没收进去"）
+        // ===================================================================
+
+        [DebugAction(Category, "列出全图未被收纳的物品（汇总）",
+            actionType = DebugActionType.Action,
+            allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void DumpAllUncollected()
+        {
+            Map map = Find.CurrentMap;
+            if (map == null) return;
+
+            List<Building_StorageCore> cores = FindAllCores(map);
+            if (cores.Count == 0)
+            {
+                Log.Warning("[DS 汇总] 这张图上没有任何存储核心。");
+                return;
+            }
+
+            SB.Length = 0;
+            SB.AppendLine("=== [DS 汇总] 本图未被自动收纳的可搬物 ===");
+            AppendGlobalState(map);
+
+            // 候选池 = 原版待搬表（自动收纳的唯一来源）
+            List<Thing> pool = new List<Thing>();
+            foreach (Thing t in map.listerHaulables.ThingsPotentiallyNeedingHauling())
+            {
+                if (t != null && t.Spawned) pool.Add(t);
+            }
+            SB.AppendLine("  原版待搬表里的东西：" + pool.Count + " 件");
+
+            int blockedByFilter = 0, blockedByDest = 0, ok = 0, listed = 0;
+            for (int i = 0; i < pool.Count; i++)
+            {
+                Thing t = pool[i];
+                CompAutoIngest.Reject rej = CompAutoIngest.RejectReason(t, map);
+                if (rej != CompAutoIngest.Reject.None)
+                {
+                    blockedByFilter++;
+                    if (listed < 40) { listed++; SB.AppendLine("  [过滤] " + Brief(t) + " @ " + t.PositionHeld + " → " + RejText(rej)); }
+                    continue;
+                }
+                Building_StorageCore dest = CompAutoIngest.WouldVanillaHaulIntoCore(map, t);
+                if (dest == null)
+                {
+                    blockedByDest++;
+                    if (listed < 40) { listed++; SB.AppendLine("  [目的地] " + Brief(t) + " @ " + t.PositionHeld + " → " + DestReason(map, t, cores)); }
+                    continue;
+                }
+                ok++;
+            }
+
+            SB.AppendLine("  ---- 小结 ----");
+            SB.AppendLine("  过滤层挡下：" + blockedByFilter + " / 目的地层挡下：" + blockedByDest + " / 应被吸入：" + ok);
+            if (listed >= 40) SB.AppendLine("  （明细已截断到 40 行）");
+            SB.AppendLine("=== [DS 汇总] 结束 ===");
+            Log.Warning(SB.ToString());
+        }
+
+        // ===================================================================
+        // A. 全局状态
+        // ===================================================================
+
+        private static void AppendGlobalState(Map map)
+        {
+            SB.AppendLine("--- 核心层 ---");
+            SB.AppendLine("  设置·自动收纳总开关 autoIngestEnabled = " + DigitalStorage.Settings.DigitalStorageSettings.autoIngestEnabled);
+            SB.AppendLine("  研究·DigitalStorage_AutoIngest1 = " + ResearchDone("DigitalStorage_AutoIngest1")
+                          + " / 2 = " + ResearchDone("DigitalStorage_AutoIngest2")
+                          + " / 3 = " + ResearchDone("DigitalStorage_AutoIngest3"));
+
+            List<Building_StorageCore> cores = FindAllCores(map);
+            if (cores.Count == 0)
+            {
+                SB.AppendLine("  ⚠ 本图没有任何存储核心 → 什么都没得吸。");
+                return;
+            }
+
+            for (int i = 0; i < cores.Count; i++)
+            {
+                Building_StorageCore c = cores[i];
+                CompAutoIngest comp = c.GetComp<CompAutoIngest>();
+                SB.Append("  [" + i + "] " + c.LabelCap + " @ " + c.Position
+                          + "  通电=" + c.Powered
+                          + " 出库=" + c.HaulSourceEnabled
+                          + " 入库=" + c.HaulDestinationEnabled);
+                SB.Append(" AutoIngest组件=" + (comp != null));
+                if (comp != null) SB.Append(" 开关=" + comp.Enabled);
+                SB.Append(" 优先级=" + c.GetStoreSettings().Priority);
+                SB.Append(" 栈=" + c.innerContainer.Count + "/" + c.maxStacks);
+                SB.Append(" 兼容替身=" + c.CompatSlotGroupRegistered);
+                SB.AppendLine();
+            }
+        }
+
+        // ===================================================================
+        // B. 逐件
+        // ===================================================================
+
+        private static void AppendThing(Map map, IntVec3 cell, Thing t, int index)
+        {
+            SB.AppendLine("--- #" + index + " " + Brief(t) + " ---");
+            if (t == null) { SB.AppendLine("  （null）"); return; }
+
+            // ① 候选层：在原版待搬表里吗？
+            bool inPool = map.listerHaulables.ThingsPotentiallyNeedingHauling().Contains(t);
+            SB.AppendLine("  ① 原版待搬表 listerHaulables：" + (inPool ? "在" : "★不在"));
+            if (!inPool)
+            {
+                string why = HaulableGateReason(t, map);
+                SB.AppendLine("     不在的原因（逐条问的原版 API）：" + (why == null ? "（四道门都不拦，应该在表里 —— 可能是增量维护的滞后，等 1 秒再看）" : why));
+                SB.AppendLine("     ⇒ 自动收纳的候选**只来自这张表**，不在表里 = 我们根本看不见它。");
+            }
+
+            // ② 过滤层
+            CompAutoIngest.Reject rej = CompAutoIngest.RejectReason(t, map);
+            SB.AppendLine("  ② 我们的过滤 RejectReason = " + rej + (rej == CompAutoIngest.Reject.None ? "" : "（" + RejText(rej) + "）"));
+
+            // ③ 当前位置 / 优先级
+            IHaulDestination curDest = StoreUtility.CurrentHaulDestinationOf(t);
+            StoragePriority curPrio = StoreUtility.CurrentStoragePriorityOf(t);
+            SlotGroup sg = map.haulDestinationManager.SlotGroupAt(t.PositionHeld);
+            SB.AppendLine("  ③ 现在在哪：" + (curDest == null ? "裸地（无储存归属）" : TypeName(curDest) + " / " + curDest.GetStoreSettings().Priority)
+                          + "；CurrentStoragePriority = " + curPrio
+                          + "；所在格子储存组 = " + (sg == null ? "无" : sg.Settings.Priority.ToString()));
+            SB.AppendLine("     IsInAnyStorage=" + t.IsInAnyStorage() + " / IsInValidBestStorage=" + t.IsInValidBestStorage()
+                          + " / IsForbidden(玩家)=" + t.IsForbidden(Faction.OfPlayer)
+                          + " / EverHaulable=" + t.def.EverHaulable + " / alwaysHaulable=" + t.def.alwaysHaulable);
+
+            // ④ 目的地层
+            List<Building_StorageCore> cores = FindAllCores(map);
+            Building_StorageCore dest = CompAutoIngest.WouldVanillaHaulIntoCore(map, t);
+            SB.AppendLine("  ④ 原版会不会把它搬进核心：" + (dest == null ? "★不会" : "会 → " + dest.LabelCap + " @ " + dest.Position));
+            if (dest == null)
+            {
+                SB.AppendLine("     原因：" + DestReason(map, t, cores));
+            }
+
+            // ⑤ 结论
+            SB.AppendLine("  ⑤ 结论：" + Verdict(t, inPool, rej, dest, cores));
+        }
+
+        // ===================================================================
+        // 判定链各段的"为什么"（每一条都真的调了对应的原版 API）
+        // ===================================================================
+
+        /// <summary>
+        /// 逐条复刻 <c>ListerHaulables.ShouldBeHaulable</c>（<c>:194</c>）的四道门并返回第一条命中的原因。
+        /// 返回 null = **四道门都不拦**，那它就该在待搬表里。
+        /// </summary>
+        private static string HaulableGateReason(Thing t, Map map)
+        {
+            if (t.IsForbidden(Faction.OfPlayer))
+                return "被禁止（F3 解禁后会立刻入表）";
+
+            if (!t.def.alwaysHaulable)
+            {
+                if (!t.def.EverHaulable)
+                    return "def.EverHaulable = false（原版压根不搬这类东西）";
+                if (map.designationManager.DesignationOn(t, DesignationDefOf.Haul) == null && !t.IsInAnyStorage())
+                    return "没有「搬运」标记，而且它不在任何储存里（原版要求二者至少一个）";
+            }
+
+            if (t.IsInValidBestStorage())
+                return "★ 原版认为它**已经在最优储存里**（CurrentHaulDestination 接受了它）"
+                       + " ⇒ `ShouldBeHaulable` 直接剔除。看 ③ 的优先级对比与下面 ④ 的原因";
+
+            IHaulSource asSource = t.ParentHolder as IHaulSource;
+            if (asSource != null && !asSource.HaulSourceEnabled)
+                return "它所在的容器关掉了出库（HaulSourceEnabled = false）";
+
+            return null;
+        }
+
+        /// <summary>
+        /// 逐条复刻 <c>WouldVanillaHaulIntoCore</c> 的判定并给出拒绝原因。
+        /// </summary>
+        private static string DestReason(Map map, Thing t, List<Building_StorageCore> cores)
+        {
+            StoragePriority curPrio = StoreUtility.CurrentStoragePriorityOf(t);
+
+            IHaulDestination dest;
+            bool found = StoreUtility.TryFindBestBetterNonSlotGroupStorageFor(
+                t, null, map, curPrio, Faction.OfPlayer, out dest,
+                acceptSamePriority: false, requiresDestReservation: false);
+
+            if (!found)
+                return "原版没找到更好的**非格子**容器（当前优先级 " + curPrio
+                       + "；`acceptSamePriority: false` ⇒ 核心优先级必须**严格高于**它现在待的地方）";
+
+            Building_StorageCore core = dest as Building_StorageCore;
+            if (core == null)
+                return "原版选的更好的容器不是我们的核心，而是 " + TypeName(dest) + "（核心输了）";
+
+            // 格子腿：原版会让同级或更高优先级的格子储存赢
+            IntVec3 cell;
+            if (StoreUtility.TryFindBestBetterStoreCellFor(t, null, map, curPrio, Faction.OfPlayer, out cell, needAccurateResult: false))
+            {
+                SlotGroup cg = map.haulDestinationManager.SlotGroupAt(cell);
+                StoragePriority cp = (cg == null) ? StoragePriority.Unstored : cg.Settings.Priority;
+                if ((int)cp >= (int)core.GetStoreSettings().Priority)
+                    return "存在同级或更高优先级的**格子储存** " + cell + "（优先级 " + cp
+                           + " ≥ 核心 " + core.GetStoreSettings().Priority + "）⇒ 刻意让给格子";
+            }
+
+            if (!core.Powered)
+                return "选中的核心 " + core.LabelCap + " 没通电（断电的核心原版也不会搬进去）";
+
+            if (!core.Accepts(t))
+                return "核心 " + core.LabelCap + " 的 Accepts() 返回 false（存储筛选不允许 / 容量满 / 已经装不下）"
+                       + "；筛选允许=" + FilterAllows(core, t) + " 栈=" + core.innerContainer.Count + "/" + core.maxStacks;
+
+            return "（走到这里说明应该能进 —— 若仍不吸请把这整段发我）";
+        }
+
+        private static string Verdict(Thing t, bool inPool, CompAutoIngest.Reject rej,
+            Building_StorageCore dest, List<Building_StorageCore> cores)
+        {
+            if (cores.Count == 0) return "本图没有核心，不可能被吸。";
+            if (!inPool) return "★ 卡在**候选层**：不在原版待搬表里 ⇒ 自动收纳看不见它。这是最常见的一类。";
+            if (rej != CompAutoIngest.Reject.None) return "★ 卡在**过滤层**：" + RejText(rej);
+            if (dest == null) return "★ 卡在**目的地层**：原版不会把它搬进核心（见 ④ 的原因）。";
+            return "四层全通过 ⇒ 应该在 15 tick 内被吸入。若持续不吸：确认核心通电、设置总开关为开、研究已解锁（见「核心层」）。";
+        }
+
+        // ===================================================================
+        // 小工具
+        // ===================================================================
+
+        /// <summary>本图**所有**核心（含断电/关开关的）—— 诊断要比"可用核心"看得更宽。</summary>
+        private static List<Building_StorageCore> FindAllCores(Map map)
+        {
+            var list = new List<Building_StorageCore>();
+            List<IHaulSource> all = map.haulDestinationManager.AllHaulSourcesListForReading;
+            for (int i = 0; i < all.Count; i++)
+            {
+                Building_StorageCore c = all[i] as Building_StorageCore;
+                if (c != null) list.Add(c);
+            }
+            return list;
+        }
+
+        private static bool FilterAllows(Building_StorageCore core, Thing t)
+        {
+            StorageSettings st = core.GetStoreSettings();
+            return st == null || st.filter == null || st.filter.Allows(t);
+        }
+
+        private static bool ResearchDone(string defName)
+        {
+            ResearchProjectDef d = ResearchProjectDef.Named(defName);
+            return d != null && d.IsFinished;
+        }
+
+        private static string RejText(CompAutoIngest.Reject r)
+        {
+            switch (r)
+            {
+                case CompAutoIngest.Reject.NullOrDestroyed: return "null 或已销毁";
+                case CompAutoIngest.Reject.NotOnMap: return "不在图上（在别人背包/容器里）——不能对它 DeSpawn";
+                case CompAutoIngest.Reject.InPrisonArea: return "在关押区（牢房或有囚犯的房间）——囚犯的饭不能被收";
+                case CompAutoIngest.Reject.OnBillGiver: return "在工作台的材料区（= 工作台自己占的格）——收了会触发原版把料搬走的循环";
+                case CompAutoIngest.Reject.Reserved: return "已被某个 pawn 预订";
+                case CompAutoIngest.Reject.RecentlyWithdrawn: return "刚被取出（300 tick 保护窗口内）";
+                default: return r.ToString();
+            }
+        }
+
+        private static string TypeName(object o)
+        {
+            return o == null ? "null" : o.GetType().Name;
+        }
+
+        private static string Brief(Thing t)
+        {
+            if (t == null) return "null";
+            return t.def == null ? "(无 def)" : t.def.defName + " x" + t.stackCount + " [id=" + t.thingIDNumber + "]";
+        }
+    }
+}
