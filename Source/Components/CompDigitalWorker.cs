@@ -93,6 +93,39 @@ namespace DigitalStorage.Components
 
         private readonly Dictionary<WorkGiver, int> candidateSerial = new Dictionary<WorkGiver, int>();
 
+        /// <summary>
+        /// <b>格子型候选缓存</b>（播种 / 自动收割那类 scanCells 型 giver）。
+        ///
+        /// <para>⚠️ 物化时必须**一次性把格子全取出来**，不能边枚举边问原版：原版
+        /// <c>WorkGiver_Grower</c> 靠"枚举时顺手写 <c>wantedPlantDef</c> 静态字段"给
+        /// <c>JobOnCell</c> 传值，而取活发生在枚举之后 ⇒ 只能由我们自己把它清成 null
+        /// 让原版按格子重算（见 <c>DigitalPlantWork.ResetWantedPlantDef</c>）。</para>
+        ///
+        /// <para>⚠️ <b>缓存跨扫描存活</b>（<see cref="CellCacheRefreshTicks"/>），不像 Thing 候选集
+        /// 那样一次扫描就失效：格子的枚举贵在<b>每个 settable 一次 <c>pawn.CanReach</c></b>
+        /// （<c>WorkGiver_Grower.PotentialWorkCellsGlobal</c>），而代理建筑**从不移动**、
+        /// 种植区也不会每 15 tick 变一次。原版殖民者是一次找活枚举一次（还会在拿到活的瞬间
+        /// 早退），我们要按 AddsPerScan 反复取用 ⇒ 不缓存就是每秒几十次全图寻路。
+        /// 代价：新建的种植区最多 <see cref="CellCacheRefreshTicks"/> tick（4 秒）后才被发现，
+        /// 而那些已失效的格子由 <c>MakeCellTask</c>/<c>StillValid</c> 廉价跳过。</para>
+        /// </summary>
+        private readonly Dictionary<WorkGiver, List<IntVec3>> cellCache =
+            new Dictionary<WorkGiver, List<IntVec3>>();
+
+        private readonly Dictionary<WorkGiver, int> cellCacheTick = new Dictionary<WorkGiver, int>();
+
+        private const int CellCacheRefreshTicks = 240;
+
+        /// <summary>
+        /// 一个格子型 giver 一次扫描最多物化几格。
+        ///
+        /// <para>防"一个 200×200 的种植区把一次扫描吃光"：格子型候选集的枚举本身
+        /// （<c>PotentialWorkCellsGlobal</c>）是**没有上限**的，而我们要把它拷进 List。
+        /// 4000 格 ≈ 一次 32KB 的拷贝，与挖掘的 <see cref="MaxIterate"/> 同量级。
+        /// 超出的尾部这一趟看不到，但下一趟从头上再走时，已认领的格子会被廉价跳过。</para>
+        /// </summary>
+        private const int MaxCellCandidates = 4000;
+
         /// <summary>一次扫描最多新增几件活（实测不卡，给大一点让并行舰队快速填满）。</summary>
         private const int AddsPerScan = 60;
 
@@ -344,6 +377,9 @@ namespace DigitalStorage.Components
 
             if (!DigitalTaskRegistry.PawnCanUse(giver, w, adapter)) return false;
 
+            // scanCells 型 giver（播种/自动收割）：候选是格子，闸门在 JobOnCell/HasJobOnCell 里
+            if (adapter.CellBased) return TryScanGiverCells(map, w, workType, scanner, adapter);
+
             List<Thing> set = GetCandidates(map, w, scanner, adapter);
             if (set == null || set.Count == 0) return false;
 
@@ -383,11 +419,80 @@ namespace DigitalStorage.Components
                 candidate.workType = workType;
                 if (!candidate.StillValid(w, map)) continue;
 
-                DigitalWorkerClaims.TryClaim(map, t, this);
+                candidate.Claim(map, this);
                 works.Add(new ActiveWork { task = candidate, map = map });
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// <b>格子型找活</b>（原版 scanCells 型 <c>WorkGiver</c>）。
+        ///
+        /// <para>与 Thing 那条路的差别只有三处：候选是格子、取活由适配器问原版
+        /// （<c>JobOnCell</c>/<c>HasJobOnCell</c>）、认领走 <c>DigitalTask.Claim</c>
+        /// —— 播种的苗此刻还不存在，只能占格子（否则两个代理会把苗种进同一格）。</para>
+        /// </summary>
+        private bool TryScanGiverCells(Map map, Pawn w, WorkTypeDef workType, WorkGiver_Scanner scanner, DigitalTaskAdapter adapter)
+        {
+            List<IntVec3> cells = GetCandidateCells(map, w, scanner, adapter);
+            if (cells == null || cells.Count == 0) return false;
+
+            int seen = 0;
+            for (int i = 0; i < cells.Count; i++)
+            {
+                if (--scanBudget < 0) break;      // 本次扫描的总枚举额度
+                if (++seen > MaxIterate) break;
+
+                IntVec3 c = cells[i];
+                if (!c.IsValid || !c.InBounds(map)) continue;
+                if (DigitalWorkerClaims.CellOwnerOf(map, c) != null) continue;
+
+                DigitalTask candidate = adapter.MakeCellTask(c, map, w, scanner, this);
+                if (candidate == null) continue;
+                candidate.workType = workType;
+                if (!candidate.StillValid(w, map)) continue;
+
+                candidate.Claim(map, this);
+                works.Add(new ActiveWork { task = candidate, map = map });
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>格子型候选集（跨扫描缓存，见 <see cref="cellCache"/> 的说明）。</summary>
+        private List<IntVec3> GetCandidateCells(Map map, Pawn w, WorkGiver_Scanner scanner, DigitalTaskAdapter adapter)
+        {
+            List<IntVec3> list;
+            if (!cellCache.TryGetValue(scanner, out list))
+            {
+                list = new List<IntVec3>();
+                cellCache[scanner] = list;
+                cellCacheTick[scanner] = -1;
+            }
+
+            int now = Find.TickManager.TicksGame;
+            int last;
+            if (cellCacheTick.TryGetValue(scanner, out last) && last >= 0 && now - last < CellCacheRefreshTicks)
+            {
+                return list;
+            }
+
+            list.Clear();
+            long t0 = Performance.DevDrawProfiler.Stamp();
+            IEnumerable<IntVec3> set = adapter.CandidateCells(map, w, scanner);
+            if (set != null)
+            {
+                foreach (IntVec3 c in set)
+                {
+                    if (list.Count >= MaxCellCandidates) break;
+                    list.Add(c);
+                }
+            }
+            Performance.DevDrawProfiler.Mark("ScanSet", t0);
+            Performance.DevDrawProfiler.Bump("物化格", 1);
+            cellCacheTick[scanner] = now;
+            return list;
         }
 
         /// <summary>
@@ -427,7 +532,7 @@ namespace DigitalStorage.Components
         {
             ActiveWork aw = works[i];
             works.RemoveAt(i);
-            DigitalWorkerClaims.Release(aw.map, aw.task.target, this);
+            aw.task.Release(aw.map, this);   // Thing 型 = 放目标物；格子型 = 放格子（任务自己决定）
             aw.task.Cleanup();
             CleanupVisual(aw);
         }
@@ -443,6 +548,10 @@ namespace DigitalStorage.Components
         {
             base.PostDeSpawn(map, mode);
             ReleaseAll();
+            // 格子候选缓存带 4 秒 TTL（见 cellCache），而"被搬走/换图"正好是它唯一会失效的场合
+            // （建筑换了图，缓存的还是旧图的格子）⇒ 这里顺手清掉
+            cellCache.Clear();
+            cellCacheTick.Clear();
         }
 
         public override void PostExposeData()
@@ -487,13 +596,24 @@ namespace DigitalStorage.Components
             for (int i = 0; i < works.Count; i++)
             {
                 ActiveWork aw = works[i];
-                Thing t = aw.task.target;
-
-                if (i >= cap || t == null || t.Destroyed || !t.Spawned)
+                if (i >= cap)
                 {
                     CleanupVisual(aw);
                     continue;
                 }
+
+                // 目标可能是 Thing（挖矿/建造/伐木/收割…），也可能是**格子**（播种：苗还不存在）。
+                // 表现层只关心"画在哪一格"，所以这里把两种折成 (cell, 落点, TargetInfo)。
+                Thing t = aw.task.target;
+                bool hasThing = t != null && !t.Destroyed && t.Spawned;
+                IntVec3 cell = hasThing ? t.Position : aw.task.TargetCell;
+                if (!cell.IsValid || !cell.InBounds(map))
+                {
+                    CleanupVisual(aw);
+                    continue;
+                }
+                Vector3 drawPos = hasThing ? t.DrawPos : cell.ToVector3Shifted();
+                TargetInfo targetInfo = hasThing ? new TargetInfo(t) : new TargetInfo(cell, map);
 
                 // ---- 手 ----
                 if (aw.hand == null || aw.hand.Destroyed || !aw.hand.Spawned)
@@ -504,14 +624,14 @@ namespace DigitalStorage.Components
                         Mote_DS_WorkHand m = ThingMaker.MakeThing(def) as Mote_DS_WorkHand;
                         if (m != null)
                         {
-                            GenSpawn.Spawn(m, t.Position, map);
+                            GenSpawn.Spawn(m, cell, map);
                             aw.hand = m;
                         }
                     }
                 }
                 if (aw.hand != null && !aw.hand.Destroyed)
                 {
-                    Vector3 pos = t.DrawPos;
+                    Vector3 pos = drawPos;
                     pos.y = 0f;        // y 由 Mote.DrawMote 按 altitudeLayer 每帧重设
                     pos.z += 0.15f;    // 略微朝镜头，压在目标正面
                     aw.hand.exactPosition = pos;
@@ -527,7 +647,7 @@ namespace DigitalStorage.Components
                         if (aw.task.HitEffecterDef != null)
                         {
                             if (aw.hitFx == null) aw.hitFx = aw.task.HitEffecterDef.Spawn();
-                            aw.hitFx.Trigger(t, t);
+                            aw.hitFx.Trigger(targetInfo, targetInfo);
                         }
                     }
                 }
@@ -544,7 +664,7 @@ namespace DigitalStorage.Components
                     continue;
                 }
                 if (aw.bar == null) aw.bar = EffecterDefOf.ProgressBar.Spawn();
-                aw.bar.EffectTick(new TargetInfo(t), TargetInfo.Invalid);
+                aw.bar.EffectTick(targetInfo, TargetInfo.Invalid);
 
                 MoteProgressBar mote = (aw.bar.children.Count > 0)
                     ? (aw.bar.children[0] as SubEffecter_ProgressBar)?.mote
@@ -634,11 +754,18 @@ namespace DigitalStorage.Components
     ///
     /// <para>认领表**不进存档**：读档后所有代理重新找活即可（比存一份可能对不上的表更安全）。
     /// 一个建筑可以同时认领多件活（超凡代理并行 200）⇒ 放行 <c>owner == me</c>。</para>
+    ///
+    /// <para><b>两张表</b>：目标物表（<c>Thing</c>）× 格子表（<c>IntVec3</c>）。
+    /// 格子表是给"苗还不存在"的活（播种）用的 —— 那种活没有 Thing 可以占，
+    /// 不占格子就会两个代理把苗种进同一格。</para>
     /// </summary>
     internal static class DigitalWorkerClaims
     {
         private static readonly Dictionary<Map, Dictionary<Thing, CompDigitalWorker>> claims =
             new Dictionary<Map, Dictionary<Thing, CompDigitalWorker>>();
+
+        private static readonly Dictionary<Map, Dictionary<IntVec3, CompDigitalWorker>> cellClaims =
+            new Dictionary<Map, Dictionary<IntVec3, CompDigitalWorker>>();
 
         private static Dictionary<Thing, CompDigitalWorker> For(Map map)
         {
@@ -651,10 +778,21 @@ namespace DigitalStorage.Components
             return d;
         }
 
+        private static Dictionary<IntVec3, CompDigitalWorker> ForCells(Map map)
+        {
+            Dictionary<IntVec3, CompDigitalWorker> d;
+            if (!cellClaims.TryGetValue(map, out d))
+            {
+                d = new Dictionary<IntVec3, CompDigitalWorker>();
+                cellClaims[map] = d;
+            }
+            return d;
+        }
+
         /// <summary>认领表里有没有任何条目 —— <c>CanReserve</c> 补丁的廉价早退用（热路径）。</summary>
         public static bool AnyClaims
         {
-            get { return claims.Count > 0; }
+            get { return claims.Count > 0 || cellClaims.Count > 0; }
         }
 
         /// <summary>这个目标被哪个代理建筑认领了（没有/已失效则返回 null，并顺手清理失效项）。</summary>
@@ -709,15 +847,63 @@ namespace DigitalStorage.Components
         public static void ReleaseAll(CompDigitalWorker me)
         {
             if (me == null) return;
-            List<Map> empty = null;
-            foreach (KeyValuePair<Map, Dictionary<Thing, CompDigitalWorker>> kv in claims)
+            ReleaseAllIn(claims, me);
+            ReleaseAllIn(cellClaims, me);
+        }
+
+        // ===================================================================
+        // 格子表（播种这种"目标物还不存在"的活用）
+        // ===================================================================
+
+        /// <summary>这一格被哪个代理建筑认领了（没有/已失效则返回 null，并顺手清理失效项）。</summary>
+        public static CompDigitalWorker CellOwnerOf(Map map, IntVec3 c)
+        {
+            if (map == null || !c.IsValid) return null;
+            Dictionary<IntVec3, CompDigitalWorker> d;
+            if (!cellClaims.TryGetValue(map, out d)) return null;
+            CompDigitalWorker owner;
+            if (!d.TryGetValue(c, out owner)) return null;
+            if (owner == null || owner.parent == null || !owner.parent.Spawned)
             {
-                List<Thing> mine = null;
-                foreach (KeyValuePair<Thing, CompDigitalWorker> p in kv.Value)
+                d.Remove(c);
+                return null;
+            }
+            return owner;
+        }
+
+        public static void TryClaimCell(Map map, IntVec3 c, CompDigitalWorker me)
+        {
+            if (map == null || !c.IsValid || me == null) return;
+            ForCells(map)[c] = me;
+        }
+
+        /// <summary>只放掉**这一格**（并行时不能把别的活一起放了）。</summary>
+        public static void ReleaseCell(Map map, IntVec3 c, CompDigitalWorker me)
+        {
+            if (map == null || !c.IsValid) return;
+            Dictionary<IntVec3, CompDigitalWorker> d;
+            if (!cellClaims.TryGetValue(map, out d)) return;
+            CompDigitalWorker owner;
+            if (d.TryGetValue(c, out owner) && owner == me)
+            {
+                d.Remove(c);
+            }
+            if (d.Count == 0) cellClaims.Remove(map);
+        }
+
+        /// <summary>把某一张表里属于 <paramref name="me"/> 的条目全清掉（两张表的清理逻辑共用）。</summary>
+        private static void ReleaseAllIn<TKey>(Dictionary<Map, Dictionary<TKey, CompDigitalWorker>> table, CompDigitalWorker me)
+        {
+            if (table.Count == 0) return;
+            List<Map> empty = null;
+            foreach (KeyValuePair<Map, Dictionary<TKey, CompDigitalWorker>> kv in table)
+            {
+                List<TKey> mine = null;
+                foreach (KeyValuePair<TKey, CompDigitalWorker> p in kv.Value)
                 {
                     if (p.Value == me)
                     {
-                        if (mine == null) mine = new List<Thing>();
+                        if (mine == null) mine = new List<TKey>();
                         mine.Add(p.Key);
                     }
                 }
@@ -733,7 +919,7 @@ namespace DigitalStorage.Components
             }
             if (empty != null)
             {
-                for (int i = 0; i < empty.Count; i++) claims.Remove(empty[i]);
+                for (int i = 0; i < empty.Count; i++) table.Remove(empty[i]);
             }
         }
     }

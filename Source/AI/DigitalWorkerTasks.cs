@@ -86,9 +86,42 @@ namespace DigitalStorage.AI
         {
         }
 
-        public string TargetLabel
+        /// <summary>
+        /// <b>格子型活</b>的目标格（默认 = 目标物所在格）。
+        ///
+        /// <para>为什么需要：原版有几个 WorkGiver 是 <b>scanCells 型</b> —— 候选是格子不是 Thing，
+        /// 闸门与取活都在 <c>JobOnCell</c>/<c>HasJobOnCell</c> 里（<c>WorkGiver_GrowerSow</c> /
+        /// <c>WorkGiver_GrowerHarvest</c>）。而"播种"要种的那棵苗此刻还<b>不存在</b>
+        /// ⇒ 这类活没有 <c>target</c>，只有一个格子。表现层（手 / 黄色读条）与认领都按它走。</para>
+        /// </summary>
+        public virtual IntVec3 TargetCell
         {
-            get { return (target == null) ? "?" : target.LabelShort; }
+            get { return (target != null && target.Spawned) ? target.Position : IntVec3.Invalid; }
+        }
+
+        /// <summary>
+        /// 认领这一件活。Thing 型 = 占住目标物；<b>格子型改写本方法去占格子</b>
+        /// （播种的苗还不存在，没有 Thing 可以占）。与 <see cref="Release"/> 必须成对。
+        /// </summary>
+        public virtual void Claim(Map map, CompDigitalWorker me)
+        {
+            DigitalWorkerClaims.TryClaim(map, target, me);
+        }
+
+        /// <summary>放手这一件活（清掉自己那份认领）。</summary>
+        public virtual void Release(Map map, CompDigitalWorker me)
+        {
+            DigitalWorkerClaims.Release(map, target, me);
+        }
+
+        public virtual string TargetLabel
+        {
+            get
+            {
+                if (target != null) return target.LabelShort;
+                IntVec3 c = TargetCell;
+                return c.IsValid ? "(" + c.x + ", " + c.z + ")" : "?";
+            }
         }
     }
 
@@ -99,6 +132,38 @@ namespace DigitalStorage.AI
         public abstract Type WorkGiverClass { get; }
 
         public abstract DigitalTask MakeTask(Thing t, CompDigitalWorker comp);
+
+        /// <summary>
+        /// 这个 giver 是不是 <b>scanCells 型</b>（候选与闸门都在格子上，例如播种 / 自动收割）。
+        ///
+        /// <para>置 true ⇒ comp 走格子分支：候选集用 <see cref="CandidateCells"/>、取活用
+        /// <see cref="MakeCellTask"/>，并且<b>不问</b> <c>HasJobOnThing</c> ——
+        /// <c>WorkGiver_Scanner.HasJobOnThing</c> 的实现是 <c>JobOnThing(...) != null</c>，
+        /// 而 cell 型 giver 不重写 <c>JobOnThing</c> ⇒ 用 Thing 那套去问，答案恒为 false。</para>
+        /// </summary>
+        public virtual bool CellBased
+        {
+            get { return false; }
+        }
+
+        /// <summary>
+        /// 格子型候选集。默认直接用原版的 <c>PotentialWorkCellsGlobal</c>
+        /// （**不要自己发明扫描规则**：种植区/种植盆的范围、季节、光照、<c>allowSow</c> 那道闸门
+        /// 全在里面）。返回的是惰性序列，comp 会物化并缓存一次扫描。
+        /// </summary>
+        public virtual IEnumerable<IntVec3> CandidateCells(Map map, Pawn pawn, WorkGiver_Scanner scanner)
+        {
+            return scanner.PotentialWorkCellsGlobal(pawn);
+        }
+
+        /// <summary>
+        /// 格子型取活：自己问原版（<c>JobOnCell</c> / <c>HasJobOnCell</c>），过不了就返回 null。
+        /// 认领/失效判定由返回的 <see cref="DigitalTask"/> 自己负责。
+        /// </summary>
+        public virtual DigitalTask MakeCellTask(IntVec3 cell, Map map, Pawn pawn, WorkGiver_Scanner scanner, CompDigitalWorker comp)
+        {
+            return null;
+        }
 
         /// <summary>找活前的廉价预筛（可选）。</summary>
         public virtual bool CanTarget(Pawn pawn, Thing t)
@@ -156,7 +221,7 @@ namespace DigitalStorage.AI
 
     /// <summary>
     /// 适配器注册表。**白名单**：没登记的工作类型，代理建筑直接视而不见（也省掉它的候选扫描）。
-    /// 第一批 = 挖掘（本波）；建造/清洁/种植随后按同一模板插入。
+    /// 已有：挖掘 / 建造 / 拆除 / 清洁 / 伐木(割除+收获标记) / 播种 / 自动收割。
     /// </summary>
     public static class DigitalTaskRegistry
     {
@@ -167,6 +232,8 @@ namespace DigitalStorage.AI
             new DigitalTaskAdapter_Deconstruct(),
             new DigitalTaskAdapter_Clean(),
             new DigitalTaskAdapter_PlantCut(),
+            new DigitalTaskAdapter_GrowerSow(),
+            new DigitalTaskAdapter_GrowerHarvest(),
         };
 
         private static readonly Dictionary<WorkTypeDef, List<WorkGiver>> giversCache =
@@ -841,11 +908,14 @@ namespace DigitalStorage.AI
     }
 
     // ==========================================================================================
-    // 伐木 —— 照抄 JobDriver_PlantWork 的产出段（More Organs LaborTask_PlantBase 的移植）
+    // 伐木 / 割除 / 收获标记 —— 照抄 JobDriver_PlantWork 的产出段
     //
-    // 归属：用户把"伐木"归进"种植"（每类一个专用建筑），所以种植代理的 workTypes = Growing + PlantCutting。
-    // ⚠️ 收割（Growing/Harvest）与播种（Growing/Sow）**尚未接**：原版这两个 WorkGiver 是
-    // **scanCells 型**（候选是格子不是 Thing），需要一条"格子型目标"的管线，留待下一波。
+    // 归属：用户把"伐木"归进种植（每类一个专用建筑），所以种植代理的 workTypes = Growing + PlantCutting。
+    // 本适配器挂的是 **PlantCutting** 下的 WorkGiver_PlantsCut —— 注意它同时枚举
+    // `CutPlant` 与 `HarvestPlant` 两枚标记（WorkGiver_PlantsCut.PotentialWorkThingsGlobal），
+    // 所以"右键收获"这条路一直是通的；而 Growing 下的**自动收割**与**播种**是另一条
+    // scanCells 型管线，见 DigitalPlantTasks.cs。
+    // 产出段已抽到 DigitalPlantWork.Harvest（与自动收割共用）。
     // ==========================================================================================
     public class DigitalTaskAdapter_PlantCut : DigitalTaskAdapter
     {
@@ -925,89 +995,14 @@ namespace DigitalStorage.AI
 
             // 原版 JobDriver_PlantWork.WorkDonePerTick = PlantWorkSpeed * Lerp(3.3, 1, Growth)
             // 这里把 PlantWorkSpeed 换成建筑倍率（速度只认倍率），Growth 那一项照抄。
-            workDone += speedMult * Mathf.Lerp(3.3f, 1f, p.Growth);
+            workDone += DigitalPlantWork.WorkPerTick(speedMult, p);
             StrikeCount++;
 
             if (workDone < p.def.plant.harvestWork) return;
             if (!DigitalWorkBudget.AllowCompletion()) return;   // 超预算：下一 tick 再收
 
-            Harvest(pawn, p);
+            DigitalPlantWork.Harvest(pawn, p, asHarvest);
             workDone = 0f;
-        }
-
-        /// <summary>原样搬 JobDriver_PlantWork 的产出段，落点从 <c>actor.Position</c> 换成植株格。</summary>
-        private void Harvest(Pawn pawn, Plant plant)
-        {
-            if (plant.def.plant.harvestedThingDef != null)
-            {
-                StatDef yieldStat = (plant.def.plant.harvestedThingDef.IsDrug || plant.def.plant.drugForHarvestPurposes)
-                    ? StatDefOf.DrugHarvestYield
-                    : StatDefOf.PlantHarvestYield;
-                float statValue = pawn.GetStatValue(yieldStat);
-
-                if (pawn.RaceProps.Humanlike && plant.def.plant.harvestFailable && !plant.Blighted && Rand.Value > statValue)
-                {
-                    // 不用 pawn.DrawPos：假 pawn 的 DrawPos 虽然已安全，但没必要碰它
-                    MoteMaker.ThrowText(plant.DrawPos, pawn.Map,
-                        "TextMote_HarvestFailed".Translate(), 3.65f);
-                }
-                else
-                {
-                    int num = plant.YieldNow();
-                    if (statValue > 1f)
-                    {
-                        num = GenMath.RoundRandom(num * statValue);
-                    }
-                    if (num > 0)
-                    {
-                        Thing thing = ThingMaker.MakeThing(plant.def.plant.harvestedThingDef);
-                        thing.stackCount = num;
-                        Find.QuestManager.Notify_PlantHarvested(pawn, thing);
-                        GenPlace.TryPlaceThing(thing, plant.Position, pawn.Map, ThingPlaceMode.Near);
-                        if (pawn.records != null)
-                        {
-                            pawn.records.Increment(RecordDefOf.PlantsHarvested);
-                        }
-                    }
-                    if (plant.HarvestableNow)
-                    {
-                        List<ThingComp> comps = plant.AllComps;
-                        for (int i = 0; i < comps.Count; i++)
-                        {
-                            foreach (ThingDefCountClass extra in comps[i].GetAdditionalHarvestYield())
-                            {
-                                Thing extraThing = ThingMaker.MakeThing(extra.thingDef);
-                                extraThing.stackCount = extra.count;
-                                GenPlace.TryPlaceThing(extraThing, plant.Position, pawn.Map, ThingPlaceMode.Near);
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (plant.def.plant.soundHarvestFinish != null)
-            {
-                // 声音源用植株本身（隔空干活没有"人"在场，也避开假 pawn 的 TargetInfo）
-                plant.def.plant.soundHarvestFinish.PlayOneShot(plant);
-            }
-
-            plant.PlantCollected(pawn, asHarvest ? PlantDestructionMode.Chop : PlantDestructionMode.Cut);
-
-            // ---- 收尾：照抄原版两条 driver 各自的 PlantWorkDoneToil ----
-            if (asHarvest)
-            {
-                // JobDriver_PlantHarvest → Toils_General.RemoveDesignationsOnThing(HarvestPlant)
-                Designation d = pawn.Map.designationManager.DesignationOn(plant, DesignationDefOf.HarvestPlant);
-                if (d != null)
-                {
-                    pawn.Map.designationManager.RemoveDesignation(d);
-                }
-            }
-            else if (!plant.Destroyed && plant.Spawned)
-            {
-                // JobDriver_PlantCut → Toils_Interact.DestroyThing（它自己带 !Destroyed 守卫）
-                plant.Destroy();
-            }
         }
     }
 

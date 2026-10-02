@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Defs>
 
   <!-- ==========================================================================
@@ -14,8 +14,9 @@
 
        "种植"在游戏里是两个 WorkTypeDef（Growing 播种/收割、PlantCutting 伐木），
        用户把伐木归进种植 ⇒ 种植代理的 workTypes 同时列这两个。
-       当前已实现：Mining / Construction / Cleaning / PlantCutting；
-       Growing 的播种与收割是 scanCells 型 WorkGiver，需要格子型目标管线，下一波接。
+       已实现：Mining / Construction / Cleaning / PlantCutting / Growing（播种 + 自动收割）。
+       ⚠️ Growing 下的两个 WorkGiver 是 scanCells 型（候选是格子），走的是
+       DigitalPlantTasks.cs 那条"格子目标"管线，与 Thing 那条不是同一条路。
        ========================================================================== -->
 
   <!-- ===== 等级 I ===== -->
@@ -318,14 +319,14 @@
     </comps>
   </ThingDef>
 
-  <!-- 种植 × 3（Growing 的播种/收割待下一波；当前实际干的是伐木 PlantCutting） -->
+  <!-- 种植 × 3（Growing = 播种 + 自动收割，PlantCutting = 伐木/割除） -->
   <ThingDef ParentName="DigitalStorage_WorkerTierI">
     <defName>DigitalStorage_WorkerGrowI</defName>
     <researchPrerequisites>
       <li>DigitalStorage_GrowProxy1</li>
     </researchPrerequisites>
     <label>种植代理 I</label>
-    <description>自动砍伐玩家标记的树木。（播种与收割待接。）断电即停工。</description>
+    <description>自动播种种植区/种植盆里该种的作物、收割成熟的作物，并砍伐玩家标记的树木。断电即停工。</description>
     <graphicData>
       <texPath>2.0/代理建筑-种植-I</texPath>
       <graphicClass>Graphic_Single</graphicClass>
@@ -349,7 +350,7 @@
       <li>DigitalStorage_GrowProxy2</li>
     </researchPrerequisites>
     <label>种植代理 II</label>
-    <description>自动砍伐玩家标记的树木。（播种与收割待接。）断电即停工。</description>
+    <description>自动播种种植区/种植盆里该种的作物、收割成熟的作物，并砍伐玩家标记的树木。断电即停工。</description>
     <graphicData>
       <texPath>2.0/代理建筑-种植-II</texPath>
       <graphicClass>Graphic_Single</graphicClass>
@@ -373,7 +374,7 @@
       <li>DigitalStorage_GrowProxy3</li>
     </researchPrerequisites>
     <label>种植代理 III</label>
-    <description>自动砍伐玩家标记的树木。（播种与收割待接。）断电即停工。</description>
+    <description>自动播种种植区/种植盆里该种的作物、收割成熟的作物，并砍伐玩家标记的树木。断电即停工。</description>
     <graphicData>
       <texPath>2.0/代理建筑-种植-III</texPath>
       <graphicClass>Graphic_Single</graphicClass>

@@ -24,6 +24,9 @@ namespace DigitalStorage.HarmonyPatches
     ///
     /// <para>⚠️ 重载必须显式给参数类型：本 mod 被 <c>Toils_Goto.GotoThing</c> 的
     /// <c>AmbiguousMatchException</c> 坑过一次（那次导致 <c>PatchAll</c> 中断、它之后所有补丁静默不挂）。</para>
+    ///
+    /// <para><b>两种目标都要管</b>：<c>target.Thing</c> 非空 ⇒ 查目标物认领表（挖矿/建造/砍树）；
+    /// 为空（<b>格子预约</b>，原版播种预约的就是格子）⇒ 查格子认领表（见 <see cref="DigitalWorkerClaims"/>）。</para>
     /// </summary>
     [HarmonyPatch(typeof(ReservationManager), "CanReserve",
         new[] { typeof(Pawn), typeof(LocalTargetInfo), typeof(int), typeof(int), typeof(ReservationLayerDef), typeof(bool) })]
@@ -35,7 +38,20 @@ namespace DigitalStorage.HarmonyPatches
             if (!DigitalWorkerClaims.AnyClaims) return;
 
             Thing t = target.Thing;
-            if (t == null) return;
+            if (t == null)
+            {
+                // 格子预约（原版播种预约的是**格子**，不是 Thing）⇒ 查格子认领表。
+                // 不查的话：代理正在播这一格、殖民者又接了同一格，最后两个人各落一棵苗
+                // （原版 JobOnCell 只挡"格子上已有同种植物"，挡不住"两个人都刚开始种"）。
+                if (!target.IsValid) return;
+                Map cellMap = claimant.Map;
+                if (cellMap == null) return;
+                CompDigitalWorker cellOwner = DigitalWorkerClaims.CellOwnerOf(cellMap, target.Cell);
+                if (cellOwner == null) return;
+                if (cellOwner.WorkerIfCreated == claimant) return;   // 我们自己的工人要能过
+                __result = false;
+                return;
+            }
 
             Map map = t.MapHeld;
             if (map == null) return;
