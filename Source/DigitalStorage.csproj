@@ -117,6 +117,11 @@
     <Compile Include="HarmonyPatches\Patch_MakeLordsAsAppropriate_InstantLoad.cs" />
     <Compile Include="HarmonyPatches\Patch_ReservationManager_CanReserve.cs" />
 
+    <!-- 原版热点优化（不是本 mod 的功能补丁，纯粹治原版在"框选一堆/标记一堆"时的每帧开销） -->
+    <Compile Include="Performance\Patch_SelectionDrawer_BracketCull.cs" />
+    <Compile Include="Performance\Patch_DesignationManager_BatchDraw.cs" />
+    <Compile Include="Performance\Patch_FleckMaker_MetaPuffThrottle.cs" />
+
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />
 

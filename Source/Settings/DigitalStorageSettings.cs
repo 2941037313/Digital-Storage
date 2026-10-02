@@ -19,11 +19,20 @@ namespace DigitalStorage.Settings
         /// </summary>
         public static bool autoIngestEnabled = true;
 
+        /// <summary>
+        /// 原版热点的顺手优化，三块（详见 <c>Source/Performance/</c>）：
+        /// ① 框选一堆东西时括号的视野裁剪；② 标记批绘矩阵的增量维护（原版每帧全量重建）；
+        /// ③ 大批量标记时的"元气泡"每 tick 节流。
+        /// <para>默认开。万一出现任何视觉异常，关掉即可**逐条退回原版行为**（不涉及存档）。</para>
+        /// </summary>
+        public static bool perfOptimizationsEnabled = true;
+
         public override void ExposeData()
         {
             Scribe_Values.Look(ref costMultiplier, "costMultiplier", 1.0f);
             Scribe_Values.Look(ref enableDebugLog, "enableDebugLog", false);
             Scribe_Values.Look(ref autoIngestEnabled, "autoIngestEnabled", true);
+            Scribe_Values.Look(ref perfOptimizationsEnabled, "perfOptimizationsEnabled", true);
             base.ExposeData();
         }
 
@@ -50,6 +59,9 @@ namespace DigitalStorage.Settings
 
             listing.CheckboxLabeled("DS_AutoIngestToggle".Translate(), ref autoIngestEnabled,
                 "DS_AutoIngestToggleDesc".Translate());
+            listing.Gap(6f);
+            listing.CheckboxLabeled("DS_PerfToggle".Translate(), ref perfOptimizationsEnabled,
+                "DS_PerfToggleDesc".Translate());
             listing.Gap(24f);
 
             Text.Font = GameFont.Medium;
