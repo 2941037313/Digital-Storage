@@ -174,6 +174,11 @@ namespace DigitalStorage.Components
             Pawn w = Worker;
             if (w == null) return;
 
+            // 分帧推进：把"要 O(全图) 才能算出来的候选集"每 tick 推一小片
+            // （适配器的默认实现是空操作，目前只有清洁会真的动）。
+            // 位置刻意放在这里 —— 与扫描频率无关，尖峰才能真正变成常量。
+            SliceCandidates(map, w);
+
             long heap0 = Performance.DevDrawProfiler.HeapStamp();
             DigitalWorkerScope.Enter(w, map, parent.PositionHeld);
             // 本次 tick 期间的掉落直塞目标（没有可用核心时 Active=false，整条链路零开销）
@@ -281,6 +286,28 @@ namespace DigitalStorage.Components
                 if (works[i].task.workType == wt) n++;
             }
             return n;
+        }
+
+        /// <summary>把本建筑关心的每个 giver 的候选集刷新推进一步（分帧；多数适配器是空操作）。</summary>
+        private void SliceCandidates(Map map, Pawn w)
+        {
+            List<WorkTypeDef> types = Props.workTypes;
+            if (types == null) return;
+            for (int i = 0; i < types.Count; i++)
+            {
+                WorkTypeDef wt = types[i];
+                if (wt == null) continue;
+                List<WorkGiver> givers = DigitalTaskRegistry.FindGivers(wt);
+                if (givers == null) continue;
+                for (int g = 0; g < givers.Count; g++)
+                {
+                    WorkGiver_Scanner scanner = givers[g] as WorkGiver_Scanner;
+                    if (scanner == null) continue;
+                    DigitalTaskAdapter adapter = DigitalTaskRegistry.AdapterFor(givers[g]);
+                    if (adapter == null) continue;
+                    adapter.SliceTick(map, w, scanner);
+                }
+            }
         }
 
         /// <summary>总并行上限（含 maxParallelTotal 与"每类配额 × 类别数"取小）。</summary>

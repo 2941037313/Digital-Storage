@@ -107,6 +107,17 @@ namespace DigitalStorage.AI
         }
 
         /// <summary>
+        /// <b>每 tick 一次的机会：把昂贵的候选集刷新"分帧"推进</b>（默认什么都不做）。
+        ///
+        /// <para>给谁用：候选集本身要 O(全图) 才能算出来的适配器（目前只有清洁 ——
+        /// <c>ThingRequestGroup.Filth</c> 拿不到专用 lister，只能过滤 <c>AllThings</c>）。
+        /// 一次扫完是 3~15ms 的尖峰；按索引每 tick 走一小片，尖峰变成常量。</para>
+        /// </summary>
+        public virtual void SliceTick(Map map, Pawn pawn, WorkGiver_Scanner scanner)
+        {
+        }
+
+        /// <summary>
         /// 是否信任原版 <c>WorkGiver.HasJobOnThing</c> 作为闸门（默认信任）。
         ///
         /// <para>不信任的场合只有一种：<b>原版闸门里含"可达性"</b>，而代理建筑是**隔空**干活的。
@@ -647,13 +658,107 @@ namespace DigitalStorage.AI
             // 那个列表**永远是空的**（实测：清洁代理解析不到任何污物、一件活都不干）。
             // 原版 WorkGiver_CleanFilth 走的是专用 lister `Map.listerFilthInHomeArea`（只含家区），
             // 而我们拍板"放宽 Home 区"，所以这里退到 AllThings 过滤（全图污物）。
-            List<Thing> all = map.listerThings.AllThings;
-            List<Thing> filths = new List<Thing>();
-            for (int i = 0; i < all.Count; i++)
+            //
+            // ⚠️ 但**不能在这里当场扫全图**：几十万 item 的全图扫描是一次 3~15ms 的尖峰，
+            // 而 CandidateSet 一次扫描里最多被调 60 次（AddsPerScan）⇒ 实测 DS-scan 40~59ms/帧。
+            // 现在改成"分帧快照"：由 SliceTick 每 tick 按索引推进一小片，这里只返回当前快照。
+            FilthSnapshot snap = SnapshotFor(map);
+            return snap == null ? (IEnumerable<Thing>)null : snap.Current;
+        }
+
+        public override void SliceTick(Map map, Pawn pawn, WorkGiver_Scanner scanner)
+        {
+            FilthSnapshot snap = SnapshotFor(map);
+            if (snap != null) snap.Advance(map);
+        }
+
+        private static FilthSnapshot SnapshotFor(Map map)
+        {
+            if (map == null) return null;
+            FilthSnapshot snap;
+            if (snapshots.TryGetValue(map, out snap)) return snap;
+            PruneSnapshots();
+            snap = new FilthSnapshot();
+            snapshots[map] = snap;
+            return snap;
+        }
+
+        /// <summary>图被销毁后丢掉快照，别让静态表无限涨。</summary>
+        private static void PruneSnapshots()
+        {
+            if (snapshots.Count < 8) return;
+            List<Map> dead = null;
+            foreach (KeyValuePair<Map, FilthSnapshot> kv in snapshots)
             {
-                if (all[i] is Filth) filths.Add(all[i]);
+                if (kv.Key != null && Find.Maps != null && Find.Maps.Contains(kv.Key)) continue;
+                if (dead == null) dead = new List<Map>();
+                dead.Add(kv.Key);
             }
-            return filths;
+            if (dead == null) return;
+            for (int i = 0; i < dead.Count; i++) snapshots.Remove(dead[i]);
+        }
+
+        /// <summary>每 tick 最多走多少个 AllThings 条目（分帧片大小）。</summary>
+        private const int SlicePerTick = 3000;
+
+        private static readonly Dictionary<Map, FilthSnapshot> snapshots = new Dictionary<Map, FilthSnapshot>();
+
+        /// <summary>
+        /// 全图污物快照（<b>双缓冲 + 按索引分帧推进</b>）。
+        ///
+        /// <list type="bullet">
+        /// <item><b>按索引而不是枚举器</b>：切片要跨 tick，而 <c>AllThings</c> 会被其它 agent
+        /// （原版搬运工、我们自己的完成逻辑）增删 —— 跨 tick 持有枚举器必抛
+        /// <c>InvalidOperationException</c>。索引遍历对增删安全（至多漏看/重看一格）。</item>
+        /// <item><b>双缓冲</b>：新一轮先进 <c>pending</c>，走完才与 <c>current</c> 互换
+        /// ⇒ 任何一帧都有可用的（略旧的）候选集，不会出现"重建期间一件活都找不到"。</item>
+        /// <item>一 tick 只推进一片（<see cref="SlicePerTick"/>）：几十万 item ≈ 每 tick 0.05ms，
+        /// 一轮约 1 秒走完，旧快照最久也就是这个年龄。</item>
+        /// </list>
+        /// </summary>
+        private sealed class FilthSnapshot
+        {
+            private List<Thing> current = new List<Thing>();
+            private List<Thing> pending = new List<Thing>();
+            private int cursor;
+            private int lastSliceTick = int.MinValue;
+
+            public List<Thing> Current
+            {
+                get { return current; }
+            }
+
+            public void Advance(Map map)
+            {
+                int now = GenTicks.TicksGame;
+                if (now == lastSliceTick) return;      // 一 tick 只推一片（被调 60 次也一样）
+                lastSliceTick = now;
+
+                List<Thing> all = map.listerThings.AllThings;
+                if (all == null) return;
+
+                long t0 = Performance.DevDrawProfiler.Stamp();
+                int seen = 0;
+                while (cursor < all.Count && seen < SlicePerTick)
+                {
+                    Thing t = all[cursor];
+                    cursor++;
+                    seen++;
+                    if (t is Filth) pending.Add(t);
+                }
+                Performance.DevDrawProfiler.Mark("ScanSet", t0);
+                Performance.DevDrawProfiler.Bump("清切片", seen);
+
+                if (cursor >= all.Count)
+                {
+                    List<Thing> tmp = current;
+                    current = pending;
+                    pending = tmp;
+                    pending.Clear();
+                    cursor = 0;
+                    Performance.DevDrawProfiler.Bump("清池换", 1);
+                }
+            }
         }
 
         public override DigitalTask MakeTask(Thing t, CompDigitalWorker comp)
