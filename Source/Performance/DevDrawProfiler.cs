@@ -297,6 +297,11 @@ namespace DigitalStorage.Performance
             if (counters.TryGetValue("标记", out des)) sb.Append(" 标记=").Append(des);
             int tasks;
             if (counters.TryGetValue("任务", out tasks)) sb.Append(" 任务=").Append(tasks);
+            // 性能开关状态：一眼看出"原版性能修复"那个勾是否还在（批绘/括号裁剪/气泡节流都挂在它上面）
+            sb.Append(" 性能开关=")
+              .Append(Settings.DigitalStorageSettings.perfOptimizationsEnabled ? 1 : 0)
+              .Append(" 直塞预算=")
+              .Append(Settings.DigitalStorageSettings.workerCompletionsPerTick);
             foreach (KeyValuePair<string, double> kv in windowCounts)
             {
                 if (frames > 0) sb.Append(' ').Append(kv.Key).Append("/帧=").Append(F(kv.Value / frames));
