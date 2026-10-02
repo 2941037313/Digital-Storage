@@ -109,6 +109,7 @@ namespace DigitalStorage.UI
             if (c == null || c == comp) return;
             comp = c;
             sel = null;
+            ClearCountBuffers();
             navIndex = 0;
             scrollList = Vector2.zero;
             scrollDetail = Vector2.zero;
@@ -459,7 +460,7 @@ namespace DigitalStorage.UI
                     Widgets.DrawBoxSolid(new Rect(row.x + 40f, row.yMax - 5f, (row.width - 90f) * Mathf.Clamp01(first.Progress01), 2f), ColAccent);
                 }
 
-                if (Widgets.ButtonInvisible(row)) sel = plan;
+                if (Widgets.ButtonInvisible(row)) SelectPlan(plan);
                 y += 28f;
             }
 
@@ -498,7 +499,7 @@ namespace DigitalStorage.UI
             CraftPlan plan = sel;
             ThingDef prod = CraftCategories.MainProduct(plan.recipe);
 
-            Rect inner = new Rect(0f, 0f, rect.width - 20f, 460f);
+            Rect inner = new Rect(0f, 0f, rect.width - 20f, Math.Max(rect.height - 12f, 580f));
             Widgets.BeginScrollView(new Rect(rect.x + 6f, rect.y + 6f, rect.width - 10f, rect.height - 12f),
                 ref scrollDetail, inner);
 
@@ -553,59 +554,125 @@ namespace DigitalStorage.UI
             y = DrawMaterials(plan, first, inner, x, y);
             y += 8f;
 
-            // 操作
-            float bw = 56f;
-            float bx = x;
-            // 模式循环：无限 → 次数(N) → 维持数量(当前/目标) → 无限（不可计数的配方会跳过维持数量）
-            if (Widgets.ButtonText(new Rect(bx, y, 128f, 26f), "DS_CA_ModeBtn".Translate(ModeText(plan))))
+            // ---- 操作（自动换行：面板可缩放，硬排一行一定会被切掉）----
+            FlowBegin(x, y, inner.width - 8f);
+
+            FlowButton("DS_CA_ModeBtn".Translate(ModeText(plan)).ToString(), 132f, delegate
             {
                 comp.CycleMode(plan);
-            }
-            bx += 132f;
-            if (Widgets.ButtonText(new Rect(bx, y, bw, 26f), "+1")) plan.AddCount(1);
-            bx += bw + 4f;
-            if (Widgets.ButtonText(new Rect(bx, y, bw, 26f), "+10")) plan.AddCount(10);
-            bx += bw + 4f;
-            if (Widgets.ButtonText(new Rect(bx, y, bw, 26f),
-                    plan.suspended ? "DS_BA_Resume".Translate() : "DS_BA_Suspend".Translate()))
+                ClearCountBuffers();
+            });
+
+            bool countMode = plan.mode == CraftPlan.ModeCount;
+            bool targetMode = plan.mode == CraftPlan.ModeTarget;
+            if (countMode || targetMode)
             {
-                plan.suspended = !plan.suspended;
+                // 数量可以直接改：−10 / −1 / [输入框] / +1 / +10（用户要求：能输入具体数量，而且能减）
+                FlowButton("−10", 42f, delegate { plan.AddCount(-10); ClearCountBuffers(); });
+                FlowButton("−1", 36f, delegate { plan.AddCount(-1); ClearCountBuffers(); });
+
+                Rect numRect = FlowRect(78f);
+                if (countMode)
+                {
+                    Widgets.TextFieldNumeric(numRect, ref plan.remaining, ref remainingBuf, 0f, 1E+09f);
+                }
+                else
+                {
+                    Widgets.TextFieldNumeric(numRect, ref plan.targetCount, ref targetBuf, 0f, 1E+09f);
+                }
+
+                FlowButton("+1", 36f, delegate { plan.AddCount(1); ClearCountBuffers(); });
+                FlowButton("+10", 42f, delegate { plan.AddCount(10); ClearCountBuffers(); });
             }
-            bx += bw + 4f;
-            if (Widgets.ButtonText(new Rect(bx, y, bw, 26f), "DS_CA_Up".Translate())) comp.MovePlan(plan, -1);
-            bx += bw + 4f;
-            if (Widgets.ButtonText(new Rect(bx, y, bw, 26f), "DS_CA_Down".Translate())) comp.MovePlan(plan, 1);
-            bx += bw + 4f;
-            if (Widgets.ButtonText(new Rect(bx, y, bw + 10f, 26f), "DS_CA_Delete".Translate()))
+
+            FlowButton(plan.suspended ? "DS_BA_Resume".Translate().ToString() : "DS_BA_Suspend".Translate().ToString(),
+                60f, delegate { plan.suspended = !plan.suspended; });
+            FlowButton("DS_CA_Up".Translate().ToString(), 56f, delegate { comp.MovePlan(plan, -1); });
+            FlowButton("DS_CA_Down".Translate().ToString(), 56f, delegate { comp.MovePlan(plan, 1); });
+
+            if (targetMode)
+            {
+                FlowButton("DS_CA_PauseWhenSatisfied".Translate().ToString() + "：" +
+                           (plan.pauseWhenSatisfied ? "DS_BA_On".Translate().ToString() : "DS_BA_Off".Translate().ToString()),
+                    146f, delegate
+                    {
+                        plan.pauseWhenSatisfied = !plan.pauseWhenSatisfied;
+                        plan.countedTick = 0;
+                    });
+            }
+
+            if (countMode || targetMode)
+            {
+                FlowButton("DS_CA_SetForever".Translate().ToString(), 96f, delegate { plan.SetForever(); });
+            }
+
+            FlowButton("DS_CA_Delete".Translate().ToString(), 70f, delegate
             {
                 comp.RemovePlan(plan);
-                sel = null;
+                SelectPlan(null);
+            });
+            if (sel == null)
+            {
                 Widgets.EndScrollView();
                 return;
             }
-            bx += bw + 16f;
-
-            // 维持数量：达标即暂停开关（用户口径：少一个"低于多少恢复"的数字框，用固定比例代替）
-            if (plan.mode == CraftPlan.ModeTarget)
-            {
-                if (Widgets.ButtonText(new Rect(bx, y, 118f, 26f),
-                        "DS_CA_PauseWhenSatisfied".Translate() + "：" +
-                        (plan.pauseWhenSatisfied ? "DS_BA_On".Translate().ToString() : "DS_BA_Off".Translate().ToString())))
-                {
-                    plan.pauseWhenSatisfied = !plan.pauseWhenSatisfied;
-                    plan.countedTick = 0;
-                }
-                bx += 122f;
-            }
-            else if (plan.mode == CraftPlan.ModeCount)
-            {
-                if (Widgets.ButtonText(new Rect(bx, y, 96f, 26f), "DS_CA_SetForever".Translate()))
-                {
-                    plan.SetForever();
-                }
-            }
 
             Widgets.EndScrollView();
+        }
+
+        // ===================================================================
+        // 按钮流式布局（自动换行）
+        // ===================================================================
+
+        private float flowX, flowY, flowStartX, flowMaxX;
+        private const float FlowRowH = 26f;
+        private const float FlowGap = 4f;
+
+        /// <summary>输入框缓冲（次数 / 维持数量各一份）。切换选中项时置空，交给 TextFieldNumeric 重新初始化。</summary>
+        private string remainingBuf;
+        private string targetBuf;
+
+        private void FlowBegin(float x, float y, float maxX)
+        {
+            flowStartX = x;
+            flowX = x;
+            flowY = y;
+            flowMaxX = maxX;
+        }
+
+        private Rect FlowRect(float w)
+        {
+            if (flowX + w > flowMaxX && flowX > flowStartX)
+            {
+                flowX = flowStartX;
+                flowY += FlowRowH + FlowGap;
+            }
+            Rect r = new Rect(flowX, flowY, w, FlowRowH);
+            flowX += w + FlowGap;
+            return r;
+        }
+
+        private void FlowButton(string label, float w, Action onClick)
+        {
+            if (Widgets.ButtonText(FlowRect(w), label) && onClick != null) onClick();
+        }
+
+        private float FlowEnd()
+        {
+            return flowY + FlowRowH;
+        }
+
+        /// <summary>数值在别处被改过（±按钮/换选中项）⇒ 丢掉输入框缓冲，让它从新值重新初始化。</summary>
+        private void ClearCountBuffers()
+        {
+            remainingBuf = null;
+            targetBuf = null;
+        }
+
+        private void SelectPlan(CraftPlan plan)
+        {
+            sel = plan;
+            ClearCountBuffers();
         }
 
         /// <summary>
