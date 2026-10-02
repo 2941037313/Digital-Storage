@@ -10,11 +10,16 @@ A RimWorld mod inspired by Applied Energistics 2 (Minecraft). Build a powered **
 
 Unlike 3.0 (which stored numbers in a ledger), 4.0 stores **real Things**: apparel, weapons, quality and durability all survive, and vanilla hauling and trading recognise the contents natively.
 
-### ⚠️ 3.0 saves are not compatible
+### ⚠️ 3.0 saves are migrated automatically
 
-4.0 removes **storage cabinets, storage interfaces, terminal chip implants, buffer warehouses, the core upgrade system and cross-map logistics**. Loading a 3.0 save will log "def not found" errors and discard those buildings and items; ledger inventory stored in 3.0 cores is not read by 4.0.
+4.0 removes **storage cabinets, storage interfaces, terminal chip implants, buffer warehouses, the core upgrade system and cross-map logistics**, but existing 3.0 saves are migrated on load:
 
-**Empty your 3.0 cores before updating, or start a new save.**
+- Inventory stored in a 3.0 core (the old ledger) is turned back into **real items inside the container**; whatever does not fit is dropped at the core's feet instead of being lost
+- The old storage filter is carried over (only the "blocked" side is kept)
+- 3.0 interfaces and buffer warehouses become **deconstructable legacy buildings** (deconstruct to get the materials back)
+- Old chip implants are removed and returned as a terminal chip item
+
+Removed for good: cross-map logistics, storage interfaces, terminal chips, buffer warehouses, core upgrades. **Back up your save before updating.**
 
 ### Features
 
@@ -61,7 +66,7 @@ Unlike 3.0 (which stored numbers in a ledger), 4.0 stores **real Things**: appar
 
 - Items only — corpses are rejected, and non-item categories (buildings, plants, terrain) are out of scope
 - Prisoners do not use the core; their meals are delivered into the cell
-- 3.0 saves are not compatible (see above)
+- 3.0 saves are migrated automatically, but the removed features do not come back
 
 ### Compatibility
 
@@ -75,11 +80,16 @@ Verified compatible with Phinix (+ Red Packet), Vanilla Expanded Framework, Pick
 
 与 3.0（账本存数字）不同，4.0 存的是**真实的 Thing**：衣物、武器、品质、耐久差异全部能存，原版搬运与交易原生就认它。
 
-### ⚠️ 3.0 存档不兼容
+### ⚠️ 3.0 存档会自动迁移
 
-4.0 移除了**磁盘柜、存储接口、终端芯片植入体、缓冲仓库、核心升级系统、跨图物流**。用 4.0 读 3.0 存档，游戏会报「找不到 Def」并丢弃这些建筑与物品；3.0 存在核心里的账本库存不会被读取。
+4.0 移除了**磁盘柜、存储接口、终端芯片植入体、缓冲仓库、核心升级系统、跨图物流**，但 3.0 老存档在**读档时会自动迁移**：
 
-**更新前请先把 3.0 核心里的东西全部取出来，或直接开新档。**
+- 核心里的库存（旧账本）逐项还原成**真实物品放进容器**；装不下的落在核心脚下，不会丢
+- 旧的存储筛选会被沿用（只保留"禁用"的那一侧）
+- 3.0 的接口 / 缓冲仓库变成**可拆除的墓碑建筑**（拆除退回材料）
+- 植入体内的终端芯片被摘除，并退回一枚终端芯片物品
+
+已移除且不会复活：跨图物流、存储接口、终端芯片、缓冲仓库、核心升级。**建议更新前先备份存档。**
 
 ### 功能
 
@@ -126,7 +136,7 @@ Verified compatible with Phinix (+ Red Packet), Vanilla Expanded Framework, Pick
 
 - 只收物品类 —— 不收尸体，建筑/植物/地板之类的非物品类别不在可存范围
 - 囚犯不使用核心，他们的饭由典狱长送进牢房
-- 3.0 存档不兼容（见上）
+- 3.0 存档会自动迁移，但已移除的机制不会复活
 
 ### 兼容性
 

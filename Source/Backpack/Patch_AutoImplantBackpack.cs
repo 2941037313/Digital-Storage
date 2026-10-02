@@ -69,7 +69,35 @@ namespace DigitalStorage.Backpack
         [HarmonyPostfix]
         private static void Postfix(Pawn __instance)
         {
+            StripLegacy30Chip(__instance);
             BackpackImplant.Sync(__instance);
+        }
+
+        /// <summary>
+        /// 3.0 → 4.0 迁移：摘掉 3.0 的「终端植入体」并退回一枚终端芯片。
+        ///
+        /// <para>4.0 是纯轮椅，不需要芯片；而墓碑 HediffDef 让旧存档能正常解析，
+        /// 不摘掉的话它会作为一枚"无功能植入体"永远留在健康页里。
+        /// <c>HediffDef.spawnThingOnRemoved</c> 只有**手术配方**会用（不是 <c>RemoveHediff</c>），
+        /// 所以这里手动把芯片放回脚下 —— 那玩意值 1000 银，别让玩家白丢。</para>
+        /// </summary>
+        private static void StripLegacy30Chip(Pawn pawn)
+        {
+            if (pawn == null || pawn.health == null || pawn.health.hediffSet == null) return;
+
+            HediffDef legacyDef = DefDatabase<HediffDef>.GetNamedSilentFail("DigitalStorage_TerminalImplant");
+            if (legacyDef == null) return;
+
+            Hediff hediff = pawn.health.hediffSet.GetFirstHediffOfDef(legacyDef);
+            if (hediff == null) return;
+
+            pawn.health.RemoveHediff(hediff);
+
+            ThingDef chipDef = DefDatabase<ThingDef>.GetNamedSilentFail("DigitalStorage_TerminalChip");
+            Map map = pawn.MapHeld;
+            if (chipDef == null || map == null) return;
+
+            GenPlace.TryPlaceThing(ThingMaker.MakeThing(chipDef), pawn.PositionHeld, map, ThingPlaceMode.Near);
         }
     }
 

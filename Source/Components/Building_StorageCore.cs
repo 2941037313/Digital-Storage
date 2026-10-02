@@ -350,6 +350,9 @@ namespace DigitalStorage.Components
 
             // 兼容层：注册惰性替身（只为了让核心进 AllGroups 供第三方扫描器枚举）
             RegisterCompatSlotGroup();
+
+            // 3.0 → 4.0：把旧账本搬进容器（只有从 3.0 存档读出来才有数据，新核心是 no-op）
+            MigrateLegacy30IfNeeded();
         }
 
         public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
@@ -388,6 +391,19 @@ namespace DigitalStorage.Components
             if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff") Notify_SettingsChanged();
         }
 
+        // ===== 3.0 → 4.0 存档迁移（墓碑字段）=====
+        //
+        // 3.0 的这个类里是：
+        //   Scribe_Values.Look(ref networkName, "networkName");
+        //   Scribe_Deep.Look(ref ledger, "ledger");              // CoreLedger：stockKeys + stockCounts
+        //   Scribe_Deep.Look(ref storageFilter, "storageFilter");
+        // 4.0 的容器里是真实 Thing，那些数据没有别的东西会去读 ⇒ 不读就等于玩家的货消失。
+        // 这里用**同键**把它们读回来（类名 4.0 没变，所以不需要复活旧类），
+        // 读档后在 SpawnSetup 里一次性落进 innerContainer。详见 Compatibility/Legacy30Migration。
+        private Compatibility.Legacy30Migration.LegacyLedger legacyLedger;
+        private ThingFilter legacyStorageFilter;
+        private bool legacy30Migrated;
+
         public override void ExposeData()
         {
             base.ExposeData();
@@ -399,12 +415,40 @@ namespace DigitalStorage.Components
             Scribe_Values.Look(ref storagePriorityField, "storagePriority", StoragePriority.Preferred);
             Scribe_Values.Look(ref allowWeaponsInStorage, "allowWeaponsInStorage", false);
 
+            // 3.0 遗留数据（键名必须与 3.0 逐字一致；4.0 自己的存档里这些是 null）
+            Scribe_Deep.Look(ref legacyLedger, "ledger");
+            Scribe_Deep.Look(ref legacyStorageFilter, "storageFilter");
+            Scribe_Values.Look(ref legacy30Migrated, "dsLegacy30Migrated", false);
+
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
                 if (innerContainer == null) innerContainer = new ThingOwner<Thing>(this);
                 innerContainer.dontTickContents = true;
                 GetStoreSettings();
                 ApplyWeaponFilter();
+            }
+        }
+
+        /// <summary>
+        /// 3.0 存档迁移：把旧账本搬进容器、沿用旧筛选。
+        /// 跑完就把墓碑清空并置标记 —— 否则下次存档会把旧数据写回去，读档时重复迁移（凭空多出货物）。
+        /// </summary>
+        private void MigrateLegacy30IfNeeded()
+        {
+            if (legacy30Migrated) return;
+            if (legacyLedger == null && legacyStorageFilter == null) return;
+
+            legacy30Migrated = true;
+
+            if (legacyStorageFilter != null)
+            {
+                Compatibility.Legacy30Migration.ApplyLegacyFilter(this, legacyStorageFilter);
+                legacyStorageFilter = null;
+            }
+            if (legacyLedger != null)
+            {
+                Compatibility.Legacy30Migration.Migrate(this, legacyLedger);
+                legacyLedger = null;
             }
         }
 
