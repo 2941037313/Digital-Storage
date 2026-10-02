@@ -56,7 +56,8 @@
       <graphicClass>Graphic_Single</graphicClass>
       <shaderType>CutoutComplex</shaderType>
       <drawSize>(2,2)</drawSize>
-      <drawOffset>(0, 0, 0.5)</drawOffset>
+      <!-- 不写 drawOffset：默认 0 = 贴图正落在 2x2 足迹上。
+           核心那条 (0,0,0.5) 是给 3x3 建筑配 4x4 贴图用的，抄过来会让图往上偏半格。 -->
       <drawRotated>false</drawRotated>
     </graphicData>
     <uiIconScale>0.9</uiIconScale>

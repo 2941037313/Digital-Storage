@@ -230,12 +230,17 @@ namespace DigitalStorage.AI
             ticksToPickHit -= 1f;
             if (ticksToPickHit > 0f) return;
 
-            // 原版 JobDriver_Mine.cs:62-66：每镐先触发特效再结算伤害
+            // 原版 JobDriver_Mine.cs:62-66：每镐先触发特效再结算伤害。
+            // ⚠️ 但**不要照抄 `Trigger(actor, mineTarget)`** —— 那个 actor 是我们的假 pawn，
+            // sprayer 会去读 `TargetInfo.CenterVector3` → `Pawn.DrawPos` → `PawnTweener`，
+            // 而假 pawn 从未 spawn，这条链过去会 NRE（pather 为 null）。
+            // 现在虽然补了 AddComponentsForSpawn 兜底，仍然用"目标打目标"更稳、也更符合语义：
+            // 手是隔空干活的，碎石就该从矿上崩起来，没有"从人手上飞出"这一半。
             if (effecter == null)
             {
                 effecter = EffecterDefOf.Mine.Spawn();
             }
-            effecter.Trigger(pawn, target);
+            effecter.Trigger(target, target);
 
             StrikeCount++;   // 让"干活的那只手"挥一下
 

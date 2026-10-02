@@ -370,6 +370,15 @@ namespace DigitalStorage.Components
                 worker = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
                 worker.Name = new NameTriple("", "数字工人", Props.workType.defName + Props.skillLevel);
 
+                // ★ 补上"生成时不需要、被 spawn 时才建"的那批组件（pather / rotationTracker / natives /
+                //   filth / roping…）。不补的话，**任何读 pawn.DrawPos 的原版代码都会 NRE** ——
+                //   PawnTweener.TweenedPosRoot 直接解引用 pawn.pather（Verse\PawnTweener.cs:104），
+                //   而 pather 是 Pawn.SpawnSetup → PawnComponentsUtility.AddComponentsForSpawn 才建的。
+                //   实测踩过：原版挖掘特效的 sprayer 取 TargetInfo.CenterVector3（→ Pawn.DrawPos）时炸掉。
+                //   AddComponentsForSpawn 内部对"还没真的 spawn"的 pawn 是安全的
+                //   （它给 AddAndRemoveDynamicComponents 传 actAsIfSpawned: true，PawnComponentsUtility.cs:206）。
+                PawnComponentsUtility.AddComponentsForSpawn(worker);
+
                 // ① 不进地图注册表：即便作用域期间 Spawned 为 true，RegisterPawn 也会早退
                 //    （MapPawns.cs:847 `if (!p.mindState.Active) return;`）
                 worker.mindState.Active = false;
