@@ -8,12 +8,19 @@ namespace DigitalStorage.Core
     /// <summary>
     /// <b>代理干活时的"掉落直塞数字存储"作用域</b> —— 治卡顿的第二半（省成本，不是减产量）。
     ///
-    /// <para><b>为什么</b>：完成一件活最贵的一步是"把产物弄到地上"：
-    /// <c>GenPlace.TryPlaceThing(..., ThingPlaceMode.Near)</c> 要**搜附近空位**（逐个候选格判定），
-    /// 落地还要注册进 <c>thingGrid</c>/<c>listerThings</c>/region 变脏。
-    /// 实测每件活约 0.4~0.5ms，代理的吞吐是每 tick 20~40 件 ⇒ 每 tick 10~20ms。
-    /// 直塞进容器把这一步整个跳过（容器内容不进 <c>listerThings</c> 是本 mod 的铁律，
-    /// 所以也顺带省掉注册与 region 脏标记）。</para>
+    /// <para><b>省的是什么（2026 更正）</b>：落地要走
+    /// <c>TryPlaceDirect → SpawnSetup</c>：注册进 <c>thingGrid</c> / <c>listerThings</c> /
+    /// region 列表，并让地图网格变脏（后面还要重建）。直塞进容器把这一整套跳过
+    /// —— 容器内容不进 <c>listerThings</c> 是本 mod 的铁律，所以注册与 region 变脏都免了。</para>
+    ///
+    /// <para>⚠️ <b>别再说"省掉搜附近空位"</b>：<c>ThingPlaceMode.Near</c> 确实会
+    /// <c>TryFindPlaceSpotNear</c> 搜空位，但挖空的格子本身就是空的、中心格基本立刻命中，
+    /// 所以那一步不贵。省的是**注册**。<b>而且"落地注册 vs 销毁/地形变更"各占多少，尚无实测</b>
+    /// —— 靠 <c>Drops</c> / <c>DropsDirect</c> 两个探针回答。</para>
+    ///
+    /// <para><b>对什么有用</b>：核心过滤器收的东西（矿脉产物、收获作物、拆除返还材料）✔；
+    /// <b>石块不行</b> —— <c>Building_StorageCore.Accepts</c> 只看过滤器 + 容量，
+    /// 而过滤器一般不含石块 ⇒ 直塞失败、退回原版落地。</para>
     ///
     /// <para><b>怎么接</b>：<c>CompDigitalWorker.CompTick</c> 在用假工人干活前
     /// <see cref="Begin"/>（选好本次 tick 的收件核心），干完 <see cref="End"/>；

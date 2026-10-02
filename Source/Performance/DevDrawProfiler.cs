@@ -67,6 +67,7 @@ namespace DigitalStorage.Performance
         {
             "Ticks", "MapUpd", "DSWork",
             "DS-valid", "DS-scan", "DS-work", "DS-finish", "DS-visual", "DS-allocMB",
+            "Drops", "DropsDirect",
             "MapMesh", "DynThings", "Designations", "Overlays", "Motes", "Flecks", "SelDraw"
         };
 

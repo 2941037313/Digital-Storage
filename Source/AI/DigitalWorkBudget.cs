@@ -7,10 +7,11 @@ namespace DigitalStorage.AI
     /// <b>「每 tick 最多让几件活真正落地」的预算闸门</b> —— 治卡顿的那道闸。
     ///
     /// <para><b>为什么需要它</b>：完成一件活要付一次**原版的一次性代价**：
-    /// 挖掘 <c>Mineable.DestroyMined</c> 要生成掉落物（<c>GenPlace.TryPlaceThing</c> 得**搜附近空位**）
-    /// 再销毁；建造完 <c>Frame.CompleteConstruction</c> 要生成建筑；拆除 <c>Destroy(Deconstruct)</c>
-    /// 要还材料；收获要生成作物。每一项都伴随 region 变脏 + <c>listerThings</c> 注册/注销。
-    /// 实测量级约 <b>0.4~0.5ms/件</b>（60Hz 的 log：刻度 40.7ms 里 CompTick 占 38.9ms，
+    /// 挖掘 <c>Mineable.DestroyMined</c> 要生成掉落物（落地 = <c>SpawnSetup</c> 注册进
+    /// <c>thingGrid</c>/<c>listerThings</c>/region 并让网格变脏）再销毁；建造完
+    /// <c>Frame.CompleteConstruction</c> 要生成建筑；拆除 <c>Destroy(Deconstruct)</c>
+    /// 要还材料；收获要生成作物。
+    /// 实测总量级约 <b>0.4~0.5ms/件</b>（60Hz 的 log：刻度 40.7ms 里 CompTick 占 38.9ms，
     /// 而 75 并行 × 7.5 倍速 ⇒ 每 tick 完成 20~40 件 ⇒ 10~20ms/tick）。</para>
     ///
     /// <para><b>为什么"摊平"不够</b>：卡顿是**吞吐撞上单件成本**，不是分布不匀 ——

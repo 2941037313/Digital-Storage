@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using DigitalStorage.Components;
 using DigitalStorage.Core;
+using DigitalStorage.Performance;
 using HarmonyLib;
 using Verse;
 
@@ -52,22 +53,48 @@ namespace DigitalStorage.HarmonyPatches
                           + "（原版签名变了？本功能会静默退回原版落地行为）。");
                 return;
             }
-            MethodInfo prefix = AccessTools.Method(typeof(Patch_GenPlace_DropRedirect), nameof(Prefix));
-            harmony.Patch(target, prefix: new HarmonyMethod(prefix));
+            harmony.Patch(target,
+                prefix: new HarmonyMethod(AccessTools.Method(typeof(Patch_GenPlace_DropRedirect), nameof(Prefix))),
+                postfix: new HarmonyMethod(AccessTools.Method(typeof(Patch_GenPlace_DropRedirect), nameof(Postfix))));
         }
+
+        /// <summary>本帧最近一次进来是不是被我们接管的（决定 Postfix 把它记到哪个 key）。</summary>
+        private static bool tookOver;
+
+        private static long stamp;
 
         private static bool Prefix(Thing thing, Map map, out Thing lastResultingThing, ref bool __result)
         {
             lastResultingThing = null;
+            // ⚠️ 探针的开关**不能**闸住功能本身：DevMode 关掉时 stamp 保持 0（=不记时），
+            //    但直塞照常工作。
+            if (DevDrawProfiler.Enabled) stamp = DevDrawProfiler.Stamp();
+
             if (!DigitalDropRedirect.Active) return true;
 
             Building_StorageCore core = DigitalDropRedirect.Core;
             if (core == null || map == null || core.Map != map) return true;
             if (!DigitalDropRedirect.TryIngestUnspawned(core, thing)) return true;
 
+            tookOver = true;
             lastResultingThing = thing;
             __result = true;
             return false;
+        }
+
+        /// <summary>
+        /// 探针：<c>Drops</c> = 走原版落地花了多少（含 <c>TryFindPlaceSpotNear</c> + 注册），
+        /// <c>DropsDirect</c> = 直塞花了多少。两者的差值就是 (b) 的真实收益 ——
+        /// 别再用推测，这两个数直接回答"直塞值不值"。
+        /// </summary>
+        private static void Postfix()
+        {
+            if (!DevDrawProfiler.Enabled || stamp == 0L) return;
+            string key = tookOver ? "DropsDirect" : "Drops";
+            DevDrawProfiler.Add(key, DevDrawProfiler.Ms(stamp));
+            DevDrawProfiler.Bump(tookOver ? "直塞/帧" : "落地/帧", 1);
+            stamp = 0L;
+            tookOver = false;
         }
     }
 }
