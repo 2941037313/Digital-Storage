@@ -66,6 +66,8 @@
     <Compile Include="Components\CompProperties_AutoIngest.cs" />
     <Compile Include="Components\CompAutoIngest.cs" />
     <Compile Include="Components\AutoIngestDevTool.cs" />
+    <Compile Include="Components\CompProperties_DigitalWorker.cs" />
+    <Compile Include="Components\CompDigitalWorker.cs" />
 
     <Compile Include="Core\HaulSourceContents.cs" />
     <Compile Include="Core\ItemGroup.cs" />
@@ -78,6 +80,7 @@
     <Compile Include="AI\FoodScoring.cs" />
     <Compile Include="AI\JobDriver_DS_Consume.cs" />
     <Compile Include="AI\CoreFinder.cs" />
+    <Compile Include="AI\DigitalWorkerTasks.cs" />
 
     <Compile Include="Effects\Mote_DS_IngestBeam.cs" />
 

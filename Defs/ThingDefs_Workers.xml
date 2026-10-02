@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- ==========================================================================
+       代理建筑（数字工人）：每类 job 一个专用建筑，每类三级。
+       第一波只做「挖掘代理 I」验证最小闭环；二三级与其它三类按同一模板铺开
+       （等级差异只有：技能资质 / 速度倍率 / 耗电 / 造价 / 工时）。
+
+       出处与机制见 Docs\实现方案-job自动化.md：
+         速度倍率是速度的唯一来源（不乘 pawn.GetStatValue）；
+         技能资质只用于品质与产量（挖掘的产量走 miningYieldFactor，不受技能影响）。
+       ========================================================================== -->
+
+  <!-- 等级 I 的抽象父级：放"等级相关"的东西（造价 / 耗电 / HP / 工时） -->
+  <ThingDef Name="DigitalStorage_WorkerTier1" ParentName="DigitalStorage_BuildingBase" Abstract="True">
+    <label>代理建筑 I</label>
+    <description>数字工人的执行单元（一级）。速度 0.8×，资质 8 级。</description>
+    <size>(2,2)</size>
+    <drawSize>(2,2)</drawSize>
+    <statBases>
+      <MaxHitPoints>1000</MaxHitPoints>
+      <WorkToBuild>800</WorkToBuild>
+      <Mass>30</Mass>
+    </statBases>
+    <tickerType>Normal</tickerType>
+    <researchPrerequisites>
+      <li>DigitalStorage_Worker1</li>
+    </researchPrerequisites>
+    <costList>
+      <Steel>200</Steel>
+      <ComponentIndustrial>6</ComponentIndustrial>
+      <ComponentSpacer>1</ComponentSpacer>
+    </costList>
+    <comps>
+      <li Class="CompProperties_Power">
+        <compClass>CompPowerTrader</compClass>
+        <basePowerConsumption>500</basePowerConsumption>
+        <shortCircuitInRain>true</shortCircuitInRain>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <!-- 挖掘代理 I -->
+  <ThingDef ParentName="DigitalStorage_WorkerTier1">
+    <defName>DigitalStorage_WorkerMining1</defName>
+    <label>挖掘代理 I</label>
+    <description>自动完成玩家标记的采矿工作，殖民者无需前往。\n\n只处理已经在核心网络里、或被自动收纳吸走的产物。断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/基座</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawOffset>(0, 0, 0.5)</drawOffset>
+      <drawRotated>false</drawRotated>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workType>Mining</workType>
+        <skillLevel>8</skillLevel>
+        <workSpeedMult>0.8</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+</Defs>
