@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 制作代理 gizmo：超频。
+     motif = 速度表（开口表盘 + 指针 + 中心轴 + 外圈刻度），配色琥珀 ——
+     一眼读出"提速"，又不与"开关"（近白圆环）或"范围"（青色方框）撞形。
+     右上角（复选框位置）只有一圈刻度，被盖住不影响识别。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- 表盘：从 150° 顺时针越过正上方到 30°（缺口 120° 在正下方） -->
+  <path d="M 29.36 84 A 40 40 0 1 1 98.64 84"
+        fill="none" stroke="#FFC24B" stroke-width="8" stroke-linecap="round"/>
+  <!-- 外圈刻度（左 / 上 / 右） -->
+  <path d="M 19.7 56.2 L 13.8 55.2" fill="none" stroke="#FFC24B" stroke-width="6" stroke-linecap="round"/>
+  <path d="M 64 13 L 64 10" fill="none" stroke="#FFC24B" stroke-width="6" stroke-linecap="round"/>
+  <path d="M 108.3 56.2 L 114.2 55.2" fill="none" stroke="#FFC24B" stroke-width="6" stroke-linecap="round"/>
+  <!-- 指针（指右上 45°） -->
+  <path d="M 64 64 L 84.5 43.5" fill="none" stroke="#FFC24B" stroke-width="11" stroke-linecap="round"/>
+  <!-- 中心轴 + 挖一个"洞"让它看起来是表轴而不是色块 -->
+  <circle cx="64" cy="64" r="9" fill="#FFC24B"/>
+  <circle cx="64" cy="64" r="3.5" fill="#2A2E36"/>
+</svg>

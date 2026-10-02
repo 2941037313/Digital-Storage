@@ -65,6 +65,11 @@ namespace DigitalStorage.Components
         /// <summary>缓存的实际耗电（W）；每 tick 只与 <c>PowerOutput</c> 比一次。</summary>
         private float cachedWatts = -1f;
 
+        // 三个 gizmo 的图标（源文件是 SVG，见 Tools/svg2png/；见 GizmoTex 的说明）
+        private Texture2D texToggle;
+        private Texture2D texOverclock;
+        private Texture2D texRange;
+
         /// <summary>台子认领表按图分桶，放手时要用同一个 map 引用。</summary>
         private Map slotsMap;
 
@@ -939,6 +944,7 @@ namespace DigitalStorage.Components
 
             yield return new Command_Toggle
             {
+                icon = GizmoTex(ref texToggle, "UI/Gizmos/制作代理-开关"),
                 defaultLabel = "DS_BA_Toggle".Translate(),
                 defaultDesc = "DS_BA_ToggleDesc".Translate(),
                 isActive = () => enabled,
@@ -947,6 +953,7 @@ namespace DigitalStorage.Components
 
             yield return new Command_Action
             {
+                icon = GizmoTex(ref texOverclock, "UI/Gizmos/制作代理-超频"),
                 defaultLabel = "DS_BA_Overclock".Translate(OverclockLabel()),
                 defaultDesc = "DS_BA_OverclockDesc".Translate(CurrentWatts.ToString("#####0")),
                 action = () =>
@@ -960,11 +967,28 @@ namespace DigitalStorage.Components
             // 显示扫描范围（用户要求）：开着就一直在地图上画 13×13 边框，方便摆工作台。
             yield return new Command_Toggle
             {
+                icon = GizmoTex(ref texRange, "UI/Gizmos/制作代理-显示范围"),
                 defaultLabel = "DS_BA_ShowRange".Translate(),
                 defaultDesc = "DS_BA_ShowRangeDesc".Translate(Props.scanRadius * 2 + 1),
                 isActive = () => showRange,
                 toggleAction = () => { showRange = !showRange; }
             };
+        }
+
+        /// <summary>
+        /// 三个 gizmo 的图标（源文件是 SVG，见 <c>Tools/svg2png/</c>）。
+        ///
+        /// <para>⚠️ <b>不能不给图标</b>：<c>Command.DrawIcon</c> 在 <c>icon == null</c> 时会画
+        /// <c>BaseContent.BadTex</c>（原版那个"坏贴图"占位）—— 三个按钮会各顶一个占位图。</para>
+        ///
+        /// <para>按 comp 实例缓存：<c>CompGetGizmosExtra</c> 是**每帧**被调的（检视面板开着时），
+        /// 虽然 <c>ContentFinder</c> 自己也有字典缓存，但这里省掉每帧三次字符串查表。
+        /// 缓存字段用 Unity 的"假 null"判空 ⇒ 开发者模式重载贴图后会自动重取。</para>
+        /// </summary>
+        private Texture2D GizmoTex(ref Texture2D cache, string path)
+        {
+            if (cache == null) cache = ContentFinder<Texture2D>.Get(path, true);
+            return cache;
         }
 
         /// <summary>当前超频档位名（面板/描述用）。</summary>

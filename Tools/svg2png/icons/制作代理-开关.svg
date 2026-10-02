@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 制作代理 gizmo：总开关。
+     motif = 电源符号（断口圆环 + 竖杠）；配色取中性近白 —— Command_Toggle 自己会在
+     按钮右上角叠一个复选框表示"开/关"，图标本身不承载状态，所以不需要两个版本。
+     右上角留空（复选框会盖住那块），笔画避开 x>96 且 y<32。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- 断口圆环：圆心 (64,70) r=30，缺口 96°（正上方 -48°..-138°），顺时针走 264° -->
+  <path d="M 86.29 49.93 A 30 30 0 1 1 41.71 49.93"
+        fill="none" stroke="#F0F2F5" stroke-width="10" stroke-linecap="round"/>
+  <!-- 竖杠：从环外穿进缺口 -->
+  <path d="M 64 28 L 64 64"
+        fill="none" stroke="#F0F2F5" stroke-width="10" stroke-linecap="round"/>
+</svg>

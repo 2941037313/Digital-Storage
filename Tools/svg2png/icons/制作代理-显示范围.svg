@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 制作代理 gizmo：显示扫描范围。
+     motif = 方框 + 四向刻度 + 中心块（"这块方地上有东西在扫"），配色青 ——
+     与"开关"（近白圆环）、"超频"（琥珀表盘）在形状和颜色上都拉开。
+     方框四角是圆角：四角正好在复选框/暗角附近，圆角即使被切一点也还成框。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- 范围框（圆角） -->
+  <rect x="28" y="28" width="72" height="72" rx="10"
+        fill="none" stroke="#5FD3F3" stroke-width="7"/>
+  <!-- 四向刻度：从框边朝外伸，读作"范围还在往外" -->
+  <path d="M 64 26 L 64 12" fill="none" stroke="#5FD3F3" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 64 102 L 64 116" fill="none" stroke="#5FD3F3" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 26 64 L 12 64" fill="none" stroke="#5FD3F3" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 102 64 L 116 64" fill="none" stroke="#5FD3F3" stroke-width="7" stroke-linecap="round"/>
+  <!-- 中心 = 建筑本身 -->
+  <rect x="52" y="52" width="24" height="24" rx="5" fill="#5FD3F3"/>
+</svg>
