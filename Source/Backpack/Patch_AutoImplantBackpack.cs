@@ -69,35 +69,19 @@ namespace DigitalStorage.Backpack
         [HarmonyPostfix]
         private static void Postfix(Pawn __instance)
         {
-            StripLegacy30Chip(__instance);
             BackpackImplant.Sync(__instance);
-        }
-
-        /// <summary>
-        /// 3.0 → 4.0 迁移：摘掉 3.0 的「终端植入体」并退回一枚终端芯片。
-        ///
-        /// <para>4.0 是纯轮椅，不需要芯片；而墓碑 HediffDef 让旧存档能正常解析，
-        /// 不摘掉的话它会作为一枚"无功能植入体"永远留在健康页里。
-        /// <c>HediffDef.spawnThingOnRemoved</c> 只有**手术配方**会用（不是 <c>RemoveHediff</c>），
-        /// 所以这里手动把芯片放回脚下 —— 那玩意值 1000 银，别让玩家白丢。</para>
-        /// </summary>
-        private static void StripLegacy30Chip(Pawn pawn)
-        {
-            if (pawn == null || pawn.health == null || pawn.health.hediffSet == null) return;
-
-            HediffDef legacyDef = DefDatabase<HediffDef>.GetNamedSilentFail("DigitalStorage_TerminalImplant");
-            if (legacyDef == null) return;
-
-            Hediff hediff = pawn.health.hediffSet.GetFirstHediffOfDef(legacyDef);
-            if (hediff == null) return;
-
-            pawn.health.RemoveHediff(hediff);
-
-            ThingDef chipDef = DefDatabase<ThingDef>.GetNamedSilentFail("DigitalStorage_TerminalChip");
-            Map map = pawn.MapHeld;
-            if (chipDef == null || map == null) return;
-
-            GenPlace.TryPlaceThing(ThingMaker.MakeThing(chipDef), pawn.PositionHeld, map, ThingPlaceMode.Near);
+            // 【这里原本有 StripLegacy30Chip —— 已随墓碑 Def 一起删除（用户 2026-10-02 拍板）】
+            //
+            // 它做的是「摘掉 3.0 的终端植入体并退回一枚终端芯片」（那玩意值 1000 银）。
+            // 决定不再携带 Legacy30_Compat.xml 之后，这条迁移**自然作废**，因为：
+            //   HediffDef 找不到 ⇒ ScribeExtractor.SaveableFromNode 捕获异常返回 null
+            //   ⇒ HediffSet.ExposeData:251 的 hediffs.RemoveAll(x => x == null) 把它丢掉，
+            //     只留一行 "had some null hediffs."
+            // 也就是说旧存档里的植入体**根本解析不出来**，没有东西可摘、也没有东西可退。
+            // 顺带：那一版的墓碑 Def 还会每次启动刷 3 条 config error
+            // （ResearchProjectDef 要求 researchViewY >= 0，我却为了藏到页签外写了 -3；
+            //   墓碑建筑基类给了 minifiedDef 却没给 thingCategories）。
+            // 旧存档现在会看到几条一次性「找不到 Def」+ 几条落物 NRE 栈 —— 已接受。
         }
     }
 
