@@ -613,7 +613,6 @@ namespace DigitalStorage.Components
                 case CompAutoIngest.Reject.NotOnMap: return "不在图上（在别人背包/容器里）——不能对它 DeSpawn";
                 case CompAutoIngest.Reject.InPrisonArea: return "在关押区（牢房或有囚犯的房间）——囚犯的饭不能被收";
                 case CompAutoIngest.Reject.OnBillGiver: return "在工作台的材料区（= 工作台自己占的格）——收了会触发原版把料搬走的循环";
-                case CompAutoIngest.Reject.OnConstructionSite: return "在建造工地上（蓝图/框架正等着这批材料）——原版送料是直接丢地上且不设禁止/不预订的，收了会让工地停工";
                 case CompAutoIngest.Reject.Reserved: return "已被某个 pawn 预订";
                 case CompAutoIngest.Reject.RecentlyWithdrawn: return "刚被取出（300 tick 保护窗口内）";
                 default: return r.ToString();
