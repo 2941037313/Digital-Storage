@@ -66,7 +66,7 @@ namespace DigitalStorage.Performance
         private static readonly string[] Keys =
         {
             "Ticks", "MapUpd", "DSWork",
-            "DS-valid", "DS-scan", "DS-work", "DS-finish", "DS-visual", "DS-allocMB",
+            "DS-valid", "DS-scan", "DS-work", "DS-finish", "DS-visual", "DS-allocMB", "ScanSet",
             "Drops", "DropsDirect",
             "MapMesh", "DynThings", "Designations", "Overlays", "Motes", "Flecks", "SelDraw"
         };

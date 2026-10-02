@@ -71,6 +71,28 @@ namespace DigitalStorage.Components
 
         private int scanBudget;
 
+        /// <summary>扫描序号：用来判断候选集缓存是不是本次扫描已物化过。</summary>
+        private int scanSerial;
+
+        /// <summary>
+        /// <b>候选集缓存（一次扫描内每个 giver 只物化一次）</b>。
+        ///
+        /// <para>⚠️ 2026 实测踩坑：<c>CandidateSet</c> 原本是**每次 add 都调**的，
+        /// 而清洁适配器的候选集是"扫全图 <c>listerThings.AllThings</c> 过滤出污物"
+        /// （<c>ThingRequestGroup.Filth</c> 在 <c>ThingListGroupHelper</c> 里没有分支，拿不到列表，
+        /// 只能这么写）。一次扫描最多 <see cref="AddsPerScan"/>=60 个 add ⇒
+        /// **60 次全图扫描**（用户场景：4 个超凡代理 + 全图 2 万岩屑 + 几十万 item）
+        /// ⇒ 每次扫描 15ms+，还每帧分配几十 MB（实测 分配 111MB/窗口）。
+        /// 物化一次之后，枚举开销降到 1/60。</para>
+        ///
+        /// <para>用 <c>Clear()</c> 复用 List 容量而不是丢弃重建，避免 GC 抖动。
+        /// 键是 <c>WorkGiver_Scanner</c>（<c>def.Worker</c> 单例，身份稳定）。</para>
+        /// </summary>
+        private readonly Dictionary<WorkGiver, List<Thing>> candidateCache =
+            new Dictionary<WorkGiver, List<Thing>>();
+
+        private readonly Dictionary<WorkGiver, int> candidateSerial = new Dictionary<WorkGiver, int>();
+
         /// <summary>一次扫描最多新增几件活（实测不卡，给大一点让并行舰队快速填满）。</summary>
         private const int AddsPerScan = 60;
 
@@ -180,12 +202,13 @@ namespace DigitalStorage.Components
                     }
                     nextScanTick = now + interval;
                     scanBudget = MaxEnumerationsPerScan;   // 本次扫描的总枚举额度（跨 add / 跨 giver）
+                    scanSerial++;                          // 候选集缓存按扫描序号失效
                     for (int added = 0; added < AddsPerScan; added++)
                     {
                         if (scanBudget <= 0) break;
                         if (!TryAddOneWork(map, w)) break;
                     }
-                    Performance.DevDrawProfiler.Bump("枚举/帧", MaxEnumerationsPerScan - scanBudget);
+                    Performance.DevDrawProfiler.Bump("枚举", MaxEnumerationsPerScan - scanBudget);
                 }
                 Performance.DevDrawProfiler.Mark("DS-scan", p);
 
@@ -294,8 +317,8 @@ namespace DigitalStorage.Components
 
             if (!DigitalTaskRegistry.PawnCanUse(giver, w, adapter)) return false;
 
-            IEnumerable<Thing> set = adapter.CandidateSet(map, w, scanner);
-            if (set == null) return false;
+            List<Thing> set = GetCandidates(map, w, scanner, adapter);
+            if (set == null || set.Count == 0) return false;
 
             int seen = 0;
             foreach (Thing t in set)
@@ -317,7 +340,7 @@ namespace DigitalStorage.Components
                     bool hasJob;
                     try
                     {
-                        Performance.DevDrawProfiler.Bump("试岗/帧", 1);   // HasJobOnThing 调用次数
+                        Performance.DevDrawProfiler.Bump("试岗", 1);   // HasJobOnThing 调用次数
                         hasJob = scanner.HasJobOnThing(w, t, false);
                     }
                     catch (Exception e)
@@ -338,6 +361,38 @@ namespace DigitalStorage.Components
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// 取候选集（**一次扫描内每个 giver 只物化一次**，见 <see cref="candidateCache"/>）。
+        /// 物化拷贝到这里而不是直接枚举 <c>CandidateSet</c>，是因为它会**每次调用都全图扫一遍**
+        /// （清洁适配器）；而一次扫描要调它最多 60 次。
+        /// </summary>
+        private List<Thing> GetCandidates(Map map, Pawn w, WorkGiver_Scanner scanner, DigitalTaskAdapter adapter)
+        {
+            List<Thing> list;
+            if (!candidateCache.TryGetValue(scanner, out list))
+            {
+                list = new List<Thing>();
+                candidateCache[scanner] = list;
+                candidateSerial[scanner] = int.MinValue;
+            }
+            if (candidateSerial[scanner] == scanSerial) return list;
+
+            list.Clear();
+            long t0 = Performance.DevDrawProfiler.Stamp();
+            IEnumerable<Thing> set = adapter.CandidateSet(map, w, scanner);
+            if (set != null)
+            {
+                foreach (Thing t in set)
+                {
+                    if (t != null) list.Add(t);
+                }
+            }
+            Performance.DevDrawProfiler.Mark("ScanSet", t0);
+            Performance.DevDrawProfiler.Bump("物化", 1);
+            candidateSerial[scanner] = scanSerial;
+            return list;
         }
 
         /// <summary>放手一件活（清它那份认领 + 收掉它的表现件）。</summary>

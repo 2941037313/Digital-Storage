@@ -91,13 +91,13 @@ namespace DigitalStorage.Performance
                 // 诊断：这条计数 >0 就说明**我们的批绘没在跑**（原版那条"每帧全量重建矩阵"在跑）。
                 // 实测踩过：标记 2.7 万时静态只要 0.35ms、一干活就 7.59ms（≈ 25k × 300ns = 全量重建），
                 // 而"重同步/帧"却是 0 —— 因为我们的代码压根没执行（设置里那个开关被关掉了）。
-                DevDrawProfiler.Bump("批绘未生效/帧", 1);
+                DevDrawProfiler.Bump("批绘未生效", 1);
                 return true;
             }
             try
             {
                 Draw(__instance);
-                DevDrawProfiler.Bump("批绘接管/帧", 1);
+                DevDrawProfiler.Bump("批绘接管", 1);
                 return false;
             }
             catch (Exception ex)

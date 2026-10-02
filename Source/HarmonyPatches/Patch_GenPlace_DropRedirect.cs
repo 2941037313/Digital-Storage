@@ -92,7 +92,7 @@ namespace DigitalStorage.HarmonyPatches
             if (!DevDrawProfiler.Enabled || stamp == 0L) return;
             string key = tookOver ? "DropsDirect" : "Drops";
             DevDrawProfiler.Add(key, DevDrawProfiler.Ms(stamp));
-            DevDrawProfiler.Bump(tookOver ? "直塞/帧" : "落地/帧", 1);
+            DevDrawProfiler.Bump(tookOver ? "直塞" : "落地", 1);
             stamp = 0L;
             tookOver = false;
         }
