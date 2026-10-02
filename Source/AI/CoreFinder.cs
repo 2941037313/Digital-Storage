@@ -23,7 +23,7 @@ namespace DigitalStorage.AI
     /// 现在改为**直接枚举 haul source**（与硬约束"数据源一律用 HaulSourceContents"一致），
     /// 不再依赖任何注册表 —— 注册表也因此成为死代码，批 3 删除。</para>
     ///
-    /// <para><b>4.0 大瘦身</b>（相对 3.0）：删掉跨图 / 同 NetworkName 远程核心；
+    /// <para><b>4.0 大瘦身</b>（相对 3.0）：删掉的是「同 NetworkName 远程核心」那套注册表；⚠️ <b>跨图后来又在第三阶段做了回来</b>（见本文件下方「跨图（4.0 第三阶段）」一段与 <c>HaulSourceContents.RemoteCoreSources</c>）—— 别再按「没有跨图」去读这个文件；
     /// 删掉芯片分支与代理点（纯轮椅：任何位置都能存取，不看芯片也不看可达性）；
     /// 删掉 <c>CoreAccess</c> 结构体与 <c>PickProxyCell</c> / <c>HasReachableProxy</c>
     /// （job 直接带真实 Thing，不需要代理格）。</para>

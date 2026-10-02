@@ -21,7 +21,7 @@
 - 原版系统原生覆盖：资源计数、食物与药品警报、财富、bill 的 ×N 计数等
 - 兼容层：Phinix 与红包插件已适配，其它遍历 SlotGroup 的 mod 也能看见核心内容物
 
-⚠️ 3.0 老存档会自动迁移：核心库存逐项还原成真实物品放进容器、旧筛选沿用。已移除的机制（跨图物流、接口、芯片、缓冲仓库）不会复活；旧存档里已建好的接口 / 缓冲仓库、芯片与植入体会随之失效（日志里会有几条一次性的「找不到 Def」）。核心容量升级以**研究**形式回归。建议更新前先备份存档。
+⚠️ 3.0 老存档会自动迁移：核心库存逐项还原成真实物品放进容器、旧筛选沿用。已移除的机制（接口、芯片、缓冲仓库）不会复活（跨图取料保留：可用任意地图上通电核心里的物资）；旧存档里已建好的接口 / 缓冲仓库、芯片与植入体会随之失效（日志里会有几条一次性的「找不到 Def」）。核心容量升级以**研究**形式回归。建议更新前先备份存档。
 
 A storage mod inspired by AE2. Items live as real Things inside a powered Storage Core: no map footprint, no tick cost, no rot. Remote access from anywhere, auto-ingest, trade support, and a compatibility layer for mods that scan storage groups. Proxy buildings do the colony's work for you (mining, construction and deconstruction, cleaning, and growing — sowing, harvesting and tree chopping), and a crafting proxy runs the recipes of nearby workbenches on its own: it picks ingredients through the vanilla bill chain, takes them from the core, and delivers the products straight back into it.</description>
   <packageId>cagier.digitalstorage</packageId>
