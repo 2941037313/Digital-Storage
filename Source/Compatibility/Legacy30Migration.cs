@@ -105,7 +105,7 @@ namespace DigitalStorage.Compatibility
             if (stacks > 0 || spilled > 0 || skipped > 0)
             {
                 Log.Warning("[DigitalStorage] 3.0 存档迁移完成（" + core.LabelShort + "）："
-                    + units + " 单位 / " + stacks + " 栈进入核心"
+                    + units + " 单位 / " + stacks + " 堆进入核心"
                     + (spilled > 0 ? "；容器已满，" + spilled + " 单位落在核心脚下" : "")
                     + (skipped > 0 ? "；跳过 " + skipped + " 单位（def 已不存在或无法生成）" : ""));
             }

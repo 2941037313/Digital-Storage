@@ -8,8 +8,8 @@
 
   <!-- ========== ITab_DigitalStorage ========== -->
   <DS_TabDigitalStorage>虚拟存储</DS_TabDigitalStorage>
-  <DS_CapacityBar>{0} / {1} 组</DS_CapacityBar>
-  <DS_CapacityBarLv>Lv{0}  {1} / {2} 组</DS_CapacityBarLv>
+  <DS_CapacityBar>{0} / {1} 堆</DS_CapacityBar>
+  <DS_CapacityBarLv>Lv{0}  {1} / {2} 堆 · {3} 种</DS_CapacityBarLv>
   <DS_Kinds>种</DS_Kinds>
   <DS_WithdrawBtn>取出</DS_WithdrawBtn>
   <DS_WithdrawTitle>取出 {0}</DS_WithdrawTitle>

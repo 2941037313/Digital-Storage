@@ -142,13 +142,18 @@ namespace DigitalStorage.UI
             Text.Font = GameFont.Small;
             float y = 0f;
 
-            // 顶部：栈数占用条（上限 = maxStacks，由研究阶梯决定：Lv1 500 → Lv4 3000）
+            // 顶部：堆数占用条（上限 = maxStacks，由研究阶梯决定：Lv1 500 → Lv4 3000）
+            // 「堆」与「种」是两个口径，必须都写出来：
+            //   堆 = 容器里真实 Thing 的个数（能合并的算一堆）；stackLimit = 1 的东西（石块/武器/衣物）一件就是一堆。
+            //   种 = 按 def + 材质 + 品质 聚合出来的行数（下面分组标题里的那个"种"）。
             Rect barRect = new Rect(rect.x, rect.y + y, rect.width, 22f);
             int used = core.innerContainer.Count;
             int cap = core.maxStacks;
-            Widgets.FillableBar(barRect, cap > 0 ? (float)used / cap : 0f);
+            // FillableBar 自己不 clamp（内部就一句 rect.width *= fillPercent，Widgets.cs:2555）
+            // ⇒ 旧存档里已经超上限的核心会把条画到面板外，这里自己夹住。
+            Widgets.FillableBar(barRect, cap > 0 ? Mathf.Clamp01((float)used / cap) : 0f);
             Text.Anchor = TextAnchor.MiddleCenter;
-            Widgets.Label(barRect, "DS_CapacityBarLv".Translate(CoreTier.Level, used, cap));
+            Widgets.Label(barRect, "DS_CapacityBarLv".Translate(CoreTier.Level, used, cap, rows.Count));
             Text.Anchor = TextAnchor.UpperLeft;
             y += 26f;
 

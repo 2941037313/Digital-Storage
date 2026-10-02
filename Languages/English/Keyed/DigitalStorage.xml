@@ -8,8 +8,8 @@
 
   <!-- ========== ITab_DigitalStorage ========== -->
   <DS_TabDigitalStorage>Virtual storage</DS_TabDigitalStorage>
-  <DS_CapacityBar>{0} / {1} slots</DS_CapacityBar>
-  <DS_CapacityBarLv>Lv{0}  {1} / {2} slots</DS_CapacityBarLv>
+  <DS_CapacityBar>{0} / {1} stacks</DS_CapacityBar>
+  <DS_CapacityBarLv>Lv{0}  {1} / {2} stacks · {3} kinds</DS_CapacityBarLv>
   <DS_Kinds>kinds</DS_Kinds>
   <DS_WithdrawBtn>Withdraw</DS_WithdrawBtn>
   <DS_WithdrawTitle>Withdraw {0}</DS_WithdrawTitle>

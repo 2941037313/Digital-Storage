@@ -167,10 +167,16 @@ namespace DigitalStorage.Components
         ///   这里**绝不能**掺容量规则：一旦 maxStacks 满，容器里所有"放不下"的东西都会被判为
         ///   无处可去，原版会把已有库存全搬出去。</item>
         /// <item><b>要进来的</b> → 过滤器 + 容量 + 真收得下。
-        ///   否则 <c>HaulAIUtility.cs:191</c> 的 job.count 会是 0 → <c>StartCarryThing</c> 抛异常。</item>
+        ///   否则 <c>HaulAIUtility.cs:191</c> 的 job.count 会是 0 → <c>StartCarryThing</c> 抛异常。
+        ///   <b>容量是硬上限</b>：堆数不得超过 <see cref="maxStacks"/>，但**已有堆允许被补满**
+        ///   —— 判定顺序刻意与原版 <c>ThingOwner.TryAdd</c> 一致
+        ///   （那边是先尝试合并进已有堆、合并不掉才查 <c>Count &lt; maxStacks</c>）。
+        ///   旧实现有一条例外"满了仍接受容器里已有的 def"（<c>ContainerHasDef</c>）⇒ 堆数能无限涨
+        ///   （实测 1000+ 堆 / 上限 500），把研究阶梯 500/1000/1500/3000 整个架空了，已删。</item>
         /// </list>
         ///
-        /// 这也和原版一致：<c>Building_Storage.Accepts</c> 只看过滤器，容量由 <c>MaxItemsInCell</c> 在放置时管。
+        /// 这也和原版一致：<c>Building_Storage.Accepts</c> 只看过滤器，容量由 <c>MaxItemsInCell</c> 在放置时管
+        /// —— 我们的"容器容量"是原版没有的概念，只能自己在这一个函数里回答。
         /// </summary>
         public bool Accepts(Thing t)
         {
@@ -184,20 +190,25 @@ namespace DigitalStorage.Components
             if (ReferenceEquals(t.ParentHolder, this)) return allowed;
 
             if (!allowed) return false;
-            if (innerContainer.Count >= maxStacks && !ContainerHasDef(t.def)) return false;
+            if (innerContainer.Count >= maxStacks && !HasRoomInExistingStack(t)) return false;
             return innerContainer.GetCountCanAccept(t) > 0;
         }
 
         /// <summary>
-        /// 容器里是否已经有同 def 的东西。**只在 maxStacks 满时调用**，
-        /// 所以 O(N) 线性扫描是可以接受的（不进热路径）。
+        /// 容器里有没有"还能再吃下这口"的同堆 —— 即**能合并进已有堆、且不新增堆**。
+        /// **只在上限已满时调用**，所以 O(N) 线性扫描是可以接受的（不进热路径）。
+        ///
+        /// <para>合并判据直接用原版 <c>Thing.CanStackWith</c>（def + 材质 + 都不是圣物 + 都是 Item 类），
+        /// 绝不另写一套近似逻辑 —— 那样两边会漂移，出现"Accepts 说能收、TryAdd 却合并失败"的假象。</para>
         /// </summary>
-        private bool ContainerHasDef(ThingDef def)
+        private bool HasRoomInExistingStack(Thing t)
         {
             for (int i = 0; i < innerContainer.Count; i++)
             {
-                Thing t = innerContainer[i];
-                if (t != null && t.def == def) return true;
+                Thing existing = innerContainer[i];
+                if (existing == null || existing.Destroyed) continue;
+                if (existing.stackCount >= existing.def.stackLimit) continue;
+                if (existing.CanStackWith(t)) return true;
             }
             return false;
         }
@@ -495,8 +506,8 @@ namespace DigitalStorage.Components
             string baseInspect = base.GetInspectString();
             if (!string.IsNullOrEmpty(baseInspect)) sb.AppendLine(baseInspect);
 
-            sb.AppendLine("存储核心 Lv" + CoreTier.Level + "：" + innerContainer.Count + " 栈 / "
-                + innerContainer.TotalStackCount + " 个单位（上限 " + maxStacks + " 栈）");
+            sb.AppendLine("存储核心 Lv" + CoreTier.Level + "：" + innerContainer.Count + " 堆 / "
+                + innerContainer.TotalStackCount + " 个单位（上限 " + maxStacks + " 堆）");
             sb.AppendLine("存储优先级：" + storagePriorityField);
             if (!Powered) sb.AppendLine("DS_NoPower".Translate());
             return sb.ToString().TrimEnd();

@@ -370,7 +370,7 @@ namespace DigitalStorage.Components
                 SB.Append(" AutoIngest组件=" + (comp != null));
                 if (comp != null) SB.Append(" 开关=" + comp.Enabled);
                 SB.Append(" 优先级=" + c.GetStoreSettings().Priority);
-                SB.Append(" 栈=" + c.innerContainer.Count + "/" + c.maxStacks
+                SB.Append(" 堆=" + c.innerContainer.Count + "/" + c.maxStacks
                           + "(Lv" + DigitalStorage.Core.CoreTier.Level + ")");
                 SB.Append(" 兼容替身=" + c.CompatSlotGroupRegistered);
                 SB.AppendLine();
@@ -561,7 +561,7 @@ namespace DigitalStorage.Components
 
             if (!core.Accepts(t))
                 return "核心 " + core.LabelCap + " 的 Accepts() 返回 false（存储筛选不允许 / 容量满 / 已经装不下）"
-                       + "；筛选允许=" + FilterAllows(core, t) + " 栈=" + core.innerContainer.Count + "/" + core.maxStacks;
+                       + "；筛选允许=" + FilterAllows(core, t) + " 堆=" + core.innerContainer.Count + "/" + core.maxStacks;
 
             return "（走到这里说明应该能进 —— 若仍不吸请把这整段发我）";
         }
