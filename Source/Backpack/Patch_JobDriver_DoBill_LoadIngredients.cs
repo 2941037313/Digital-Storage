@@ -139,7 +139,24 @@ namespace DigitalStorage.Backpack
                     {
                         queue[i] = new LocalTargetInfo(absorbed); // GetTargetQueue 返回的就是 job 的列表本体
                         actor.Reserve(new LocalTargetInfo(absorbed), job, 1, -1, null, false);
-                        if (actor.Map != null) actor.Map.reservationManager.Release(t, actor, job);
+
+                        // ★ 只有**真的订过**才 Release（2026-10-02 实测补上的守卫）。
+                        //
+                        // 无条件 Release 会在跨图取料时刷红字（用户实测：一次做饭 + 一次手术共 5 条）：
+                        //   "Tried to release Thing_Meat_Dromedary92683 that wasn't reserved by Blizzard."
+                        //
+                        // 原因：ReservationManager 是**每图一份**，而它的 CanReserve 有一条地图门
+                        //   target.Thing.SpawnedOrAnyParentSpawned && target.Thing.MapHeld != map ⇒ false
+                        // JobDriver_DoBill.TryMakePreToilReservations 调的 ReserveAsManyAsPossible 是
+                        // errorOnFailed:false ⇒ 跨图的队列项**静默地没订上**，
+                        // 于是我们这句 Release 变成"释放一个从没订过的目标"，
+                        // Release 内部找不到就 Log.Error（ReservationManager.cs:392-401）。
+                        //
+                        // 顺带把另一个更老的隐患一起盖住：本图原料在"搜索 → 开作业"之间被别的 pawn
+                        // 抢先订走时，同样会出现"没订上却 Release"。ReservedBy 正是 Release 自己的判据。
+                        Verse.Map actorMap = actor.Map;
+                        if (actorMap != null && actorMap.reservationManager.ReservedBy(t, actor, job))
+                            actorMap.reservationManager.Release(t, actor, job);
                     }
                 }
             };
