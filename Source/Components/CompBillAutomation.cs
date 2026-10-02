@@ -1004,20 +1004,19 @@ namespace DigitalStorage.Components
         }
 
         /// <summary>
-        /// 检查面板状态行。
-        /// TODO：改成 Keyed 翻译（与 <c>CompDigitalWorker.CompInspectStringExtra</c> 同一笔债）。
+        /// 检查面板状态行（走 keyed，见 <c>Languages/*/Keyed</c> 的 <c>DS_BA_Inspect*</c>）。
         /// </summary>
         public override string CompInspectStringExtra()
         {
             if (!parent.Spawned) return null;
-            if (!Powered) return "制作代理：断电";
-            if (!enabled) return "制作代理：已关闭";
+            if (!Powered) return "DS_BA_InspectOff".Translate().ToString();
+            if (!enabled) return "DS_BA_InspectDisabled".Translate().ToString();
 
             int lines = TotalLines();
-            string s = "制作代理：在产 " + lines + " 条线 · 配方 " + plans.Count + " 条 · 耗电 "
-                + CurrentWatts.ToString("#####0") + "W（速度 " + Props.workSpeedMult.ToString("0.0")
-                + "× × 超频 " + OverclockSpeedMult.ToString("0") + "×，资质 " + Props.skillLevel + "）";
-            if (benches.Count == 0) s += " · 13×13 内没有工作台";
+            string s = "DS_BA_InspectWork".Translate(lines, plans.Count, CurrentWatts.ToString("#####0"),
+                Props.workSpeedMult.ToString("0.0"), OverclockSpeedMult.ToString("0"),
+                Props.skillLevel).ToString();
+            if (benches.Count == 0) s += "DS_BA_InspectNoBench".Translate().ToString();
             return s;
         }
 

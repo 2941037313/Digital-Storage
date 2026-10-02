@@ -249,7 +249,7 @@ namespace DigitalStorage.AI
 
         public override string Label
         {
-            get { return "播种"; }
+            get { return "DS_Task_Sow".Translate().ToString(); }
         }
 
         public override IntVec3 TargetCell
@@ -401,7 +401,7 @@ namespace DigitalStorage.AI
 
         public override string Label
         {
-            get { return "收割"; }
+            get { return "DS_Task_Reap".Translate().ToString(); }
         }
 
         public override bool StillValid(Pawn pawn, Map map)

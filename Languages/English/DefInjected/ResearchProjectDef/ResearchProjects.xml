@@ -1,41 +1,77 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
 
-  <DigitalStorage_BasicStorage.label>digital storage</DigitalStorage_BasicStorage.label>
+  <DigitalStorage_BasicStorage.label>Digital storage</DigitalStorage_BasicStorage.label>
   <DigitalStorage_BasicStorage.description>Unlock the digital storage system. Build a storage core, and items stored inside it take up no map space, never render and never rot.</DigitalStorage_BasicStorage.description>
 
-  <DigitalStorage_AutoIngest1.label>auto-ingest I</DigitalStorage_AutoIngest1.label>
+  <DigitalStorage_AutoIngest1.label>Auto-ingest I</DigitalStorage_AutoIngest1.label>
   <DigitalStorage_AutoIngest1.description>Unlock auto-ingest. The core absorbs loose items across the map without a hauler.</DigitalStorage_AutoIngest1.description>
 
-  <DigitalStorage_AutoIngest2.label>auto-ingest II</DigitalStorage_AutoIngest2.label>
+  <DigitalStorage_AutoIngest2.label>Auto-ingest II</DigitalStorage_AutoIngest2.label>
   <DigitalStorage_AutoIngest2.description>Raises auto-ingest speed to 5 stacks per 15 ticks.</DigitalStorage_AutoIngest2.description>
 
-  <DigitalStorage_AutoIngest3.label>auto-ingest III</DigitalStorage_AutoIngest3.label>
+  <DigitalStorage_AutoIngest3.label>Auto-ingest III</DigitalStorage_AutoIngest3.label>
   <DigitalStorage_AutoIngest3.description>Raises auto-ingest speed to 10 stacks per 15 ticks.</DigitalStorage_AutoIngest3.description>
 
   <!-- DigitalStorage_Interface 已删（4.0 砍接口建筑） -->
 
-  <DigitalStorage_CoreLevel2.label>core Lv2</DigitalStorage_CoreLevel2.label>
+  <DigitalStorage_CoreLevel2.label>Core Lv2</DigitalStorage_CoreLevel2.label>
   <DigitalStorage_CoreLevel2.description>Storage core capacity 500 -> 1000 stacks. Applies immediately to every core already built on the map; no rebuild or reload needed.</DigitalStorage_CoreLevel2.description>
 
-  <DigitalStorage_CoreLevel3.label>core Lv3</DigitalStorage_CoreLevel3.label>
+  <DigitalStorage_CoreLevel3.label>Core Lv3</DigitalStorage_CoreLevel3.label>
   <DigitalStorage_CoreLevel3.description>Storage core capacity 1000 -> 1500 stacks. Applies immediately to every core already built on the map; no rebuild or reload needed.</DigitalStorage_CoreLevel3.description>
 
-  <DigitalStorage_CoreLevel4.label>core Lv4</DigitalStorage_CoreLevel4.label>
+  <DigitalStorage_CoreLevel4.label>Core Lv4</DigitalStorage_CoreLevel4.label>
   <DigitalStorage_CoreLevel4.description>Storage core capacity 1500 -> 3000 stacks. Applies immediately to every core already built on the map; no rebuild or reload needed.</DigitalStorage_CoreLevel4.description>
 
-  <DigitalStorage_CraftProxy1.label>crafting proxy I</DigitalStorage_CraftProxy1.label>
-  <DigitalStorage_CraftProxy1.description>Unlock crafting proxy I: bills on workbenches within 13x13 are completed by the building itself - ingredients are taken from a digital storage core and products go straight back into it.\n\nSkill 5, speed 0.8x, 300W plus the draw of every bench in range.</DigitalStorage_CraftProxy1.description>
+  <DigitalStorage_CraftProxy1.label>Crafting proxy I</DigitalStorage_CraftProxy1.label>
+  <DigitalStorage_CraftProxy1.description>Unlock crafting proxy I: the recipes that workbenches within 13x13 can craft are completed by the building itself - orders are placed in the Craft automation panel and the workbenches do not need a bill. Ingredients are taken from a digital storage core and products go straight back into it.\n\nSkill 5, speed 0.8x, 300W plus the draw of every bench in range.</DigitalStorage_CraftProxy1.description>
 
-  <DigitalStorage_CraftProxy2.label>crafting proxy II</DigitalStorage_CraftProxy2.label>
+  <DigitalStorage_CraftProxy2.label>Crafting proxy II</DigitalStorage_CraftProxy2.label>
   <DigitalStorage_CraftProxy2.description>Unlock crafting proxy II: skill 10, speed 1.0x, same 300W.</DigitalStorage_CraftProxy2.description>
 
-  <DigitalStorage_CraftProxy3.label>crafting proxy III</DigitalStorage_CraftProxy3.label>
+  <DigitalStorage_CraftProxy3.label>Crafting proxy III</DigitalStorage_CraftProxy3.label>
   <DigitalStorage_CraftProxy3.description>Unlock crafting proxy III: skill 15, speed 1.5x, same 300W.</DigitalStorage_CraftProxy3.description>
 
-  <DigitalStorage_CraftProxy4.label>crafting proxy IV</DigitalStorage_CraftProxy4.label>
+  <DigitalStorage_CraftProxy4.label>Crafting proxy IV</DigitalStorage_CraftProxy4.label>
   <DigitalStorage_CraftProxy4.description>Unlock crafting proxy IV: skill 20, speed 2.0x, same 300W.\n\nOverclocking (3/6/9 GHz) multiplies speed by 3/6/9 at 9/27/81 times the power draw.</DigitalStorage_CraftProxy4.description>
 
   <!-- DigitalStorage_TerminalImplant 已删（4.0 砍芯片） -->
+
+  <!-- ===== Mining chain (3 tiers) ===== -->
+  <DigitalStorage_MiningProxy1.label>Mining proxy I</DigitalStorage_MiningProxy1.label>
+  <DigitalStorage_MiningProxy1.description>Unlock mining proxy I: speed 0.8x, skill level 8, 500W.</DigitalStorage_MiningProxy1.description>
+  <DigitalStorage_MiningProxy2.label>Mining proxy II</DigitalStorage_MiningProxy2.label>
+  <DigitalStorage_MiningProxy2.description>Unlock mining proxy II: speed 1.2x, skill level 15, 1000W.</DigitalStorage_MiningProxy2.description>
+  <DigitalStorage_MiningProxy3.label>Mining proxy III</DigitalStorage_MiningProxy3.label>
+  <DigitalStorage_MiningProxy3.description>Unlock mining proxy III: speed 2.0x, skill level 20, 2000W.</DigitalStorage_MiningProxy3.description>
+
+  <!-- ===== Construction chain (3 tiers) ===== -->
+  <DigitalStorage_BuildProxy1.label>Construction proxy I</DigitalStorage_BuildProxy1.label>
+  <DigitalStorage_BuildProxy1.description>Unlock construction proxy I: speed 0.8x, skill level 8, 500W.</DigitalStorage_BuildProxy1.description>
+  <DigitalStorage_BuildProxy2.label>Construction proxy II</DigitalStorage_BuildProxy2.label>
+  <DigitalStorage_BuildProxy2.description>Unlock construction proxy II: speed 1.2x, skill level 15, 1000W.</DigitalStorage_BuildProxy2.description>
+  <DigitalStorage_BuildProxy3.label>Construction proxy III</DigitalStorage_BuildProxy3.label>
+  <DigitalStorage_BuildProxy3.description>Unlock construction proxy III: speed 2.0x, skill level 20, 2000W.</DigitalStorage_BuildProxy3.description>
+
+  <!-- ===== Cleaning chain (3 tiers) ===== -->
+  <DigitalStorage_CleanProxy1.label>Cleaning proxy I</DigitalStorage_CleanProxy1.label>
+  <DigitalStorage_CleanProxy1.description>Unlock cleaning proxy I: speed 0.8x, skill level 8, 500W.</DigitalStorage_CleanProxy1.description>
+  <DigitalStorage_CleanProxy2.label>Cleaning proxy II</DigitalStorage_CleanProxy2.label>
+  <DigitalStorage_CleanProxy2.description>Unlock cleaning proxy II: speed 1.2x, skill level 15, 1000W.</DigitalStorage_CleanProxy2.description>
+  <DigitalStorage_CleanProxy3.label>Cleaning proxy III</DigitalStorage_CleanProxy3.label>
+  <DigitalStorage_CleanProxy3.description>Unlock cleaning proxy III: speed 2.0x, skill level 20, 2000W.</DigitalStorage_CleanProxy3.description>
+
+  <!-- ===== Growing chain (3 tiers) ===== -->
+  <DigitalStorage_GrowProxy1.label>Growing proxy I</DigitalStorage_GrowProxy1.label>
+  <DigitalStorage_GrowProxy1.description>Unlock growing proxy I: speed 0.8x, skill level 8, 500W. Sows, harvests and cuts plants automatically.</DigitalStorage_GrowProxy1.description>
+  <DigitalStorage_GrowProxy2.label>Growing proxy II</DigitalStorage_GrowProxy2.label>
+  <DigitalStorage_GrowProxy2.description>Unlock growing proxy II: speed 1.2x, skill level 15, 1000W. Sows, harvests and cuts plants automatically.</DigitalStorage_GrowProxy2.description>
+  <DigitalStorage_GrowProxy3.label>Growing proxy III</DigitalStorage_GrowProxy3.label>
+  <DigitalStorage_GrowProxy3.description>Unlock growing proxy III: speed 2.0x, skill level 20, 2000W. Sows, harvests and cuts plants automatically.</DigitalStorage_GrowProxy3.description>
+
+  <!-- ===== Transcendent proxy: all four chains' tier III feed into it ===== -->
+  <DigitalStorage_TranscendentProxy.label>Transcendent proxy</DigitalStorage_TranscendentProxy.label>
+  <DigitalStorage_TranscendentProxy.description>The end of all four proxy chains: one building takes over mining, construction, cleaning and growing (including plant cutting) at once.\n\nSpeed 7.5x, skill level 20, up to 75 simultaneous jobs per work type (300 running at once in total), 6000W.</DigitalStorage_TranscendentProxy.description>
 
 </LanguageData>

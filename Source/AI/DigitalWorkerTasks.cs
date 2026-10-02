@@ -340,7 +340,7 @@ namespace DigitalStorage.AI
 
         public override string Label
         {
-            get { return "挖掘"; }
+            get { return "DS_Task_Mine".Translate().ToString(); }
         }
 
         /// <summary>原版 <c>JobDriver_Mine</c> 用的就是 <c>EffecterDefOf.Mine</c>；由 comp 在表现层驱动。</summary>
@@ -505,7 +505,7 @@ namespace DigitalStorage.AI
 
         public override string Label
         {
-            get { return "建造"; }
+            get { return "DS_Task_Build".Translate().ToString(); }
         }
 
         private Frame FrameTarget
@@ -846,7 +846,7 @@ namespace DigitalStorage.AI
 
         public override string Label
         {
-            get { return "清洁"; }
+            get { return "DS_Task_Clean".Translate().ToString(); }
         }
 
         private Filth FilthTarget
@@ -947,7 +947,7 @@ namespace DigitalStorage.AI
 
         public override string Label
         {
-            get { return asHarvest ? "收获/伐木" : "割除"; }
+            get { return asHarvest ? "DS_Task_CutHarvest".Translate().ToString() : "DS_Task_Cut".Translate().ToString(); }
         }
 
         private Plant PlantTarget
@@ -1041,7 +1041,7 @@ namespace DigitalStorage.AI
 
         public override string Label
         {
-            get { return "拆除"; }
+            get { return "DS_Task_Deconstruct".Translate().ToString(); }
         }
 
         private Building BuildingTarget

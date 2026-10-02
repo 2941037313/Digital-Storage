@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+
+  <DS_CoreBackpack.label>Digital storage backpack</DS_CoreBackpack.label>
+  <DS_CoreBackpack.description>A personal link to a digital storage core. Ingredients for the current job are taken from the core on demand and returned to it when the job is done, so the backpack is empty by default.</DS_CoreBackpack.description>
+
+</LanguageData>

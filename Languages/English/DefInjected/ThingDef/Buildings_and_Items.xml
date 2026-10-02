@@ -2,22 +2,67 @@
 <LanguageData>
 
   <!-- Storage Core -->
-  <DigitalStorage_StorageCore.label>digital storage core</DigitalStorage_StorageCore.label>
+  <DigitalStorage_StorageCore.label>Digital storage core</DigitalStorage_StorageCore.label>
   <DigitalStorage_StorageCore.description>The core unit of the digital storage system. Items are held inside the core itself, taking up no map space and never aging or deteriorating.\n\nColonists anywhere can retrieve items from it, without walking to the core.</DigitalStorage_StorageCore.description>
 
   <!-- Input Interface 已删（4.0 砍接口建筑） -->
 
-  <!-- Crafting proxies (4 tiers). 注：4 类工作代理建筑（挖掘/建造/清洁/种植）
-       一直没做英文 DefInjected，是既有缺口，不在本次范围内。 -->
-  <DigitalStorage_WorkerCraftI.label>crafting proxy I</DigitalStorage_WorkerCraftI.label>
-  <DigitalStorage_WorkerCraftI.description>Completes bills on workbenches within 13x13 on its own: ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftI.description>
-  <DigitalStorage_WorkerCraftII.label>crafting proxy II</DigitalStorage_WorkerCraftII.label>
-  <DigitalStorage_WorkerCraftII.description>Completes bills on workbenches within 13x13 on its own: ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftII.description>
-  <DigitalStorage_WorkerCraftIII.label>crafting proxy III</DigitalStorage_WorkerCraftIII.label>
-  <DigitalStorage_WorkerCraftIII.description>Completes bills on workbenches within 13x13 on its own: ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftIII.description>
-  <DigitalStorage_WorkerCraftIV.label>crafting proxy IV</DigitalStorage_WorkerCraftIV.label>
-  <DigitalStorage_WorkerCraftIV.description>Completes bills on workbenches within 13x13 on its own: ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftIV.description>
+  <!-- Crafting proxies (4 tiers) -->
+
+  <DigitalStorage_WorkerCraftI.label>Crafting proxy I</DigitalStorage_WorkerCraftI.label>
+  <DigitalStorage_WorkerCraftI.description>Completes the recipes that workbenches within 13x13 can craft: orders are placed in the Craft automation panel and the workbenches do not need a bill. Ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftI.description>
+  <DigitalStorage_WorkerCraftII.label>Crafting proxy II</DigitalStorage_WorkerCraftII.label>
+  <DigitalStorage_WorkerCraftII.description>Completes the recipes that workbenches within 13x13 can craft: orders are placed in the Craft automation panel and the workbenches do not need a bill. Ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftII.description>
+  <DigitalStorage_WorkerCraftIII.label>Crafting proxy III</DigitalStorage_WorkerCraftIII.label>
+  <DigitalStorage_WorkerCraftIII.description>Completes the recipes that workbenches within 13x13 can craft: orders are placed in the Craft automation panel and the workbenches do not need a bill. Ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftIII.description>
+  <DigitalStorage_WorkerCraftIV.label>Crafting proxy IV</DigitalStorage_WorkerCraftIV.label>
+  <DigitalStorage_WorkerCraftIV.description>Completes the recipes that workbenches within 13x13 can craft: orders are placed in the Craft automation panel and the workbenches do not need a bill. Ingredients are taken from a digital storage core and products are stored back into it. No colonist has to move. Stops when unpowered.</DigitalStorage_WorkerCraftIV.description>
 
   <!-- Terminal Chip 已删（4.0 砍芯片） -->
+
+  <!-- ==========================================================================
+       Worker proxies (12): mining / construction / cleaning / growing, three tiers
+       each. Descriptions are identical across tiers in Chinese, so they are here too.
+       ========================================================================== -->
+
+  <!-- Mining -->
+  <DigitalStorage_WorkerMiningI.label>Mining proxy I</DigitalStorage_WorkerMiningI.label>
+  <DigitalStorage_WorkerMiningI.description>Automatically completes mining the player has designated; no colonist has to go there. Stops when unpowered.</DigitalStorage_WorkerMiningI.description>
+  <DigitalStorage_WorkerMiningII.label>Mining proxy II</DigitalStorage_WorkerMiningII.label>
+  <DigitalStorage_WorkerMiningII.description>Automatically completes mining the player has designated; no colonist has to go there. Stops when unpowered.</DigitalStorage_WorkerMiningII.description>
+  <DigitalStorage_WorkerMiningIII.label>Mining proxy III</DigitalStorage_WorkerMiningIII.label>
+  <DigitalStorage_WorkerMiningIII.description>Automatically completes mining the player has designated; no colonist has to go there. Stops when unpowered.</DigitalStorage_WorkerMiningIII.description>
+
+  <!-- Construction -->
+  <DigitalStorage_WorkerBuildI.label>Construction proxy I</DigitalStorage_WorkerBuildI.label>
+  <DigitalStorage_WorkerBuildI.description>Frames blueprints and finishes the construction on its own, taking materials straight from a digital storage core. If the core cannot supply everything, it hands the job back to your colonists. Stops when unpowered.</DigitalStorage_WorkerBuildI.description>
+  <DigitalStorage_WorkerBuildII.label>Construction proxy II</DigitalStorage_WorkerBuildII.label>
+  <DigitalStorage_WorkerBuildII.description>Frames blueprints and finishes the construction on its own, taking materials straight from a digital storage core. If the core cannot supply everything, it hands the job back to your colonists. Stops when unpowered.</DigitalStorage_WorkerBuildII.description>
+  <DigitalStorage_WorkerBuildIII.label>Construction proxy III</DigitalStorage_WorkerBuildIII.label>
+  <DigitalStorage_WorkerBuildIII.description>Frames blueprints and finishes the construction on its own, taking materials straight from a digital storage core. If the core cannot supply everything, it hands the job back to your colonists. Stops when unpowered.</DigitalStorage_WorkerBuildIII.description>
+
+  <!-- Cleaning -->
+  <DigitalStorage_WorkerCleanI.label>Cleaning proxy I</DigitalStorage_WorkerCleanI.label>
+  <DigitalStorage_WorkerCleanI.description>Automatically cleans filth anywhere on the map, not just inside the home area. Stops when unpowered.</DigitalStorage_WorkerCleanI.description>
+  <DigitalStorage_WorkerCleanII.label>Cleaning proxy II</DigitalStorage_WorkerCleanII.label>
+  <DigitalStorage_WorkerCleanII.description>Automatically cleans filth anywhere on the map, not just inside the home area. Stops when unpowered.</DigitalStorage_WorkerCleanII.description>
+  <DigitalStorage_WorkerCleanIII.label>Cleaning proxy III</DigitalStorage_WorkerCleanIII.label>
+  <DigitalStorage_WorkerCleanIII.description>Automatically cleans filth anywhere on the map, not just inside the home area. Stops when unpowered.</DigitalStorage_WorkerCleanIII.description>
+
+  <!-- Growing (sowing + harvesting, plus plant cutting) -->
+  <DigitalStorage_WorkerGrowI.label>Growing proxy I</DigitalStorage_WorkerGrowI.label>
+  <DigitalStorage_WorkerGrowI.description>Sows the right crop in growing zones and plant pots, harvests ripe crops, and cuts down trees the player has designated. Stops when unpowered.</DigitalStorage_WorkerGrowI.description>
+  <DigitalStorage_WorkerGrowII.label>Growing proxy II</DigitalStorage_WorkerGrowII.label>
+  <DigitalStorage_WorkerGrowII.description>Sows the right crop in growing zones and plant pots, harvests ripe crops, and cuts down trees the player has designated. Stops when unpowered.</DigitalStorage_WorkerGrowII.description>
+  <DigitalStorage_WorkerGrowIII.label>Growing proxy III</DigitalStorage_WorkerGrowIII.label>
+  <DigitalStorage_WorkerGrowIII.description>Sows the right crop in growing zones and plant pots, harvests ripe crops, and cuts down trees the player has designated. Stops when unpowered.</DigitalStorage_WorkerGrowIII.description>
+
+  <!-- Transcendent proxy -->
+  <DigitalStorage_WorkerTranscendent.label>Transcendent proxy</DigitalStorage_WorkerTranscendent.label>
+  <DigitalStorage_WorkerTranscendent.description>The end of all four proxy chains. One building takes over mining, construction, cleaning and growing (including plant cutting) at the same time.\n\nSpeed 7.5x, skill level 20, up to 75 simultaneous jobs per work type (300 in total across all four), 6000W.</DigitalStorage_WorkerTranscendent.description>
+
+  <!-- Effect motes (visual only) -->
+  <DS_WorkHand.label>Digital worker hand</DS_WorkHand.label>
+  <DS_IngestBeam.label>digital storage ingest beam</DS_IngestBeam.label>
 
 </LanguageData>

@@ -506,9 +506,9 @@ namespace DigitalStorage.Components
             string baseInspect = base.GetInspectString();
             if (!string.IsNullOrEmpty(baseInspect)) sb.AppendLine(baseInspect);
 
-            sb.AppendLine("存储核心 Lv" + CoreTier.Level + "：" + innerContainer.Count + " 堆 / "
-                + innerContainer.TotalStackCount + " 个单位（上限 " + maxStacks + " 堆）");
-            sb.AppendLine("存储优先级：" + storagePriorityField);
+            sb.AppendLine("DS_CoreInspect".Translate(CoreTier.Level, innerContainer.Count,
+                innerContainer.TotalStackCount, maxStacks));
+            sb.AppendLine("DS_CorePriority".Translate(storagePriorityField.ToString()));
             if (!Powered) sb.AppendLine("DS_NoPower".Translate());
             return sb.ToString().TrimEnd();
         }

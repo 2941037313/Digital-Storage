@@ -563,27 +563,25 @@ namespace DigitalStorage.Components
         }
 
         /// <summary>
-        /// 检查面板状态行。
-        /// TODO(4.0 收尾)：改成 Keyed 翻译（现在为了实测方便先写死中文）。
+        /// 检查面板状态行（走 keyed，见 <c>Languages/*/Keyed</c> 的 <c>DS_DW_*</c> 与 <c>DS_Task_*</c>）。
         /// </summary>
         public override string CompInspectStringExtra()
         {
             if (!parent.Spawned) return null;
-            if (!Powered) return "代理建筑：断电";
-            if (!enabled) return "代理建筑：已关闭";
+            if (!Powered) return "DS_DW_InspectOff".Translate().ToString();
+            if (!enabled) return "DS_DW_InspectDisabled".Translate().ToString();
 
             int cap = TotalParallelCap();
 
             if (works.Count == 0)
             {
-                if (Find.TickManager.TicksGame < nextScanTick) return "代理建筑：待命";
-                return "代理建筑：待命（没找到目标）";
+                if (Find.TickManager.TicksGame < nextScanTick) return "DS_DW_InspectIdle".Translate().ToString();
+                return "DS_DW_InspectIdleNoTarget".Translate().ToString();
             }
 
             DigitalTask first = works[0].task;
-            return "代理建筑：" + first.Label + " · " + first.TargetLabel
-                + "（速度 " + Props.workSpeedMult.ToString("0.0") + "×，资质 " + Props.skillLevel
-                + "，并行 " + works.Count + "/" + cap + "）";
+            return "DS_DW_InspectWork".Translate(first.Label, first.TargetLabel,
+                Props.workSpeedMult.ToString("0.0"), Props.skillLevel, works.Count, cap).ToString();
         }
 
         // ===================================================================

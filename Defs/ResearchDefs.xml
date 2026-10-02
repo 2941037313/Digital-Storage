@@ -124,7 +124,7 @@
   <ResearchProjectDef>
     <defName>DigitalStorage_CraftProxy1</defName>
     <label>制作代理 I</label>
-    <description>解锁一级制作代理：13×13 范围内工作台上的 bill 由建筑自己完成 —— 材料从数字存储核心扣除，产物直接存入核心。\n\n资质 5 级，速度 0.8×，自身耗电 300W（另加范围内各工作台的耗电）。</description>
+    <description>解锁一级制作代理：13×13 范围内工作台能做的配方由建筑自己完成（在「制作自动化」面板里下单，台子上不需要建有 bill）—— 材料从数字存储核心扣除，产物直接存入核心。\n\n资质 5 级，速度 0.8×，自身耗电 300W（另加范围内各工作台的耗电）。</description>
     <baseCost>1000</baseCost>
     <techLevel>Spacer</techLevel>
     <prerequisites><li>DigitalStorage_BasicStorage</li></prerequisites>
@@ -297,7 +297,7 @@
   <ResearchProjectDef>
     <defName>DigitalStorage_GrowProxy1</defName>
     <label>种植代理 I</label>
-    <description>解锁一级种植代理：速度 0.8×、资质 8 级、耗电 500W。当前可自动伐木。</description>
+    <description>解锁一级种植代理：速度 0.8×、资质 8 级、耗电 500W。可自动播种、收割与伐木。</description>
     <baseCost>1000</baseCost>
     <techLevel>Spacer</techLevel>
     <prerequisites><li>DigitalStorage_BasicStorage</li></prerequisites>
@@ -309,7 +309,7 @@
   <ResearchProjectDef>
     <defName>DigitalStorage_GrowProxy2</defName>
     <label>种植代理 II</label>
-    <description>解锁二级种植代理：速度 1.2×、资质 15 级、耗电 1000W。当前可自动伐木。</description>
+    <description>解锁二级种植代理：速度 1.2×、资质 15 级、耗电 1000W。可自动播种、收割与伐木。</description>
     <baseCost>2000</baseCost>
     <techLevel>Spacer</techLevel>
     <prerequisites><li>DigitalStorage_GrowProxy1</li></prerequisites>
@@ -321,7 +321,7 @@
   <ResearchProjectDef>
     <defName>DigitalStorage_GrowProxy3</defName>
     <label>种植代理 III</label>
-    <description>解锁三级种植代理：速度 2.0×、资质 20 级、耗电 2000W。当前可自动伐木。</description>
+    <description>解锁三级种植代理：速度 2.0×、资质 20 级、耗电 2000W。可自动播种、收割与伐木。</description>
     <baseCost>3000</baseCost>
     <techLevel>Spacer</techLevel>
     <prerequisites><li>DigitalStorage_GrowProxy2</li></prerequisites>
@@ -335,7 +335,7 @@
   <ResearchProjectDef>
     <defName>DigitalStorage_TranscendentProxy</defName>
     <label>超凡代理</label>
-    <description>四条代理链的终点：一台建筑同时接管挖掘/建造/清洁/种植。\n\n速度 5.0×，资质 20 级，**每类工作可并行 50 件**（四类合计 200 件同时进行），耗电 6000W。</description>
+    <description>四条代理链的终点：一台建筑同时接管挖掘、建造、清洁、种植（含伐木）。\n\n速度 7.5×，资质 20 级，每类工作可并行 75 件（合计上限 300 件同时进行），耗电 6000W。</description>
     <baseCost>6000</baseCost>
     <techLevel>Spacer</techLevel>
     <prerequisites>

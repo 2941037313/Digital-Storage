@@ -132,7 +132,7 @@
       <li>DigitalStorage_CraftProxy1</li>
     </researchPrerequisites>
     <label>制作代理 I</label>
-    <description>自动完成 13×13 范围内工作台上的 bill：材料从数字存储核心扣除，产物直接存入核心，殖民者无需动腿。断电即停工。</description>
+    <description>自动完成 13×13 范围内工作台能做的配方（在「制作自动化」面板里下单，台子上不需要建有 bill）：材料从数字存储核心扣除，产物直接存入核心，殖民者无需动腿。断电即停工。</description>
     <graphicData>
       <texPath>2.0/代理建筑</texPath>
       <graphicClass>Graphic_Single</graphicClass>
@@ -158,7 +158,7 @@
       <li>DigitalStorage_CraftProxy2</li>
     </researchPrerequisites>
     <label>制作代理 II</label>
-    <description>自动完成 13×13 范围内工作台上的 bill：材料从数字存储核心扣除，产物直接存入核心，殖民者无需动腿。断电即停工。</description>
+    <description>自动完成 13×13 范围内工作台能做的配方（在「制作自动化」面板里下单，台子上不需要建有 bill）：材料从数字存储核心扣除，产物直接存入核心，殖民者无需动腿。断电即停工。</description>
     <graphicData>
       <texPath>2.0/代理建筑</texPath>
       <graphicClass>Graphic_Single</graphicClass>
@@ -184,7 +184,7 @@
       <li>DigitalStorage_CraftProxy3</li>
     </researchPrerequisites>
     <label>制作代理 III</label>
-    <description>自动完成 13×13 范围内工作台上的 bill：材料从数字存储核心扣除，产物直接存入核心，殖民者无需动腿。断电即停工。</description>
+    <description>自动完成 13×13 范围内工作台能做的配方（在「制作自动化」面板里下单，台子上不需要建有 bill）：材料从数字存储核心扣除，产物直接存入核心，殖民者无需动腿。断电即停工。</description>
     <graphicData>
       <texPath>2.0/代理建筑</texPath>
       <graphicClass>Graphic_Single</graphicClass>
@@ -210,7 +210,7 @@
       <li>DigitalStorage_CraftProxy4</li>
     </researchPrerequisites>
     <label>制作代理 IV</label>
-    <description>自动完成 13×13 范围内工作台上的 bill：材料从数字存储核心扣除，产物直接存入核心，殖民者无需动腿。断电即停工。</description>
+    <description>自动完成 13×13 范围内工作台能做的配方（在「制作自动化」面板里下单，台子上不需要建有 bill）：材料从数字存储核心扣除，产物直接存入核心，殖民者无需动腿。断电即停工。</description>
     <graphicData>
       <texPath>2.0/代理建筑</texPath>
       <graphicClass>Graphic_Single</graphicClass>

@@ -8,7 +8,6 @@
 
   <!-- ========== ITab_DigitalStorage ========== -->
   <DS_TabDigitalStorage>Virtual storage</DS_TabDigitalStorage>
-  <DS_CapacityBar>{0} / {1} stacks</DS_CapacityBar>
   <DS_CapacityBarLv>Lv{0}  {1} / {2} stacks · {3} kinds</DS_CapacityBarLv>
   <DS_Kinds>kinds</DS_Kinds>
   <DS_WithdrawBtn>Withdraw</DS_WithdrawBtn>
@@ -74,7 +73,7 @@
   <!-- ========== Crafting proxy (CompBillAutomation) ========== -->
   <DS_TabBillAutomation>Craft automation</DS_TabBillAutomation>
   <DS_BA_Toggle>Craft automation</DS_BA_Toggle>
-  <DS_BA_ToggleDesc>Turn this off and the crafting proxy stops working bills for nearby benches (scan range and overclock tier are kept).</DS_BA_ToggleDesc>
+  <DS_BA_ToggleDesc>Turn this off and the crafting proxy stops working recipes for nearby benches (scan range and overclock tier are kept).</DS_BA_ToggleDesc>
   <DS_BA_ToggleState>Craft automation: {0}</DS_BA_ToggleState>
   <DS_BA_On>on</DS_BA_On>
   <DS_BA_Off>off</DS_BA_Off>
@@ -89,21 +88,16 @@
   <DS_BA_OC_9>9 GHz</DS_BA_OC_9>
   <DS_BA_Watts>Draw: {0} W (self {1} + benches {2}, overclock x{3})</DS_BA_Watts>
   <DS_BA_Stats>Produced {0}, dropped {1}, recipes {2}</DS_BA_Stats>
-  <DS_BA_NoBench>No bench with a doable bill within 13x13.</DS_BA_NoBench>
-  <DS_BA_Idle>idle</DS_BA_Idle>
-  <DS_BA_NoBill>No bill to work (missing material / skill too low / conditions unmet)</DS_BA_NoBill>
+  <DS_BA_NoBench>No workbench that can craft anything within 13x13.</DS_BA_NoBench>
+  <DS_BA_NoBill>No recipe to work on (missing material / skill too low / conditions unmet)</DS_BA_NoBill>
   <DS_BA_NoCoreMaterial>Material is not inside a digital storage core (automation only consumes from cores)</DS_BA_NoCoreMaterial>
   <DS_BA_BenchOff>Bench is unpowered, out of fuel or broken</DS_BA_BenchOff>
   <DS_BA_BenchBusy>A colonist is using this bench</DS_BA_BenchBusy>
   <DS_BA_Block_Material>Missing material (not enough inside the core)</DS_BA_Block_Material>
   <DS_BA_Block_Skill>Skill too low (recipe needs more)</DS_BA_Block_Skill>
-  <DS_BA_Block_Restricted>This bill is restricted to a specific pawn; the proxy will not take it</DS_BA_Block_Restricted>
-  <DS_BA_Block_Obstructed>Bench needs fuel, or has something on it to haul away</DS_BA_Block_Obstructed>
-  <DS_BA_Block_Uft>Recipe needs an unfinished thing (not supported yet)</DS_BA_Block_Uft>
+  <DS_BA_Block_Restricted>This recipe is restricted to a specific pawn; the proxy will not take it</DS_BA_Block_Restricted>
   <DS_BA_Block_Spot>The bench's interaction cell is blocked or forbidden</DS_BA_Block_Spot>
-  <DS_BA_Add>Add recipe…</DS_BA_Add>
   <DS_BA_AddTitle>Add a crafting recipe (from benches in range)</DS_BA_AddTitle>
-  <DS_BA_Close>Close</DS_BA_Close>
   <DS_BA_Forever>forever</DS_BA_Forever>
   <DS_BA_Remain>{0} left</DS_BA_Remain>
   <DS_BA_Lines>running {0}/{1}</DS_BA_Lines>
@@ -119,7 +113,7 @@
   <DS_BA_ClickToAdd>click to add</DS_BA_ClickToAdd>
   <DS_BA_SkillShort>skill too low</DS_BA_SkillShort>
   <DS_BA_NeedSkill>Requires: {0}</DS_BA_NeedSkill>
-  <DS_BA_Block_Unsupported>This bench type cannot be automated (bill stack cannot be swapped)</DS_BA_Block_Unsupported>
+  <DS_BA_Block_Unsupported>This workbench type cannot be automated</DS_BA_Block_Unsupported>
   <DS_BA_Block_Research>Research not unlocked</DS_BA_Block_Research>
 
   <!-- ========== Craft automation · three-column window ========== -->
@@ -169,8 +163,31 @@
   <DS_BA_Done>Crafted: {0} (stored into digital storage)</DS_BA_Done>
   <DS_BA_DoneDropped>Crafted: {0} (core full or disabled, dropped at the bench)</DS_BA_DoneDropped>
 
+  <!-- ========== Inspect strings and proxy worker job names ========== -->
+  <DS_CoreInspect>Storage Core Lv{0}: {1} stacks / {2} units (cap {3} stacks)</DS_CoreInspect>
+  <DS_CorePriority>Storage priority: {0}</DS_CorePriority>
+  <DS_DW_InspectOff>Proxy building: no power</DS_DW_InspectOff>
+  <DS_DW_InspectDisabled>Proxy building: turned off</DS_DW_InspectDisabled>
+  <DS_DW_InspectIdle>Proxy building: idle</DS_DW_InspectIdle>
+  <DS_DW_InspectIdleNoTarget>Proxy building: idle (no target found)</DS_DW_InspectIdleNoTarget>
+  <DS_DW_InspectWork>Proxy building: {0} · {1} (speed {2}x, skill {3}, parallel {4}/{5})</DS_DW_InspectWork>
+  <DS_BA_InspectOff>Crafting proxy: no power</DS_BA_InspectOff>
+  <DS_BA_InspectDisabled>Crafting proxy: turned off</DS_BA_InspectDisabled>
+  <DS_BA_InspectWork>Crafting proxy: {0} lines running · {1} recipes · {2}W (speed {3}x × overclock {4}x, skill {5})</DS_BA_InspectWork>
+  <DS_BA_InspectNoBench> · no workbench within 13×13</DS_BA_InspectNoBench>
+  <DS_Task_Mine>Mining</DS_Task_Mine>
+  <DS_Task_Build>Construction</DS_Task_Build>
+  <DS_Task_Deconstruct>Deconstruction</DS_Task_Deconstruct>
+  <DS_Task_Clean>Cleaning</DS_Task_Clean>
+  <DS_Task_CutHarvest>Harvest / chop</DS_Task_CutHarvest>
+  <DS_Task_Cut>Cut</DS_Task_Cut>
+  <DS_Task_Sow>Sowing</DS_Task_Sow>
+  <DS_Task_Reap>Harvesting</DS_Task_Reap>
+
   <!-- ========== 4.0 update letter (GameComponent.FinalizeInit, once per save) ========== -->
   <DigitalStorage_Letter40_Label>Digital Storage 4.0 Update 2026.10.3</DigitalStorage_Letter40_Label>
-  <DigitalStorage_Letter40_Text>Digital Storage 4.0 — released 2026.10.3\n\n4.0 is a heart transplant: items are no longer numbers in a ledger, they are real Things held inside the core. Apparel, weapons, quality and durability all survive, and vanilla hauling, trading and item scanners recognise them natively.\n\n✅ Existing 3.0 saves are migrated automatically:\n- Inventory stored in a 3.0 core (the old ledger) is turned back into real items inside the container; anything that does not fit is dropped at the core's feet instead of being lost.\n- Your storage filter is carried over (only the "blocked" side is kept, nothing is loosened).\n⚠️ Removed for good: cross-map logistics, storage interfaces, terminal chips, buffer warehouses and the on-building core upgrade component (capacity is now research, see below). Migration will not bring them back.\n- Interfaces, buffer warehouses, chips and implants that already exist in an old save can no longer be resolved and will disappear when the save is loaded (a few one-off "could not find Def" lines in the log).\nRecommended: back up your save before updating.\n\nWhat changed in 4.0:\n- Core capacity starts at 500 stacks and can be researched up to 1000 / 1500 / 3000 (existing cores expand the moment the research finishes)\n- Remote access from anywhere at any distance; bill ingredients go straight into a pawn's backpack instead of walking to the core\n- Auto-ingest is now a three-tier research path (1/5/10 stacks per 15 ticks), no longer limited by home area or distance\n- Caravans, orbital trade beacons and visiting traders can all sell straight from the core\n- Compatibility layer: Phinix and its Red Packet plugin are supported, including the "allow trading items that are not in storage" branch\n\nThank you for your support! Bug reports: QQ group 693252771.</DigitalStorage_Letter40_Text>
+  <DigitalStorage_Letter40_Text>Digital Storage 4.0 — released 2026.10.3\n\n4.0 is a heart transplant: items are no longer numbers in a ledger, they are real Things held inside the core. Apparel, weapons, quality and durability all survive, and vanilla hauling, trading and item scanners recognise them natively.\n\n✅ Existing 3.0 saves are migrated automatically:\n- Inventory stored in a 3.0 core (the old ledger) is turned back into real items inside the container; anything that does not fit is dropped at the core's feet instead of being lost.\n- Your storage filter is carried over (only the "blocked" side is kept, nothing is loosened).\n⚠️ Removed for good: cross-map logistics, storage interfaces, terminal chips, buffer warehouses and the on-building core upgrade component (capacity is now research, see below). Migration will not bring them back.\n- Interfaces, buffer warehouses, chips and implants that already exist in an old save can no longer be resolved and will disappear when the save is loaded (a few one-off "could not find Def" lines in the log).\nRecommended: back up your save before updating.\n\nWhat changed in 4.0:\n- Core capacity starts at 500 stacks and can be researched up to 1000 / 1500 / 3000 (existing cores expand the moment the research finishes)\n- Remote access from anywhere at any distance; bill ingredients go straight into a pawn's backpack instead of walking to the core\n- Auto-ingest is now a three-tier research path (1/5/10 stacks per 15 ticks), no longer limited by home area or distance\n- Proxy buildings (digital workers): 12 dedicated buildings that do the work themselves - mining, construction and deconstruction, cleaning, and growing (sowing, harvesting, tree chopping), in three speed/skill tiers; the Transcendent proxy covers all five work types with up to 75 parallel jobs each
+- Crafting proxy: runs the recipes of nearby workbenches on its own, taking materials from the core and delivering products straight back into it, with 3/6/9 GHz overclocking and a vanilla-style "target count" mode
+- Caravans, orbital trade beacons and visiting traders can all sell straight from the core\n- Compatibility layer: Phinix and its Red Packet plugin are supported, including the "allow trading items that are not in storage" branch\n\nThank you for your support! Bug reports: QQ group 693252771.</DigitalStorage_Letter40_Text>
 
 </LanguageData>
