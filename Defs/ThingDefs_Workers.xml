@@ -2,23 +2,23 @@
 <Defs>
 
   <!-- ==========================================================================
-       代理建筑（数字工人）：每类 job 一个专用建筑，每类三级。
-       第一波只做「挖掘代理 I」验证最小闭环；二三级与其它三类按同一模板铺开
-       （等级差异只有：技能资质 / 速度倍率 / 耗电 / 造价 / 工时）。
+       代理建筑（数字工人）：每类 job 一个专用建筑，每类三级 ⇒ 4 × 3 = 12 个。
+       结构：3 个**抽象等级父级**（放等级相关：造价/耗电/HP/工时/研究/技能/速度）
+           + 12 个具体 def（放职业相关：标签/描述/贴图/workTypes）。
 
-       出处与机制见 Docs\实现方案-job自动化.md：
-         速度倍率是速度的唯一来源（不乘 pawn.GetStatValue）；
-         技能资质只用于品质与产量。
+       ⚠️ 两个 Def-XML 硬校验（已踩，见 obsidian 代码Wiki/rimworld/Def-XML-硬校验.md）：
+         ① ThingDef 的 defName **不能以数字结尾** ⇒ 等级用罗马数字 I/II/III
+            （ResearchProjectDef 无此限制，研究仍用 Worker1/2/3）。
+         ② drawSize/drawOffset 属于 <graphicData>；且 **drawOffset 不要跨尺寸抄**
+            （核心那条 (0,0,0.5) 是给 3×3 建筑配 4×4 贴图用的，抄到 2×2 会让图偏北半格）。
 
-       ⚠️ 两个 Def-XML 硬校验（已踩）：
-         ① **ThingDef 的 defName 不能以数字结尾**（ThingDef.ConfigErrors）——
-            否则它自己 + 自动生成的 Blueprint_/Frame_/Blueprint_Install_ 一起报 Config error。
-            所以等级用罗马数字 I/II/III（ResearchProjectDef 无此限制，仍用 1/2/3）。
-         ② **drawSize / drawOffset 属于 <graphicData>**，写成 ThingDef 的直接子节点会
-            "doesn't correspond to any field in type ThingDef"。
+       "种植"在游戏里是两个 WorkTypeDef（Growing 播种/收割、PlantCutting 伐木），
+       用户把伐木归进种植 ⇒ 种植代理的 workTypes 同时列这两个。
+       当前已实现：Mining / Construction / Cleaning / PlantCutting；
+       Growing 的播种与收割是 scanCells 型 WorkGiver，需要格子型目标管线，下一波接。
        ========================================================================== -->
 
-  <!-- 等级 I 的抽象父级：放"等级相关"的东西（造价 / 耗电 / HP / 工时） -->
+  <!-- ===== 等级 I ===== -->
   <ThingDef Name="DigitalStorage_WorkerTierI" ParentName="DigitalStorage_BuildingBase" Abstract="True">
     <label>代理建筑 I</label>
     <description>数字工人的执行单元（一级）。速度 0.8×，资质 8 级。</description>
@@ -46,27 +46,320 @@
     </comps>
   </ThingDef>
 
-  <!-- 挖掘代理 I -->
+  <!-- ===== 等级 II ===== -->
+  <ThingDef Name="DigitalStorage_WorkerTierII" ParentName="DigitalStorage_BuildingBase" Abstract="True">
+    <label>代理建筑 II</label>
+    <description>数字工人的执行单元（二级）。速度 1.2×，资质 15 级。</description>
+    <size>(2,2)</size>
+    <statBases>
+      <MaxHitPoints>1500</MaxHitPoints>
+      <WorkToBuild>1500</WorkToBuild>
+      <Mass>35</Mass>
+    </statBases>
+    <tickerType>Normal</tickerType>
+    <researchPrerequisites>
+      <li>DigitalStorage_Worker2</li>
+    </researchPrerequisites>
+    <costList>
+      <Steel>350</Steel>
+      <Plasteel>60</Plasteel>
+      <ComponentIndustrial>12</ComponentIndustrial>
+      <ComponentSpacer>4</ComponentSpacer>
+    </costList>
+    <comps>
+      <li Class="CompProperties_Power">
+        <compClass>CompPowerTrader</compClass>
+        <basePowerConsumption>1000</basePowerConsumption>
+        <shortCircuitInRain>true</shortCircuitInRain>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <!-- ===== 等级 III ===== -->
+  <ThingDef Name="DigitalStorage_WorkerTierIII" ParentName="DigitalStorage_BuildingBase" Abstract="True">
+    <label>代理建筑 III</label>
+    <description>数字工人的执行单元（三级）。速度 2.0×，资质 20 级。</description>
+    <size>(2,2)</size>
+    <statBases>
+      <MaxHitPoints>2000</MaxHitPoints>
+      <WorkToBuild>2500</WorkToBuild>
+      <Mass>40</Mass>
+    </statBases>
+    <tickerType>Normal</tickerType>
+    <researchPrerequisites>
+      <li>DigitalStorage_Worker3</li>
+    </researchPrerequisites>
+    <costList>
+      <Steel>500</Steel>
+      <Plasteel>150</Plasteel>
+      <ComponentIndustrial>24</ComponentIndustrial>
+      <ComponentSpacer>10</ComponentSpacer>
+    </costList>
+    <comps>
+      <li Class="CompProperties_Power">
+        <compClass>CompPowerTrader</compClass>
+        <basePowerConsumption>2000</basePowerConsumption>
+        <shortCircuitInRain>true</shortCircuitInRain>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <!-- ==========================================================================
+       具体代理建筑（12 个）
+       ========================================================================== -->
+
+  <!-- 挖掘 × 3 -->
   <ThingDef ParentName="DigitalStorage_WorkerTierI">
     <defName>DigitalStorage_WorkerMiningI</defName>
     <label>挖掘代理 I</label>
-    <description>自动完成玩家标记的采矿工作，殖民者无需前往。\n\n只处理已经在核心网络里、或被自动收纳吸走的产物。断电即停工。</description>
+    <description>自动完成玩家标记的采矿工作，殖民者无需前往。断电即停工。</description>
     <graphicData>
-      <texPath>2.0/代理建筑</texPath>
+      <texPath>2.0/代理建筑-挖掘-I</texPath>
       <graphicClass>Graphic_Single</graphicClass>
       <shaderType>CutoutComplex</shaderType>
       <drawSize>(2,2)</drawSize>
-      <!-- 不写 drawOffset：默认 0 = 贴图正落在 2x2 足迹上。
-           核心那条 (0,0,0.5) 是给 3x3 建筑配 4x4 贴图用的，抄过来会让图往上偏半格。 -->
-      <drawRotated>false</drawRotated>
     </graphicData>
     <uiIconScale>0.9</uiIconScale>
     <fillPercent>0.5</fillPercent>
     <comps>
       <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
-        <workType>Mining</workType>
+        <workTypes><li>Mining</li></workTypes>
         <skillLevel>8</skillLevel>
         <workSpeedMult>0.8</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="DigitalStorage_WorkerTierII">
+    <defName>DigitalStorage_WorkerMiningII</defName>
+    <label>挖掘代理 II</label>
+    <description>自动完成玩家标记的采矿工作，殖民者无需前往。断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-挖掘-II</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Mining</li></workTypes>
+        <skillLevel>15</skillLevel>
+        <workSpeedMult>1.2</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="DigitalStorage_WorkerTierIII">
+    <defName>DigitalStorage_WorkerMiningIII</defName>
+    <label>挖掘代理 III</label>
+    <description>自动完成玩家标记的采矿工作，殖民者无需前往。断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-挖掘-III</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Mining</li></workTypes>
+        <skillLevel>20</skillLevel>
+        <workSpeedMult>2.0</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <!-- 建造 × 3 -->
+  <ThingDef ParentName="DigitalStorage_WorkerTierI">
+    <defName>DigitalStorage_WorkerBuildI</defName>
+    <label>建造代理 I</label>
+    <description>自动把蓝图成框并建完，材料直接从数字存储核心取用。核心凑不齐材料时会放手交给殖民者。断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-建造-I</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Construction</li></workTypes>
+        <skillLevel>8</skillLevel>
+        <workSpeedMult>0.8</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="DigitalStorage_WorkerTierII">
+    <defName>DigitalStorage_WorkerBuildII</defName>
+    <label>建造代理 II</label>
+    <description>自动把蓝图成框并建完，材料直接从数字存储核心取用。核心凑不齐材料时会放手交给殖民者。断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-建造-II</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Construction</li></workTypes>
+        <skillLevel>15</skillLevel>
+        <workSpeedMult>1.2</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="DigitalStorage_WorkerTierIII">
+    <defName>DigitalStorage_WorkerBuildIII</defName>
+    <label>建造代理 III</label>
+    <description>自动把蓝图成框并建完，材料直接从数字存储核心取用。核心凑不齐材料时会放手交给殖民者。断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-建造-III</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Construction</li></workTypes>
+        <skillLevel>20</skillLevel>
+        <workSpeedMult>2.0</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <!-- 清洁 × 3（放宽 Home 区：全图污物都能清） -->
+  <ThingDef ParentName="DigitalStorage_WorkerTierI">
+    <defName>DigitalStorage_WorkerCleanI</defName>
+    <label>清洁代理 I</label>
+    <description>自动清理地图上的污物，不受家区限制。断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-清洁-I</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Cleaning</li></workTypes>
+        <skillLevel>8</skillLevel>
+        <workSpeedMult>0.8</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="DigitalStorage_WorkerTierII">
+    <defName>DigitalStorage_WorkerCleanII</defName>
+    <label>清洁代理 II</label>
+    <description>自动清理地图上的污物，不受家区限制。断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-清洁-II</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Cleaning</li></workTypes>
+        <skillLevel>15</skillLevel>
+        <workSpeedMult>1.2</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="DigitalStorage_WorkerTierIII">
+    <defName>DigitalStorage_WorkerCleanIII</defName>
+    <label>清洁代理 III</label>
+    <description>自动清理地图上的污物，不受家区限制。断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-清洁-III</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Cleaning</li></workTypes>
+        <skillLevel>20</skillLevel>
+        <workSpeedMult>2.0</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <!-- 种植 × 3（Growing 的播种/收割待下一波；当前实际干的是伐木 PlantCutting） -->
+  <ThingDef ParentName="DigitalStorage_WorkerTierI">
+    <defName>DigitalStorage_WorkerGrowI</defName>
+    <label>种植代理 I</label>
+    <description>自动砍伐玩家标记的树木。（播种与收割待接。）断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-种植-I</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Growing</li><li>PlantCutting</li></workTypes>
+        <skillLevel>8</skillLevel>
+        <workSpeedMult>0.8</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="DigitalStorage_WorkerTierII">
+    <defName>DigitalStorage_WorkerGrowII</defName>
+    <label>种植代理 II</label>
+    <description>自动砍伐玩家标记的树木。（播种与收割待接。）断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-种植-II</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Growing</li><li>PlantCutting</li></workTypes>
+        <skillLevel>15</skillLevel>
+        <workSpeedMult>1.2</workSpeedMult>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="DigitalStorage_WorkerTierIII">
+    <defName>DigitalStorage_WorkerGrowIII</defName>
+    <label>种植代理 III</label>
+    <description>自动砍伐玩家标记的树木。（播种与收割待接。）断电即停工。</description>
+    <graphicData>
+      <texPath>2.0/代理建筑-种植-III</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <shaderType>CutoutComplex</shaderType>
+      <drawSize>(2,2)</drawSize>
+    </graphicData>
+    <uiIconScale>0.9</uiIconScale>
+    <fillPercent>0.5</fillPercent>
+    <comps>
+      <li Class="DigitalStorage.Components.CompProperties_DigitalWorker">
+        <workTypes><li>Growing</li><li>PlantCutting</li></workTypes>
+        <skillLevel>20</skillLevel>
+        <workSpeedMult>2.0</workSpeedMult>
       </li>
     </comps>
   </ThingDef>

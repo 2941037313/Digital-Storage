@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
-
 namespace DigitalStorage.Components
 {
     /// <summary>
@@ -12,8 +11,14 @@ namespace DigitalStorage.Components
     /// </summary>
     public class CompProperties_DigitalWorker : CompProperties
     {
-        /// <summary>这个代理建筑干哪一类活（Mining / Construction / Cleaning / Growing / PlantCutting）。</summary>
-        public WorkTypeDef workType;
+        /// <summary>
+        /// 这个代理建筑管哪些工作类型。
+        ///
+        /// <para><b>为什么是列表</b>："种植"在游戏里是两个 WorkTypeDef（<c>Growing</c> 播种/收割、
+        /// <c>PlantCutting</c> 伐木），而用户把伐木归进种植 ⇒ 一个种植代理要同时管这两个。
+        /// 扫描时按列表顺序依次试，第一个命中的活就认领。</para>
+        /// </summary>
+        public List<WorkTypeDef> workTypes;
 
         /// <summary>工人的技能资质（8 / 15 / 20）。只用于品质与产量判定，**不参与速度计算**。</summary>
         public int skillLevel = 8;
@@ -43,9 +48,9 @@ namespace DigitalStorage.Components
             {
                 yield return e;
             }
-            if (workType == null)
+            if (workTypes == null || workTypes.Count == 0)
             {
-                yield return parentDef.defName + "：CompProperties_DigitalWorker 必须指定 <workType>。";
+                yield return parentDef.defName + "：CompProperties_DigitalWorker 必须指定至少一个 <workTypes><li>…</li></workTypes>。";
             }
             if (skillLevel < 0 || skillLevel > 20)
             {

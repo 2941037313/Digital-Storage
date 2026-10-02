@@ -105,6 +105,31 @@ namespace DigitalStorage.Core
             return false;
         }
 
+        /// <summary>
+        /// 本图**可用状态的本 mod 核心**（拍板：代理建筑只从核心取料，不去掏原版书架/衣架的库存）。
+        /// 返回**复用缓冲**，别存起来 —— 刻意与 <see cref="tmpSources"/> 分开（本 mod 踩过静态缓冲互相覆盖的坑）。
+        /// </summary>
+        private static readonly List<IHaulSource> tmpCoreSources = new List<IHaulSource>();
+
+        public static List<IHaulSource> CoreSources(Map map)
+        {
+            tmpCoreSources.Clear();
+            if (map == null) return tmpCoreSources;
+
+            List<IHaulSource> all = map.haulDestinationManager?.AllHaulSourcesListForReading;
+            if (all == null) return tmpCoreSources;
+
+            for (int i = 0; i < all.Count; i++)
+            {
+                Building_StorageCore core = all[i] as Building_StorageCore;
+                if (core == null) continue;
+                if (!core.HaulSourceEnabled) continue;
+                if (!core.IsUsableNow) continue;
+                tmpCoreSources.Add(core);
+            }
+            return tmpCoreSources;
+        }
+
         /// <summary>本图容器里有没有东西。</summary>
         public static bool AnyContent(Map map)
         {

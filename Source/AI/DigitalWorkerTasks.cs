@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using DigitalStorage.Components;
+using DigitalStorage.Core;
 using RimWorld;
 using UnityEngine;
 using Verse;
+using Verse.Sound;
 
 namespace DigitalStorage.AI
 {
@@ -83,6 +85,42 @@ namespace DigitalStorage.AI
         {
             return true;
         }
+
+        /// <summary>
+        /// 是否信任原版 <c>WorkGiver.HasJobOnThing</c> 作为闸门（默认信任）。
+        ///
+        /// <para>不信任的场合只有一种：<b>原版闸门里含"可达性"</b>，而代理建筑是**隔空**干活的。
+        /// 目前只有清洁需要自备候选集（原版 <c>WorkGiver_CleanFilth</c> 的候选集来自
+        /// <c>listerFilthInHomeArea</c>，而我们拍板"放宽 Home 区"）⇒ 它同时不信任候选集与闸门，
+        /// 改为在 <c>CanTarget</c>/<c>StillValid</c> 里自己做同样的检查。</para>
+        /// </summary>
+        public virtual bool TrustWorkGiver
+        {
+            get { return true; }
+        }
+
+        /// <summary>
+        /// 候选集。默认走原版（<c>scanner.PotentialWorkThingsGlobal</c>，为空则退到
+        /// <c>listerThings.ThingsMatching(PotentialWorkThingRequest)</c>）；需要放宽原版范围时重写。
+        /// </summary>
+        public virtual IEnumerable<Thing> CandidateSet(Map map, Pawn pawn, WorkGiver_Scanner scanner)
+        {
+            IEnumerable<Thing> set = null;
+            try
+            {
+                set = scanner.PotentialWorkThingsGlobal(pawn);
+            }
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] 取代理候选集失败：" + scanner.def.defName + " → " + e,
+                    scanner.def.shortHash * 31 + 7717);
+            }
+            if (set == null)
+            {
+                set = map.listerThings.ThingsMatching(scanner.PotentialWorkThingRequest);
+            }
+            return set;
+        }
     }
 
     /// <summary>
@@ -94,6 +132,9 @@ namespace DigitalStorage.AI
         private static readonly List<DigitalTaskAdapter> All = new List<DigitalTaskAdapter>
         {
             new DigitalTaskAdapter_Mine(),
+            new DigitalTaskAdapter_Construct(),
+            new DigitalTaskAdapter_Clean(),
+            new DigitalTaskAdapter_PlantCut(),
         };
 
         private static readonly Dictionary<WorkTypeDef, WorkGiver> giverCache = new Dictionary<WorkTypeDef, WorkGiver>();
@@ -293,6 +334,495 @@ namespace DigitalStorage.AI
                 {
                     Designator_MineVein.FloodFillDesignations(pos + adjacent[i], map, t.def);
                 }
+            }
+        }
+    }
+
+    // ==========================================================================================
+    // 建造 —— 照抄 JobDriver_ConstructFinishFrame 的 tickAtomicAction + 数字存储独有的"补料"
+    //
+    // 原版耦合点：蓝图 → Frame 不是建造工干的，只能靠搬运链的收尾 toil
+    // （JobDriver_HaulToContainer.cs:178 → Toils_Construct.MakeSolidThingFromBlueprintIfNecessary
+    //  → Blueprint.TryReplaceWithSolidThing，public virtual）。
+    // More Organs 当年只能做"材料已在框里"的 Frame（R4：CompleteConstruction 会无条件
+    // ClearAndDestroyContents）。数字存储的核心能瞬间供料，所以这里**连送料一起做** ⇒ 真·全自动建造。
+    // ==========================================================================================
+    public class DigitalTaskAdapter_Construct : DigitalTaskAdapter
+    {
+        public override Type WorkGiverClass
+        {
+            get { return typeof(WorkGiver_ConstructFinishFrames); }
+        }
+
+        /// <summary>
+        /// 不信任原版闸门：<c>WorkGiver_ConstructFinishFrames.JobOnThing</c> 会走
+        /// <c>GenConstruct.CanConstruct</c>，而它含**可达性**判定（CanTouchTargetFromValidCell /
+        /// CanReserveAndReach）—— 代理建筑是隔空干活的，照抄那道门就永远不干活。
+        /// 技能/意识/阻塞那几项由 <see cref="DigitalTask_Construct.StillValid"/> 自己查。
+        /// </summary>
+        public override bool TrustWorkGiver
+        {
+            get { return false; }
+        }
+
+        public override DigitalTask MakeTask(Thing t, CompDigitalWorker comp)
+        {
+            return new DigitalTask_Construct { target = t, comp = comp };
+        }
+
+        public override IEnumerable<Thing> CandidateSet(Map map, Pawn pawn, WorkGiver_Scanner scanner)
+        {
+            List<Thing> blueprints = map.listerThings.ThingsInGroup(ThingRequestGroup.Blueprint);
+            List<Thing> frames = map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingFrame);
+            List<Thing> all = new List<Thing>(blueprints.Count + frames.Count);
+            all.AddRange(blueprints);
+            all.AddRange(frames);
+            return all;
+        }
+
+        public override bool CanTarget(Pawn pawn, Thing t)
+        {
+            // 只认建筑蓝图（Blueprint_Build）：安装蓝图（Blueprint_Install）要的是"小化的建筑"，
+            // 不是钢/木料，供料逻辑不适用。
+            return t is Blueprint_Build || t is Frame;
+        }
+    }
+
+    public class DigitalTask_Construct : DigitalTask
+    {
+        private bool failed;
+
+        public override string Label
+        {
+            get { return "建造"; }
+        }
+
+        private Frame FrameTarget
+        {
+            get { return target as Frame; }
+        }
+
+        public override bool StillValid(Pawn pawn, Map map)
+        {
+            if (target == null || target.Destroyed || !target.Spawned) return false;
+
+            Blueprint bp = target as Blueprint;
+            if (bp != null) return true;   // 蓝图：等我们供料；核心凑不齐会自己放手（见 Work）
+
+            Frame f = FrameTarget;
+            if (f == null) return false;
+            if (!f.IsCompleted() || f.WorkLeft <= 0f) return false;
+            if (f.Faction != null && pawn.Faction != null && f.Faction != pawn.Faction) return false;
+            if (f.IsBurning()) return false;
+            if (f.def.constructionSkillPrerequisite > 0 && pawn.skills != null
+                && pawn.skills.GetSkill(SkillDefOf.Construction).Level < f.def.constructionSkillPrerequisite)
+            {
+                return false;
+            }
+            return GenConstruct.FirstBlockingThing(f, pawn) == null;
+        }
+
+        public override float Progress01
+        {
+            get
+            {
+                Frame f = FrameTarget;
+                if (f == null || f.WorkToBuild <= 0f) return -1f;
+                return Mathf.Clamp01(f.workDone / f.WorkToBuild);
+            }
+        }
+
+        public override void Work(Pawn pawn, Map map, float speedMult)
+        {
+            if (target == null || target.Destroyed || !target.Spawned) return;
+
+            // ---- 阶段 1：蓝图 → 框 + 从核心补料 ----
+            Blueprint bp = target as Blueprint;
+            if (bp != null)
+            {
+                if (!TrySupplyFromCores(pawn, map, bp))
+                {
+                    // 核心凑不齐 ⇒ 让路给原版搬运工（我们已认领这个目标，不放手的话谁都干不了）
+                    comp.Release();
+                }
+                return;
+            }
+
+            // ---- 阶段 2：框 → 建完（照抄 JobDriver_ConstructFinishFrame.cs:44-80 的算式）----
+            Frame f = FrameTarget;
+            if (f == null || f.Destroyed) return;
+
+            float num = speedMult * 1.7f;                 // 原版是 ConstructionSpeed * 1.7
+            if (f.Stuff != null)
+            {
+                num *= f.Stuff.GetStatValueAbstract(StatDefOf.ConstructionSpeedFactor);
+            }
+
+            float workToBuild = f.WorkToBuild;
+            if (workToBuild <= 0f)
+            {
+                f.CompleteConstruction(pawn);
+                return;
+            }
+
+            if (pawn.Faction == Faction.OfPlayer && !TutorSystem.TutorialMode)
+            {
+                float successChance = pawn.GetStatValue(StatDefOf.ConstructSuccessChance);
+                if (Rand.Value < 1f - Mathf.Pow(successChance, num / workToBuild))
+                {
+                    // 原版这里结束 toil 去重新拿材料；我们也交还这只"手"，下次重找
+                    f.FailConstruction(pawn);
+                    failed = true;
+                    return;
+                }
+            }
+
+            f.workDone += num;
+            StrikeCount++;
+            if (f.workDone >= workToBuild)
+            {
+                f.CompleteConstruction(pawn);
+            }
+        }
+
+        public override bool Finished
+        {
+            get
+            {
+                if (failed) return true;
+                Frame f = FrameTarget;
+                if (f != null && !f.Destroyed && f.IsCompleted() && f.WorkLeft <= 0f) return true;
+                return base.Finished;
+            }
+        }
+
+        /// <summary>
+        /// 把蓝图变成框，并把核心里的料塞进 <c>frame.resourceContainer</c>。
+        /// 返回 false = 核心凑不齐（调用方应放手让原版搬运工做）。
+        /// </summary>
+        private bool TrySupplyFromCores(Pawn pawn, Map map, Blueprint bp)
+        {
+            List<ThingDefCountClass> cost = bp.TotalMaterialCost();
+            if (cost == null || cost.Count == 0)
+            {
+                // 0 成本蓝图（原版走 JobDefOf.PlaceNoCostFrame）：直接转框，不用供料
+                return TryReplace(pawn, bp);
+            }
+
+            // 先数一遍，不够就整单不做（不做"半送"—— 半送的料会留在框里等下一次，语义更乱）
+            for (int i = 0; i < cost.Count; i++)
+            {
+                ThingDefCountClass need = cost[i];
+                if (need == null || need.thingDef == null || need.count <= 0) continue;
+                if (CountInCores(map, need.thingDef) < need.count) return false;
+            }
+
+            if (!TryReplace(pawn, bp)) return false;
+
+            // 转框后 target 已是 Frame；料塞进它的 resourceContainer
+            Frame f = FrameTarget;
+            if (f == null || f.Destroyed) return true;
+
+            ThingOwner dest = f.TryGetInnerInteractableThingOwner();
+            if (dest == null) return true;
+
+            for (int i = 0; i < cost.Count; i++)
+            {
+                ThingDefCountClass need = cost[i];
+                if (need == null || need.thingDef == null || need.count <= 0) continue;
+                TransferFromCores(map, need.thingDef, need.count, dest);
+            }
+            return true;
+        }
+
+        private bool TryReplace(Pawn pawn, Blueprint bp)
+        {
+            Thing created;
+            bool jobEnded;
+            if (!bp.TryReplaceWithSolidThing(pawn, out created, out jobEnded))
+            {
+                return false;
+            }
+            if (created != null)
+            {
+                target = created;   // 之后就是 Frame
+            }
+            return true;
+        }
+
+        private static int CountInCores(Map map, ThingDef def)
+        {
+            int total = 0;
+            List<IHaulSource> cores = HaulSourceContents.CoreSources(map);
+            for (int i = 0; i < cores.Count; i++)
+            {
+                ThingOwner owner = cores[i].GetDirectlyHeldThings();
+                if (owner == null) continue;
+                for (int j = 0; j < owner.Count; j++)
+                {
+                    Thing t = owner[j];
+                    if (t != null && !t.Destroyed && t.def == def) total += t.stackCount;
+                }
+            }
+            return total;
+        }
+
+        private static void TransferFromCores(Map map, ThingDef def, int count, ThingOwner dest)
+        {
+            int left = count;
+            List<IHaulSource> cores = HaulSourceContents.CoreSources(map);
+            for (int i = 0; i < cores.Count && left > 0; i++)
+            {
+                ThingOwner owner = cores[i].GetDirectlyHeldThings();
+                if (owner == null) continue;
+                for (int j = owner.Count - 1; j >= 0 && left > 0; j--)
+                {
+                    Thing t = owner[j];
+                    if (t == null || t.Destroyed || t.def != def) continue;
+                    int moved = owner.TryTransferToContainer(t, dest, Mathf.Min(left, t.stackCount), true);
+                    if (moved > 0) left -= moved;
+                }
+            }
+        }
+    }
+
+    // ==========================================================================================
+    // 清洁 —— 照抄 JobDriver_CleanFilth 的算式；**放宽原版"只扫 Home 区"**（用户拍板）
+    // ==========================================================================================
+    public class DigitalTaskAdapter_Clean : DigitalTaskAdapter
+    {
+        public override Type WorkGiverClass
+        {
+            get { return typeof(WorkGiver_CleanFilth); }
+        }
+
+        /// <summary>
+        /// 不信任原版：<c>WorkGiver_CleanFilth</c> 的候选集来自 <c>listerFilthInHomeArea</c>、
+        /// 闸门里也卡 Home 区。用户拍板"放宽 Home 区（全图污物都能清）"⇒ 候选集换成全图 Filth，
+        /// 迷雾/厚度那几道自己查。
+        /// </summary>
+        public override bool TrustWorkGiver
+        {
+            get { return false; }
+        }
+
+        public override IEnumerable<Thing> CandidateSet(Map map, Pawn pawn, WorkGiver_Scanner scanner)
+        {
+            return map.listerThings.ThingsInGroup(ThingRequestGroup.Filth);
+        }
+
+        public override DigitalTask MakeTask(Thing t, CompDigitalWorker comp)
+        {
+            return new DigitalTask_Clean { target = t, comp = comp };
+        }
+
+        public override bool CanTarget(Pawn pawn, Thing t)
+        {
+            return t is Filth;
+        }
+    }
+
+    public class DigitalTask_Clean : DigitalTask
+    {
+        private float cleaningWorkDone;
+        private float totalWorkRequired;
+
+        public override string Label
+        {
+            get { return "清洁"; }
+        }
+
+        private Filth FilthTarget
+        {
+            get { return target as Filth; }
+        }
+
+        public override bool StillValid(Pawn pawn, Map map)
+        {
+            Filth filth = FilthTarget;
+            if (filth == null || filth.Destroyed || !filth.Spawned) return false;
+            if (map.fogGrid != null && map.fogGrid.IsFogged(filth.Position)) return false;
+            // 原版 WorkGiver_CleanFilth 的节流：污物刚出现 600 tick 内不清理
+            return filth.TicksSinceThickened >= 600;
+        }
+
+        public override float Progress01
+        {
+            get
+            {
+                Filth filth = FilthTarget;
+                if (filth == null || filth.Destroyed || totalWorkRequired <= 0f) return -1f;
+                float remaining = filth.thickness * filth.def.filth.cleaningWorkToReduceThickness - cleaningWorkDone;
+                return Mathf.Clamp01(1f - remaining / totalWorkRequired);
+            }
+        }
+
+        public override void Work(Pawn pawn, Map map, float speedMult)
+        {
+            Filth filth = FilthTarget;
+            if (filth == null || filth.Destroyed) return;
+
+            if (totalWorkRequired <= 0f)
+            {
+                totalWorkRequired = filth.def.filth.cleaningWorkToReduceThickness * filth.thickness;
+            }
+
+            float terrainFactor = filth.Position.GetTerrain(filth.Map)
+                .GetStatValueAbstract(StatDefOf.CleaningTimeFactor);
+            float num = speedMult;      // 速度只认倍率（原版 CleaningSpeed 本来就不吃技能/能力）
+            if (terrainFactor != 0f)
+            {
+                num /= terrainFactor;
+            }
+
+            cleaningWorkDone += num;
+            if (cleaningWorkDone > filth.def.filth.cleaningWorkToReduceThickness)
+            {
+                filth.ThinFilth();
+                StrikeCount++;
+                cleaningWorkDone = 0f;
+                if (filth.Destroyed && pawn.records != null)
+                {
+                    pawn.records.Increment(RecordDefOf.MessesCleaned);
+                }
+            }
+        }
+    }
+
+    // ==========================================================================================
+    // 伐木 —— 照抄 JobDriver_PlantWork 的产出段（More Organs LaborTask_PlantBase 的移植）
+    //
+    // 归属：用户把"伐木"归进"种植"（每类一个专用建筑），所以种植代理的 workTypes = Growing + PlantCutting。
+    // ⚠️ 收割（Growing/Harvest）与播种（Growing/Sow）**尚未接**：原版这两个 WorkGiver 是
+    // **scanCells 型**（候选是格子不是 Thing），需要一条"格子型目标"的管线，留待下一波。
+    // ==========================================================================================
+    public class DigitalTaskAdapter_PlantCut : DigitalTaskAdapter
+    {
+        public override Type WorkGiverClass
+        {
+            get { return typeof(WorkGiver_PlantsCut); }
+        }
+
+        public override DigitalTask MakeTask(Thing t, CompDigitalWorker comp)
+        {
+            return new DigitalTask_PlantCut { target = t, comp = comp };
+        }
+
+        public override bool CanTarget(Pawn pawn, Thing t)
+        {
+            return t is Plant;
+        }
+    }
+
+    public class DigitalTask_PlantCut : DigitalTask
+    {
+        private float workDone;
+
+        public override string Label
+        {
+            get { return "伐木"; }
+        }
+
+        private Plant PlantTarget
+        {
+            get { return target as Plant; }
+        }
+
+        public override bool StillValid(Pawn pawn, Map map)
+        {
+            Plant p = PlantTarget;
+            if (p == null || p.Destroyed || !p.Spawned) return false;
+            return map.designationManager.DesignationOn(p, DesignationDefOf.CutPlant) != null;
+        }
+
+        public override float Progress01
+        {
+            get
+            {
+                Plant p = PlantTarget;
+                if (p == null || p.def.plant.harvestWork <= 0f) return -1f;
+                return Mathf.Clamp01(workDone / p.def.plant.harvestWork);
+            }
+        }
+
+        public override void Work(Pawn pawn, Map map, float speedMult)
+        {
+            Plant p = PlantTarget;
+            if (p == null || p.Destroyed) return;
+
+            // 原版 JobDriver_PlantWork.WorkDonePerTick = PlantWorkSpeed * Lerp(3.3, 1, Growth)
+            // 这里把 PlantWorkSpeed 换成建筑倍率（速度只认倍率），Growth 那一项照抄。
+            workDone += speedMult * Mathf.Lerp(3.3f, 1f, p.Growth);
+            StrikeCount++;
+
+            if (workDone < p.def.plant.harvestWork) return;
+
+            Harvest(pawn, p);
+            workDone = 0f;
+        }
+
+        /// <summary>原样搬 JobDriver_PlantWork 的产出段，落点从 <c>actor.Position</c> 换成植株格。</summary>
+        private void Harvest(Pawn pawn, Plant plant)
+        {
+            if (plant.def.plant.harvestedThingDef != null)
+            {
+                StatDef yieldStat = (plant.def.plant.harvestedThingDef.IsDrug || plant.def.plant.drugForHarvestPurposes)
+                    ? StatDefOf.DrugHarvestYield
+                    : StatDefOf.PlantHarvestYield;
+                float statValue = pawn.GetStatValue(yieldStat);
+
+                if (pawn.RaceProps.Humanlike && plant.def.plant.harvestFailable && !plant.Blighted && Rand.Value > statValue)
+                {
+                    // 不用 pawn.DrawPos：假 pawn 的 DrawPos 虽然已安全，但没必要碰它
+                    MoteMaker.ThrowText(plant.DrawPos, pawn.Map,
+                        "TextMote_HarvestFailed".Translate(), 3.65f);
+                }
+                else
+                {
+                    int num = plant.YieldNow();
+                    if (statValue > 1f)
+                    {
+                        num = GenMath.RoundRandom(num * statValue);
+                    }
+                    if (num > 0)
+                    {
+                        Thing thing = ThingMaker.MakeThing(plant.def.plant.harvestedThingDef);
+                        thing.stackCount = num;
+                        Find.QuestManager.Notify_PlantHarvested(pawn, thing);
+                        GenPlace.TryPlaceThing(thing, plant.Position, pawn.Map, ThingPlaceMode.Near);
+                        if (pawn.records != null)
+                        {
+                            pawn.records.Increment(RecordDefOf.PlantsHarvested);
+                        }
+                    }
+                    if (plant.HarvestableNow)
+                    {
+                        List<ThingComp> comps = plant.AllComps;
+                        for (int i = 0; i < comps.Count; i++)
+                        {
+                            foreach (ThingDefCountClass extra in comps[i].GetAdditionalHarvestYield())
+                            {
+                                Thing extraThing = ThingMaker.MakeThing(extra.thingDef);
+                                extraThing.stackCount = extra.count;
+                                GenPlace.TryPlaceThing(extraThing, plant.Position, pawn.Map, ThingPlaceMode.Near);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (plant.def.plant.soundHarvestFinish != null)
+            {
+                // 声音源用植株本身（隔空干活没有"人"在场，也避开假 pawn 的 TargetInfo）
+                plant.def.plant.soundHarvestFinish.PlayOneShot(plant);
+            }
+
+            plant.PlantCollected(pawn, PlantDestructionMode.Cut);
+
+            // 原版收尾 toil = Toils_Interact.DestroyThing（它自己带 !Destroyed 守卫）
+            if (!plant.Destroyed && plant.Spawned)
+            {
+                plant.Destroy();
             }
         }
     }

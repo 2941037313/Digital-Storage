@@ -245,35 +245,32 @@ namespace DigitalStorage.Components
         /// <summary>找一件活并认领。整段都在作用域里（<c>HasJobOnThing</c> 会走 <c>CanReserve</c>）。</summary>
         private void TryScan(Map map, Pawn w)
         {
-            WorkGiver giver = DigitalTaskRegistry.FindGiver(Props.workType);
-            if (giver == null) return;
+            List<WorkTypeDef> types = Props.workTypes;
+            if (types == null) return;
+            for (int i = 0; i < types.Count; i++)
+            {
+                if (TryScanWorkType(map, w, types[i])) return;   // 按列表顺序，第一个命中的就干活
+            }
+        }
+
+        private bool TryScanWorkType(Map map, Pawn w, WorkTypeDef workType)
+        {
+            WorkGiver giver = DigitalTaskRegistry.FindGiver(workType);
+            if (giver == null) return false;
 
             WorkGiver_Scanner scanner = giver as WorkGiver_Scanner;
-            if (scanner == null) return;
+            if (scanner == null) return false;
 
             DigitalTaskAdapter adapter = DigitalTaskRegistry.AdapterFor(giver);
-            if (adapter == null) return;
+            if (adapter == null) return false;
 
             DigitalWorkerScope.Enter(w, map, parent.PositionHeld);
             try
             {
-                if (!DigitalTaskRegistry.PawnCanUse(giver, w)) return;
+                if (!DigitalTaskRegistry.PawnCanUse(giver, w)) return false;
 
-                IEnumerable<Thing> set = null;
-                try
-                {
-                    set = scanner.PotentialWorkThingsGlobal(w);
-                }
-                catch (Exception e)
-                {
-                    Log.ErrorOnce("[DigitalStorage] 取代理候选集失败：" + giver.def.defName + " → " + e,
-                        giver.def.shortHash * 31 + 7717);
-                }
-                if (set == null)
-                {
-                    set = map.listerThings.ThingsMatching(scanner.PotentialWorkThingRequest);
-                }
-                if (set == null) return;
+                IEnumerable<Thing> set = adapter.CandidateSet(map, w, scanner);
+                if (set == null) return false;
 
                 int seen = 0;
                 foreach (Thing t in set)
@@ -286,31 +283,35 @@ namespace DigitalStorage.Components
                     if (DigitalWorkerClaims.IsClaimedByOther(map, t, this)) continue;
                     if (!adapter.CanTarget(w, t)) continue;
 
-                    bool hasJob;
-                    try
+                    if (adapter.TrustWorkGiver)
                     {
-                        hasJob = scanner.HasJobOnThing(w, t, false);
+                        bool hasJob;
+                        try
+                        {
+                            hasJob = scanner.HasJobOnThing(w, t, false);
+                        }
+                        catch (Exception e)
+                        {
+                            Log.ErrorOnce("[DigitalStorage] 问 WorkGiver 时出错：" + giver.def.defName + " → " + e,
+                                giver.def.shortHash * 31 + 9923);
+                            hasJob = false;
+                        }
+                        if (!hasJob) continue;
                     }
-                    catch (Exception e)
-                    {
-                        Log.ErrorOnce("[DigitalStorage] 问 WorkGiver 时出错：" + giver.def.defName + " → " + e,
-                            giver.def.shortHash * 31 + 9923);
-                        hasJob = false;
-                    }
-                    if (!hasJob) continue;
 
                     DigitalTask candidate = adapter.MakeTask(t, this);
                     if (!candidate.StillValid(w, map)) continue;
 
                     DigitalWorkerClaims.TryClaim(map, t, this);
                     task = candidate;
-                    return;
+                    return true;
                 }
             }
             finally
             {
                 DigitalWorkerScope.Exit(w);
             }
+            return false;
         }
 
         /// <summary>放手：清认领表 + 丢任务 + 收掉 effecter/手。断电/拆除/目标失效/干完都走这里。</summary>
@@ -368,7 +369,9 @@ namespace DigitalStorage.Components
             {
                 // 先例：god hand MapComponent_GodAssistant.cs:18-33
                 worker = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
-                worker.Name = new NameTriple("", "数字工人", Props.workType.defName + Props.skillLevel);
+                worker.Name = new NameTriple("", "数字工人",
+                    (Props.workTypes != null && Props.workTypes.Count > 0 ? Props.workTypes[0].defName : "?")
+                    + Props.skillLevel);
 
                 // ★ 补上"生成时不需要、被 spawn 时才建"的那批组件（pather / rotationTracker / natives /
                 //   filth / roping…）。不补的话，**任何读 pawn.DrawPos 的原版代码都会 NRE** ——
