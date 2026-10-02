@@ -1,4 +1,4 @@
-# Digital Storage 数字存储
+# Digital Storage 数字存储 4.0
 
 [English](#english) | [中文](#中文)
 
@@ -6,113 +6,131 @@
 
 ## English
 
-A RimWorld mod inspired by Applied Energistics 2 (Minecraft). Digitize your items into a virtual storage network for efficient colony management.
+A RimWorld mod inspired by Applied Energistics 2 (Minecraft). Build a powered **Storage Core** and your items live inside it — no map footprint, no rendering, no tick cost, no rot.
+
+Unlike 3.0 (which stored numbers in a ledger), 4.0 stores **real Things**: apparel, weapons, quality and durability all survive, and vanilla hauling and trading recognise the contents natively.
+
+### ⚠️ 3.0 saves are not compatible
+
+4.0 removes **storage cabinets, storage interfaces, terminal chip implants, buffer warehouses, the core upgrade system and cross-map logistics**. Loading a 3.0 save will log "def not found" errors and discard those buildings and items; ledger inventory stored in 3.0 cores is not read by 4.0.
+
+**Empty your 3.0 cores before updating, or start a new save.**
 
 ### Features
 
 **Storage Core**
-- Base capacity: 100 item groups, upgradeable to 1000 (4 tiers)
-- Items are digitized — no rendering, no tick overhead, no deterioration
-- Custom network naming
-- Requires power (scales with upgrade level)
-- Reserved items system: configurable physical items kept for vanilla job compatibility
+- 3x3 powered building, **complete the moment it is built** — no upgrade system
+- Fixed 500-stack capacity, requires 100W, can break down
+- Unlocked by the "Digital Storage" research (requires Microelectronics basics)
+- Contents are real Things, held in a `ThingOwner` — they never enter `listerThings` or the tick manager
 
-**Upgrade System**
-| Tier | Name | Capacity | Power | Materials |
-|------|------|----------|-------|-----------|
-| 1 | Basic | 100 | 100W | — |
-| 2 | Advanced | 250 | 150W | Steel x200, Components x10 |
-| 3 | Superior | 500 | 200W | Plasteel x100, Components x20, Adv. Components x5 |
-| 4 | Quantum | 1000 | 300W | Plasteel x200, Adv. Components x15 |
+**Remote access**
+- Withdraw and deposit from any position, at any distance; pawns never walk to the core
+- Construction: blueprints pull materials straight from the core
+- Bill ingredients: delivered into a pawn's backpack first (zero steps), then carried to the bench
+- Eating, drugs, medicine, refuelling, repairs and feeding all go through the core
+- No power, no access
 
-**Input Interface**
-- Place items on the interface, they are automatically teleported to the bound core
-- Auto-connects to adjacent cores
+**Auto-ingest**
+- Three research tiers (Auto-Ingest I/II/III): 1 / 5 / 10 stacks per 15 ticks
+- Map-wide, not limited by home area or distance; plays a beam effect on each pickup
+- Skips prison cells (that food belongs to prisoners) and workbench ingredient areas (that belongs to a bill)
+- Never pulls unmined ore
 
-**Terminal Chip Implant**
-- Brain implant unlocked via research
-- Implanted colonists can remotely access storage from anywhere
-- Mechanitor support: implanted mechanitor grants access to all controlled mechs
-- Cross-map access: access your base storage from any map (caravans, quests, etc.)
+**Trade**
+- Caravans, orbital trade beacons and visiting traders can all buy and sell straight from the core
+- Phinix (multiplayer chat/trade) and its Red Packet plugin are supported, including the "allow trading items that are not in storage" branch
 
-**Cross-Map Capabilities**
-- Crafting: pull materials from home base core while on a remote map
-- Construction: build with materials from home base core
-- Trading: caravan members with implants can trade using base storage
-- Resource counter includes virtual storage across all maps
+**Vanilla systems, natively** (zero patches)
+- Resource readout, low food/medicine alerts, wealth, warm-clothes alert
+- Auto apparel, opportunistic weapon pickup, transport pod loading, portals, caravan loading
+- Bill ×N counting, doctors fetching medicine, refuelling, repairs, feeding
 
-**Mod Compatibility**
-- Phinix (multiplayer trading)
-- Phinix Red Packet
-- Pick Up And Haul
-- Achtung!
+**Compatibility layer**
+- The core joins the vanilla storage-group list as a "zero-cell slot group", so any third-party scanner that iterates slot groups can enumerate its contents
+- Mods that enumerate map-spawned things directly cannot see the contents by design (our items are never spawned)
 
-### Research Tree
+### Research tree
 
-1. **Digital Storage** (Industrial) → Unlocks Storage Core
-2. **Digital Storage Interface** → Unlocks Input Interface
-3. **Terminal Implant** (Spacer) → Unlocks Terminal Chip
+1. **Digital Storage** (Industrial) → unlocks the Storage Core
+2. **Auto-Ingest I** (Spacer) → 1 stack per 15 ticks
+3. **Auto-Ingest II** (Spacer) → 5 stacks per 15 ticks
+4. **Auto-Ingest III** (Spacer) → 10 stacks per 15 ticks
 
-### Known Limitations
+### Known limitations
 
-- Due to engine limitations, only certain item categories and jobs are supported
-- More will be added in future updates
+- Items only — corpses are rejected, and non-item categories (buildings, plants, terrain) are out of scope
+- Prisoners do not use the core; their meals are delivered into the cell
+- 3.0 saves are not compatible (see above)
+
+### Compatibility
+
+Verified compatible with Phinix (+ Red Packet), Vanilla Expanded Framework, Pick Up And Haul, Combat Extended, Achtung!, Allow Tool. Patches that overlap with VMF/VEF (`WorkGiver_DoBill`, `ReservationManager`, `StoreUtility`, `ResourceCounter`) are additive.
 
 ---
 
 ## 中文
 
-一个环世界 mod，灵感来自 Minecraft 的应用能源2（AE2）。将物品数字化存入虚拟存储网络，高效管理殖民地物资。
+一个环世界 mod，灵感来自 Minecraft 的应用能源2（AE2）。建造一台通电的**存储核心**，物品就住进它内部 —— 不占地图格子、不渲染、不参与 tick、不腐烂。
+
+与 3.0（账本存数字）不同，4.0 存的是**真实的 Thing**：衣物、武器、品质、耐久差异全部能存，原版搬运与交易原生就认它。
+
+### ⚠️ 3.0 存档不兼容
+
+4.0 移除了**磁盘柜、存储接口、终端芯片植入体、缓冲仓库、核心升级系统、跨图物流**。用 4.0 读 3.0 存档，游戏会报「找不到 Def」并丢弃这些建筑与物品；3.0 存在核心里的账本库存不会被读取。
+
+**更新前请先把 3.0 核心里的东西全部取出来，或直接开新档。**
 
 ### 功能
 
 **存储核心**
-- 基础容量：100 组物品，可升级至 1000（4 个等级）
-- 物品数字化后不渲染、不参与 Tick、不会腐烂变质
-- 可自定义网络名称
-- 需要电力（随升级等级增加）
-- 预留物品系统：可配置保留一定数量的物理物品，兼容原版搬运系统
+- 3x3 通电建筑，**一放就是完全体**，没有升级系统
+- 固定 500 堆上限，耗电 100W，会故障
+- 研究「数字存储」（前置：微电子学）解锁
+- 内容物是真实 Thing，住在 `ThingOwner` 里 —— 不进 `listerThings`、不进 tick 管理器
 
-**升级系统**
-| 等级 | 名称 | 容量 | 耗电 | 升级材料 |
-|------|------|------|------|---------|
-| 1 | 基础 | 100 | 100W | — |
-| 2 | 进阶 | 250 | 150W | 钢铁 x200、零部件 x10 |
-| 3 | 高级 | 500 | 200W | 玻璃钢 x100、零部件 x20、高级零部件 x5 |
-| 4 | 量子 | 1000 | 300W | 玻璃钢 x200、高级零部件 x15 |
+**全图存取**
+- 任何位置、任何距离取放，小人不必走到核心旁边
+- 建造：蓝图材料直接从核心扣
+- bill 取料：所需原料先进小人的随身背包（0 步），再掏出来上台工作
+- 吃、嗑药、用药、加油、维修、喂食全部走核心
+- 断电即无法存取
 
-**输入接口**
-- 物品放上去自动传送到绑定的存储核心
-- 放置时自动连接相邻核心
+**自动收纳**
+- 三级研究（自动收纳 I/II/III）：每 15 tick 吸收 1 / 5 / 10 堆
+- 全图范围，不受活动区与距离限制；每次收纳有光束特效
+- 跳过牢房（那是给囚犯的饭）与工作台材料区（那是给 bill 的料）
+- 不会隔着把未开采的矿脉吸走
 
-**终端芯片植入体**
-- 通过研究解锁的脑部植入体
-- 植入后可在任意位置远程访问存储系统
-- 机械师支持：给机械师植入后，其操纵的所有机械体自动获得访问能力
-- 跨地图访问：在任何地图上都能访问基地的存储核心（远行队、任务等）
+**交易**
+- 商队、轨道交易信标、来访商队都能直接买卖核心里的东西
+- Phinix（联机聊天交易）与红包插件已适配，含「允许交易不在储存区中的物品」分支
 
-**跨地图功能**
-- 制造：在外面的地图上可以直接从基地核心取材料制作
-- 建造：建造时可以直接使用基地核心中的材料
-- 交易：有芯片的远行队成员可以使用基地存储进行交易
-- 资源统计包含所有地图的虚拟存储
+**原版系统原生正确**（零补丁）
+- 资源计数、食物/药品警报、财富、保暖衣物警报
+- 自动换装、顺手捡武器、装运输仓、传送门、商队装货
+- bill 的 ×N 计数、医生取药、加油、维修、喂食
 
-**Mod 兼容**
-- Phinix（多人交易）
-- Phinix 红包插件
-- Pick Up And Haul
-- Achtung!
+**兼容层**
+- 核心以「零格子储存组」的身份出现在原版储存组列表里，任何遍历 SlotGroup 的第三方扫描器都能枚举到内容物
+- 直接枚举"地图上已生成物品"的 mod 看不到内容物 —— 这是设计使然（我们的物品从不 Spawn）
 
 ### 研究树
 
-1. **数字存储**（工业科技）→ 解锁存储核心
-2. **数字存储接口** → 解锁输入接口
-3. **终端植入体**（太空科技）→ 解锁终端芯片
+1. **数字存储**（工业）→ 解锁存储核心
+2. **自动收纳 I**（太空）→ 每 15 tick 1 堆
+3. **自动收纳 II**（太空）→ 每 15 tick 5 堆
+4. **自动收纳 III**（太空）→ 每 15 tick 10 堆
 
 ### 已知限制
 
-- 由于引擎底层限制，目前仅支持部分物品类别和工作类型
-- 后续版本会持续扩展支持范围
+- 只收物品类 —— 不收尸体，建筑/植物/地板之类的非物品类别不在可存范围
+- 囚犯不使用核心，他们的饭由典狱长送进牢房
+- 3.0 存档不兼容（见上）
+
+### 兼容性
+
+已验证兼容 Phinix（+ 红包插件）、Vanilla Expanded Framework、Pick Up And Haul、Combat Extended、Achtung!、Allow Tool。与 VMF/VEF 重叠的补丁（`WorkGiver_DoBill`、`ReservationManager`、`StoreUtility`、`ResourceCounter`）是加性共存。
 
 ---
 

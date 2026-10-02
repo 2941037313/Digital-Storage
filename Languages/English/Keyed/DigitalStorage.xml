@@ -4,7 +4,7 @@
   <!-- ========== Building_StorageCore ========== -->
   <DS_NoPower>No power</DS_NoPower>
   <DS_AutoIngest>Auto-Ingest</DS_AutoIngest>
-  <DS_AutoIngestDesc>When enabled, the core automatically absorbs nearby loose items each tick without requiring hauling. Stops when unpowered.</DS_AutoIngestDesc>
+  <DS_AutoIngestDesc>When enabled, the core absorbs loose items across the whole map without requiring hauling (research tier decides 1/5/10 stacks per 15 ticks). Items inside prison cells and workbench ingredient areas are left alone. Stops when unpowered.</DS_AutoIngestDesc>
 
   <!-- ========== ITab_DigitalStorage ========== -->
   <DS_TabDigitalStorage>Virtual storage</DS_TabDigitalStorage>
@@ -40,7 +40,7 @@
   <!-- ========== CompUseEffect_TerminalImplant ========== -->
 
   <!-- ========== Settings ========== -->
-  <DS_SettingsCategory>Digital Storage 3.0</DS_SettingsCategory>
+  <DS_SettingsCategory>Digital Storage 4.0</DS_SettingsCategory>
   <DS_CostSettings>Cost settings</DS_CostSettings>
   <DS_CostMultiplier>Cost multiplier: {0:F1}x</DS_CostMultiplier>
   <DS_CostMultiplierDesc>Adjust material cost for all buildings and items.</DS_CostMultiplierDesc>
@@ -64,8 +64,8 @@
        DS_Priority is reused by the new container-contents panel, so it stays. -->
   <DS_Priority>Haul Priority</DS_Priority>
 
-  <!-- ========== 3.0 Upgrade Letter ========== -->
-  <DigitalStorage_Letter30_Label>Digital Storage 3.1 Update 2026.5.27</DigitalStorage_Letter30_Label>
-  <DigitalStorage_Letter30_Text>Digital Storage 3.1 maintenance update 2026.5.27.\n\n[Buffer Warehouse Redesign]\n- Single-item mode: one warehouse locks to one item type, auto-locked on first restock\n- No pawn haul-in: items fully visible, blocked only at haul routing layer\n- Hidden item render: items on shelf are not drawn\n- Storage filter defaults to disallow all + ITab manual unlock button\n- DSU IO-port inspired architecture: items free, only haul direction blocked\n\n[Fixed]\n- Trade quantity loss: PostClose rogue rollback from non-trade windows\n- Trade duplicate entries: Prefix injection into deal.AllTradeables\n- Auto-ingest no longer routes items to buffer warehouses\n- Core shadow removed + visual rotation disabled\n\nThank you for your support! Bug reports: QQ group 693252771.</DigitalStorage_Letter30_Text>
+  <!-- ========== 4.0 update letter (GameComponent.FinalizeInit, once per save) ========== -->
+  <DigitalStorage_Letter40_Label>Digital Storage 4.0 Update 2026.10.3</DigitalStorage_Letter40_Label>
+  <DigitalStorage_Letter40_Text>Digital Storage 4.0 — released 2026.10.3\n\n4.0 is a heart transplant: items are no longer just numbers, they are real Things held inside the core. Apparel, weapons, quality and durability all survive, and vanilla hauling, trading and item scanners recognise them natively.\n\n⚠️ If you are upgrading an existing 3.0 save:\n- Storage cabinets, storage interfaces, terminal chip implants, buffer warehouses and core upgrades have all been removed in 4.0. Loading a 3.0 save will log "def not found" errors and discard those buildings and items.\n- Inventory stored in 3.0 cores was ledger data and is not read by 4.0.\n- Recommended: start a new save, or empty your 3.0 cores before updating.\n\nWhat changed in 4.0:\n- The core is complete the moment it is built: fixed 500-stack capacity, upgrade system removed\n- Remote access from anywhere at any distance; bill ingredients go straight into a pawn's backpack instead of walking to the core\n- Auto-ingest is now a three-tier research path (1/5/10 stacks per 15 ticks), no longer limited by home area or distance\n- Caravans, orbital trade beacons and visiting traders can all sell straight from the core\n- Compatibility layer: Phinix and its Red Packet plugin are supported, including the "allow trading items that are not in storage" branch\n\nThank you for your support! Bug reports: QQ group 693252771.</DigitalStorage_Letter40_Text>
 
 </LanguageData>

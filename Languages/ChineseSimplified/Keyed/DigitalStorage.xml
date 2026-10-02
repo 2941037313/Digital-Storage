@@ -4,7 +4,7 @@
   <!-- ========== Building_StorageCore ========== -->
   <DS_NoPower>无电力</DS_NoPower>
   <DS_AutoIngest>自动收纳</DS_AutoIngest>
-  <DS_AutoIngestDesc>开启后，存储核心每 tick 自动吸收范围内的散落物品，无需殖民者搬运。断电自动停止。</DS_AutoIngestDesc>
+  <DS_AutoIngestDesc>开启后，存储核心会吸收全图的散落物品，无需殖民者搬运（研究等级决定每 15 tick 吸 1/5/10 堆）。牢房里的东西与工作台材料区不会被收走。断电自动停止。</DS_AutoIngestDesc>
 
   <!-- ========== ITab_DigitalStorage ========== -->
   <DS_TabDigitalStorage>虚拟存储</DS_TabDigitalStorage>
@@ -40,7 +40,7 @@
   <!-- ========== CompUseEffect_TerminalImplant ========== -->
 
   <!-- ========== Settings ========== -->
-  <DS_SettingsCategory>数字存储 Digital Storage 3.0</DS_SettingsCategory>
+  <DS_SettingsCategory>数字存储 Digital Storage 4.0</DS_SettingsCategory>
   <DS_CostSettings>造价设置</DS_CostSettings>
   <DS_CostMultiplier>造价倍率: {0:F1}x</DS_CostMultiplier>
   <DS_CostMultiplierDesc>调整所有建筑和物品的材料消耗</DS_CostMultiplierDesc>
@@ -64,8 +64,8 @@
        DS_Priority 被新的容器内容物面板复用，保留。 -->
   <DS_Priority>搬运优先级</DS_Priority>
 
-  <!-- ========== 3.0 升级信封 ========== -->
-  <DigitalStorage_Letter30_Label>数字存储 3.1 更新说明 2026.5.27</DigitalStorage_Letter30_Label>
-  <DigitalStorage_Letter30_Text>数字存储 3.1 维护更新 2026.5.27。\n\n[缓冲仓库重构]\n· 单物品模式——一个仓库锁定一种物品，首次补货自动选定\n· 禁 pawn 搬运入仓——物品完全可见，仅在 haul 路由层拦截\n· 物品不渲染——隐藏 Shelf 上的物品贴图\n· 存储筛选默认全禁 + ITab 手动解锁按钮\n· 借鉴 DSU IO端口架构——物品自由，只禁搬运方向\n\n[修复]\n· 交易数量丢失：窗口 PostClose 误触发回滚→面板数量清空\n· 交易重复条目：Prefix 注入 deal 替代 Postfix\n· 自动收纳不再路由物品到缓冲仓库\n· 核心去阴影 + 禁用视觉旋转\n\n感谢支持！Bug 反馈 Q 群 693252771。</DigitalStorage_Letter30_Text>
+  <!-- ========== 4.0 更新信封（GameComponent.FinalizeInit 每档弹一次）========== -->
+  <DigitalStorage_Letter40_Label>数字存储 4.0 更新说明 2026.10.3</DigitalStorage_Letter40_Label>
+  <DigitalStorage_Letter40_Text>数字存储 4.0 更新说明 2026.10.3\n\n4.0 是「换心脏」：物品不再是一串数字，而是真实存放在核心内部的 Thing。衣物、武器、品质与耐久差异全部能存，原版搬运、交易与各类物品扫描器也原生认它。\n\n⚠️ 如果你是从 3.0 升上来的老存档：\n· 磁盘柜、存储接口、终端芯片植入体、缓冲仓库、核心升级 —— 这些在 4.0 已整体移除。读档时游戏会报「找不到 Def」，并丢弃相应的建筑与物品。\n· 3.0 存在核心里的库存是账本数据，4.0 不再读取。\n· 建议开新档；若想留住旧存档，请先更新前把 3.0 核心里的东西全部取出来。\n\n4.0 变了什么：\n· 核心一放就是完全体：固定 500 堆上限，升级系统移除\n· 任何位置、任何距离隔空存取；做 bill 时材料直接进随身背包，小人不必先走到核心\n· 自动收纳改为三级研究（每 15 tick 吸 1/5/10 堆），且不再受活动区与距离限制\n· 商队、轨道交易信标、访客交易都能直接卖掉核心里的东西\n· 兼容层：Phinix 与红包插件已适配，含「允许交易不在储存区中的物品」那条分支\n\n感谢支持！Bug 反馈 Q 群 693252771。</DigitalStorage_Letter40_Text>
 
 </LanguageData>

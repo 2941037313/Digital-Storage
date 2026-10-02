@@ -2,7 +2,16 @@
 <LanguageData>
 
   <DigitalStorage_BasicStorage.label>digital storage</DigitalStorage_BasicStorage.label>
-  <DigitalStorage_BasicStorage.description>Unlock the basic digital storage system. Build a storage core to create a remote item storage network.</DigitalStorage_BasicStorage.description>
+  <DigitalStorage_BasicStorage.description>Unlock the digital storage system. Build a storage core, and items stored inside it take up no map space, never render and never rot.</DigitalStorage_BasicStorage.description>
+
+  <DigitalStorage_AutoIngest1.label>auto-ingest I</DigitalStorage_AutoIngest1.label>
+  <DigitalStorage_AutoIngest1.description>Unlock auto-ingest. The core absorbs loose items across the map without a hauler.</DigitalStorage_AutoIngest1.description>
+
+  <DigitalStorage_AutoIngest2.label>auto-ingest II</DigitalStorage_AutoIngest2.label>
+  <DigitalStorage_AutoIngest2.description>Raises auto-ingest speed to 5 stacks per 15 ticks.</DigitalStorage_AutoIngest2.description>
+
+  <DigitalStorage_AutoIngest3.label>auto-ingest III</DigitalStorage_AutoIngest3.label>
+  <DigitalStorage_AutoIngest3.description>Raises auto-ingest speed to 10 stacks per 15 ticks.</DigitalStorage_AutoIngest3.description>
 
   <!-- DigitalStorage_Interface 已删（4.0 砍接口建筑） -->
 

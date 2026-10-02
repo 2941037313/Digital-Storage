@@ -5,16 +5,23 @@
   <supportedVersions>
     <li>1.6</li>
   </supportedVersions>
-  <description>一个为 RimWorld 设计的数字存储系统，允许通过存储核心、磁盘柜和接口网络进行远程物品访问。
+  <description>数字存储 4.0 —— 把物资管理从"格子"换成"容器"。
+
+灵感来自 MC 的应用能源2（AE2）：建造一台存储核心，物品就住进它内部，不占地图格子、不渲染、不参与 tick，也不腐烂。与 3.0 的账本不同，4.0 存的是真实 Thing —— 衣物、武器、品质与耐久差异全部能存，原版搬运与交易也原生认它。
 
 功能特性：
-- 建造存储核心创建远程存储网络
-- 使用磁盘柜和存储磁盘扩展容量
-- 使用接口自动转移原版存储中的物品
-- 装载终端植入体的 Pawn 可以远程访问存储
-- 完全集成 RimWorld 的电力系统
+- 存储核心：3x3 建筑，通电即用，固定 500 堆上限（无升级系统）
+- 全图隔空存取：任何位置、任何距离取放，小人不必走到核心旁边
+- 建造投料 / bill 取料：材料直接到手；做 bill 时先进随身背包，0 步开工
+- 自动收纳：三级研究解锁，全图吸取散落物品（牢房与工作台材料区不收）
+- 存储筛选 + 容器内容物面板 + 右键取出指定数量
+- 交易：商队、轨道交易信标、访客交易都能直接买卖核心里的东西
+- 原版系统原生覆盖：资源计数、食物与药品警报、财富、bill 的 ×N 计数等
+- 兼容层：Phinix 与红包插件已适配，其它遍历 SlotGroup 的 mod 也能看见核心内容物
 
-该系统提供了一种便捷的方式来管理大量物品，而无需在基地中堆放大量存储建筑。</description>
+⚠️ 3.0 老存档请注意：磁盘柜、存储接口、终端芯片、缓冲仓库与升级系统在 4.0 已移除，读档会报缺失 Def 并丢弃这些建筑与物品；3.0 核心内的账本库存不会被 4.0 读取，建议开新档。
+
+A storage mod inspired by AE2. Items live as real Things inside a powered Storage Core: no map footprint, no tick cost, no rot. Remote access from anywhere, auto-ingest, trade support, and a compatibility layer for mods that scan storage groups.</description>
   <packageId>cagier.digitalstorage</packageId>
   <modDependencies>
     <li>
