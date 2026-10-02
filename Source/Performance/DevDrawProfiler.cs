@@ -36,9 +36,33 @@ namespace DigitalStorage.Performance
     {
         private const int WindowFrames = 180;
 
+        private static string buildStamp;
+
+        /// <summary>
+        /// DLL 的最后写入时间 —— 让**每一行探针日志自带版本**。
+        /// 踩过：拿到一份缺 <c>DS-valid</c> 的日志，花了半轮才判断出"对方跑的是上一版 DLL"。
+        /// </summary>
+        private static string BuildStamp()
+        {
+            if (buildStamp != null) return buildStamp;
+            try
+            {
+                buildStamp = System.IO.File.GetLastWriteTime(typeof(DevDrawProfiler).Assembly.Location)
+                    .ToString("MMdd-HHmm", CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                buildStamp = "?";
+            }
+            return buildStamp;
+        }
+
         /// <summary>固定顺序，保证日志一行稳定好对比。
-        /// 嵌套关系：<c>Ticks</c> ⊃ <c>MapUpd</c> ⊃ {MapMesh, DynThings, Designations, Overlays, Motes, Flecks}
-        /// 且 ⊃ <c>DSWork</c>；只有 <c>SelDraw</c> 在刻度之外（MapInterfaceUpdate 里）。</summary>
+        /// ⚠️ 嵌套关系（2026 修正）：<c>Ticks</c> 与 <c>MapUpd</c> 是**并列**的兄弟 ——
+        /// 1.6 里 <c>Map.MapUpdate</c> 由 <c>Game.Update</c> 每帧调一次（<c>Game.cs:675</c>），
+        /// 不在 <c>TickManagerUpdate</c> 里（所以暂停时 <c>刻度=0</c> 而 <c>MapUpd</c> 照跑）。
+        /// 六个地图绘制项与 <c>DSWork</c> 分别在 <c>MapUpd</c> / <c>Ticks</c> 内部；
+        /// <c>SelDraw</c> 在 <c>MapInterfaceUpdate</c> 里。</summary>
         private static readonly string[] Keys =
         {
             "Ticks", "MapUpd", "DSWork",
@@ -245,7 +269,7 @@ namespace DigitalStorage.Performance
             if (tickNonDraw < 0.0) tickNonDraw = 0.0;
 
             var sb = new System.Text.StringBuilder();
-            sb.Append("[DS-Draw] 帧=").Append(frames);
+            sb.Append("[DS-Draw ").Append(BuildStamp()).Append("] 帧=").Append(frames);
             sb.Append(" 帧间隔 ").Append(F(frameAvg)).Append("(峰 ").Append(F(windowDeltaPeak)).Append(')');
             sb.Append(" | 刻度 ").Append(F(ticks)).Append("(峰 ").Append(F(KeyMax("Ticks"))).Append(')');
             int ticksPerFrame;
