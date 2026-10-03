@@ -66,17 +66,38 @@ namespace DigitalStorage.Backpack
                 Hediff existing = pawn.health.hediffSet.GetFirstHediffOfDef(hediffDef);
                 if (ShouldHave(pawn))
                 {
-                    if (existing == null) pawn.health.AddHediff(hediffDef);
+                    if (existing == null)
+                    {
+                        pawn.health.AddHediff(hediffDef);
+                        LogChange(pawn, added: true);
+                    }
                 }
                 else if (existing != null)
                 {
                     pawn.health.RemoveHediff(existing);
+                    LogChange(pawn, added: false);
                 }
             }
             catch (Exception e)
             {
                 Log.ErrorOnce("[DigitalStorage] 挂/摘数字存储背包失败（这台 pawn 跳过，其余照常）：" + e, 0x44534250);
             }
+        }
+
+        /// <summary>
+        /// 只在**真的挂上 / 摘掉**时打一行（且只在「启用详细日志」时）。
+        /// 存在的意义：招募 / 囚禁 / 奴役这些身份切换发生在几十个 tick 的流程里，
+        /// 玩家（和我们）需要在日志里看到"到底哪一步切了、当时判成什么"。
+        /// </summary>
+        private static void LogChange(Pawn pawn, bool added)
+        {
+            if (!DigitalStorage.Settings.DigitalStorageSettings.enableDebugLog) return;
+            if (pawn == null) return;
+
+            string who = pawn.LabelShortCap;
+            string faction = (pawn.Faction == null) ? "无派系" : pawn.Faction.Name;
+            Log.Warning("[DS] 数字存储背包 " + (added ? "挂上" : "摘掉") + "：" + who
+                + "（阵营=" + faction + (pawn.IsPrisoner ? "，囚犯" : (pawn.IsSlave ? "，奴隶" : "")) + "）");
         }
     }
 
