@@ -1,3 +1,4 @@
+using System.Globalization;
 using UnityEngine;
 using Verse;
 
@@ -31,6 +32,16 @@ namespace DigitalStorage.Settings
         /// （社区反馈：「禁止自动收纳后（瞬移搬运）就没有出现了」→ 给玩家开关）
         /// </summary>
         public static bool autoIngestEnabled = true;
+
+        /// <summary>
+        /// 是否把「数字存储背包」也挂给**殖民地机械族**（含别的 mod 的无人机 / 机器人）。
+        ///
+        /// <para>背包的唯一用途是让"从核心取料"这一跳变成 0 距离（机械族也会做 bill），
+        /// 所以默认开。但它是挂在**别人的 pawn** 上的一个 hediff —— 2026-10-03 有社区反馈
+        /// 怀疑某个机械族 mod 的 Tick/绘制异常与本 mod 有关，所以留这个开关让玩家一键对照：
+        /// 关掉后我们不再往机械族身上挂任何东西，其余功能（殖民者的背包）不受影响。</para>
+        /// </summary>
+        public static bool backpackForMechanoids = true;
 
         /// <summary>
         /// 原版热点的顺手优化，三块（详见 <c>Source/Performance/</c>）：
@@ -81,6 +92,7 @@ namespace DigitalStorage.Settings
             Scribe_Values.Look(ref researchMultiplier, "researchMultiplier", 1.0f);
             Scribe_Values.Look(ref enableDebugLog, "enableDebugLog", false);
             Scribe_Values.Look(ref autoIngestEnabled, "autoIngestEnabled", true);
+            Scribe_Values.Look(ref backpackForMechanoids, "backpackForMechanoids", true);
             Scribe_Values.Look(ref perfOptimizationsEnabled, "perfOptimizationsEnabled", true);
             Scribe_Values.Look(ref workerCompletionsPerTick, "workerCompletionsPerTick", 16);
             Scribe_Values.Look(ref fleckBudgetPerFrame, "fleckBudgetPerFrame", 500);
@@ -102,19 +114,19 @@ namespace DigitalStorage.Settings
             Text.Font = GameFont.Small;
             listing.Gap(12f);
 
-            listing.Label("DS_CostMultiplier".Translate(costMultiplier));
+            listing.Label("DS_CostMultiplier".Translate(FormatMultiplier(costMultiplier)));
             costMultiplier = MultiplierSlider(listing, costMultiplier, ref changed);
             listing.Gap(6f);
             listing.Label("DS_CostMultiplierDesc".Translate());
             listing.Gap(18f);
 
-            listing.Label("DS_PowerMultiplier".Translate(powerMultiplier));
+            listing.Label("DS_PowerMultiplier".Translate(FormatMultiplier(powerMultiplier)));
             powerMultiplier = MultiplierSlider(listing, powerMultiplier, ref changed);
             listing.Gap(6f);
             listing.Label("DS_PowerMultiplierDesc".Translate());
             listing.Gap(18f);
 
-            listing.Label("DS_ResearchMultiplier".Translate(researchMultiplier));
+            listing.Label("DS_ResearchMultiplier".Translate(FormatMultiplier(researchMultiplier)));
             researchMultiplier = MultiplierSlider(listing, researchMultiplier, ref changed);
             listing.Gap(6f);
             listing.Label("DS_ResearchMultiplierDesc".Translate());
@@ -127,6 +139,9 @@ namespace DigitalStorage.Settings
 
             listing.CheckboxLabeled("DS_AutoIngestToggle".Translate(), ref autoIngestEnabled,
                 "DS_AutoIngestToggleDesc".Translate());
+            listing.Gap(6f);
+            listing.CheckboxLabeled("DS_BackpackMechToggle".Translate(), ref backpackForMechanoids,
+                "DS_BackpackMechToggleDesc".Translate());
             listing.Gap(6f);
             listing.CheckboxLabeled("DS_PerfToggle".Translate(), ref perfOptimizationsEnabled,
                 "DS_PerfToggleDesc".Translate());
@@ -190,6 +205,16 @@ namespace DigitalStorage.Settings
                 }
             }
             return best;
+        }
+
+        /// <summary>
+        /// 把倍率自己拼成字符串再交给翻译串（<c>{0}</c>），**不要**在 keyed 里写
+        /// <c>{0:0.##}×</c> 这类格式说明符 —— 实测线上出现过"造价倍率: X"（数字没渲染出来），
+        /// 而且格式说明符还要看语言数据/语言包怎么处理。值自己格式化最稳。
+        /// </summary>
+        private static string FormatMultiplier(float mult)
+        {
+            return mult.ToString("0.###", CultureInfo.InvariantCulture) + "×";
         }
     }
 }

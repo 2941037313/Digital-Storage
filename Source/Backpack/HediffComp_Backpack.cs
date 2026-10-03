@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DigitalStorage.AI;
 using DigitalStorage.Components;
@@ -313,22 +314,31 @@ namespace DigitalStorage.Backpack
             base.CompPostTickInterval(ref severityAdjustment, delta);
             if (backpack == null || backpack.Count == 0) return;
 
-            Pawn pawn = Pawn;
-            if (pawn == null) return;
-
-            // 倒地 / 死亡：先退核心（干净），退不掉才落地
-            if (pawn.Dead || pawn.Downed)
+            // 这条路每 ~250 tick 会跑在**每一个**植入了背包的 pawn 身上（含别的 mod 的机械族），
+            // 所以整段自吞异常：我们只是顺手带个背包，绝不该有能力打断别人的 Tick。
+            try
             {
+                Pawn pawn = Pawn;
+                if (pawn == null) return;
+
+                // 倒地 / 死亡：先退核心（干净），退不掉才落地
+                if (pawn.Dead || pawn.Downed)
+                {
+                    ReturnContentsToCore();
+                    if (Count > 0) EjectAll();
+                    return;
+                }
+
+                // 正在做 bill：料还在用（取料 toil 之后、原版把料放到工作台之前的那几 tick）
+                Job cur = (pawn.jobs == null) ? null : pawn.jobs.curJob;
+                if (cur != null && cur.def == JobDefOf.DoBill) return;
+
                 ReturnContentsToCore();
-                if (Count > 0) EjectAll();
-                return;
             }
-
-            // 正在做 bill：料还在用（取料 toil 之后、原版把料放到工作台之前的那几 tick）
-            Job cur = (pawn.jobs == null) ? null : pawn.jobs.curJob;
-            if (cur != null && cur.def == JobDefOf.DoBill) return;
-
-            ReturnContentsToCore();
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] 背包清理失败（物品仍在背包里，不会丢）：" + e, 0x44534253);
+            }
         }
 
         // ===================================================================
@@ -356,8 +366,17 @@ namespace DigitalStorage.Backpack
         public override void CompPostPostRemoved()
         {
             base.CompPostPostRemoved();
-            // hediff 被移除（含死亡后清理）⇒ owner 即将消失，内容物必须先交出去
-            EjectAll();
+            // hediff 被移除（含死亡后清理）⇒ owner 即将消失，内容物必须先交出去。
+            // 同样自吞异常：移除 hediff 的时机由别人决定（读档、派系变更、SpawnSetup），
+            // 我们抛出去会把调用方打断在半路。
+            try
+            {
+                EjectAll();
+            }
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] 背包移除时清空失败（物品仍在背包对象里）：" + e, 0x44534254);
+            }
         }
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using HarmonyLib;
 using RimWorld;
 using Verse;
@@ -35,26 +36,46 @@ namespace DigitalStorage.Backpack
 
         internal static bool ShouldHave(Pawn pawn)
         {
-            if (pawn == null || pawn.health == null || pawn.health.hediffSet == null) return false;
+            if (pawn == null || pawn.def == null || pawn.RaceProps == null) return false;
+            if (pawn.health == null || pawn.health.hediffSet == null) return false;
+            if (pawn.Dead) return false; // 尸体不需要背包（死人身上的背包由 Kill 补丁清）
             if (pawn.Faction != Faction.OfPlayer) return false;
             if (pawn.IsPrisoner) return false; // 用户拍板：囚犯不给
-            return pawn.RaceProps.Humanlike || pawn.RaceProps.IsMechanoid;
+            if (pawn.RaceProps.Humanlike) return true;
+            // 机械族：默认也给（它们也会做 bill），但留一个开关给玩家对照排查 ——
+            // 背包是挂在**别人的 pawn** 上的 hediff，而机械族 mod 遍地都是。
+            return pawn.RaceProps.IsMechanoid && DigitalStorage.Settings.DigitalStorageSettings.backpackForMechanoids;
         }
 
-        /// <summary>幂等：该有的补上，不该有的摘掉。摘除会走 <c>CompPostPostRemoved</c>（内容物落地，防丢物）。</summary>
+        /// <summary>
+        /// 幂等：该有的补上，不该有的摘掉。摘除会走 <c>CompPostPostRemoved</c>（内容物落地，防丢物）。
+        ///
+        /// <para><b>整体 try/catch 是硬要求</b>：本方法挂在原版 <c>Pawn.SpawnSetup</c> 的 postfix 上，
+        /// 异常一旦从这里抛出去，那个 pawn 就是"生成到一半"，之后它自己的 Tick / 绘制会以
+        /// 「某个本该存在的组件/引用是 null」的形式炸 —— 症状看起来完全像是**别的 mod** 坏了
+        /// （2026-10-03 用户反馈的「米莉拉无人机/机器人 Tick/绘制 NRE」就是这个形状，值得先排除我们）。
+        /// 我们的背包只是"顺手带的"，绝不该有能力弄坏别的 mod 的 pawn。</para>
+        /// </summary>
         internal static void Sync(Pawn pawn)
         {
-            HediffDef hediffDef = Def;
-            if (hediffDef == null || pawn == null || pawn.health == null || pawn.health.hediffSet == null) return;
+            try
+            {
+                HediffDef hediffDef = Def;
+                if (hediffDef == null || pawn == null || pawn.health == null || pawn.health.hediffSet == null) return;
 
-            Hediff existing = pawn.health.hediffSet.GetFirstHediffOfDef(hediffDef);
-            if (ShouldHave(pawn))
-            {
-                if (existing == null) pawn.health.AddHediff(hediffDef);
+                Hediff existing = pawn.health.hediffSet.GetFirstHediffOfDef(hediffDef);
+                if (ShouldHave(pawn))
+                {
+                    if (existing == null) pawn.health.AddHediff(hediffDef);
+                }
+                else if (existing != null)
+                {
+                    pawn.health.RemoveHediff(existing);
+                }
             }
-            else if (existing != null)
+            catch (Exception e)
             {
-                pawn.health.RemoveHediff(existing);
+                Log.ErrorOnce("[DigitalStorage] 挂/摘数字存储背包失败（这台 pawn 跳过，其余照常）：" + e, 0x44534250);
             }
         }
     }
@@ -69,6 +90,7 @@ namespace DigitalStorage.Backpack
         [HarmonyPostfix]
         private static void Postfix(Pawn __instance)
         {
+            if (__instance == null) return;
             BackpackImplant.Sync(__instance);
             // 【这里原本有 StripLegacy30Chip —— 已随墓碑 Def 一起删除（用户 2026-10-02 拍板）】
             //
@@ -100,6 +122,7 @@ namespace DigitalStorage.Backpack
         [HarmonyPostfix]
         private static void Postfix(Pawn ___pawn)
         {
+            if (___pawn == null) return;
             BackpackImplant.Sync(___pawn);
         }
     }
@@ -121,11 +144,19 @@ namespace DigitalStorage.Backpack
         [HarmonyPostfix]
         private static void Postfix(Pawn __instance)
         {
-            HediffComp_Backpack bag = HediffComp_Backpack.For(__instance);
-            if (bag == null || bag.Count == 0) return;
+            // 死亡路径同样不能抛：挂在原版 Pawn.Kill 上，抛出去会让"死亡处理"停在半路。
+            try
+            {
+                HediffComp_Backpack bag = HediffComp_Backpack.For(__instance);
+                if (bag == null || bag.Count == 0) return;
 
-            bag.ReturnContentsToCore();
-            if (bag.Count > 0) bag.EjectAll();
+                bag.ReturnContentsToCore();
+                if (bag.Count > 0) bag.EjectAll();
+            }
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] 死亡时清空背包失败（物品仍留在背包里，不会丢）：" + e, 0x44534251);
+            }
         }
     }
 }

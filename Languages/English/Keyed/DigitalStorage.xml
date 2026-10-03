@@ -37,16 +37,14 @@
   <DS_Confirm>Confirm</DS_Confirm>
   <DS_Cancel>Cancel</DS_Cancel>
 
-  <!-- ========== CompUseEffect_TerminalImplant ========== -->
-
   <!-- ========== Settings ========== -->
   <DS_SettingsCategory>Digital Storage 4.0</DS_SettingsCategory>
   <DS_CostSettings>Multipliers</DS_CostSettings>
-  <DS_CostMultiplier>Cost multiplier: {0:0.##}x</DS_CostMultiplier>
+  <DS_CostMultiplier>Cost multiplier: {0}</DS_CostMultiplier>
   <DS_CostMultiplierDesc>Range 1/100 to 100x. Build material cost of every building, floor and item; applies as soon as you let go (blueprints already placed keep the price they were placed at).</DS_CostMultiplierDesc>
-  <DS_PowerMultiplier>Power multiplier: {0:0.##}x</DS_PowerMultiplier>
+  <DS_PowerMultiplier>Power multiplier: {0}</DS_PowerMultiplier>
   <DS_PowerMultiplierDesc>Range 1/100 to 100x. Electricity consumption of every building; applies as soon as you let go. Generator output is unaffected.</DS_PowerMultiplierDesc>
-  <DS_ResearchMultiplier>Research cost multiplier: {0:0.##}x</DS_ResearchMultiplier>
+  <DS_ResearchMultiplier>Research cost multiplier: {0}</DS_ResearchMultiplier>
   <DS_ResearchMultiplierDesc>Range 1/100 to 100x. Research points required for every project; applies as soon as you let go.</DS_ResearchMultiplierDesc>
   <DS_DebugSettings>Debug settings</DS_DebugSettings>
   <DS_EnableDebugLog>Enable detailed log</DS_EnableDebugLog>
@@ -56,6 +54,8 @@
   <DS_AccessSettings>Access &amp; automation</DS_AccessSettings>
   <DS_AutoIngestToggle>Auto-ingest</DS_AutoIngestToggle>
   <DS_AutoIngestToggleDesc>Allow cores to absorb loose items automatically instead of waiting for a hauler. Turn this off if items seem to teleport around the map.</DS_AutoIngestToggleDesc>
+  <DS_BackpackMechToggle>Backpack on mechanoids</DS_BackpackMechToggle>
+  <DS_BackpackMechToggleDesc>Also put the digital storage backpack on colony mechanoids (including drones and robots from other mods). On by default. If you suspect a mechanoid mod is conflicting with this one, turn it off so nothing of ours is attached to mechanoids at all (colonists are unaffected) - a one-click A/B test.</DS_BackpackMechToggleDesc>
   <DS_PerfToggle>Vanilla performance fixes</DS_PerfToggle>
   <DS_PerfToggleDesc>Fixes three vanilla hot spots that show up when you drag-select or designate a lot: selection brackets are culled outside the camera view, designation icons are updated incrementally instead of being fully rebuilt every frame, and the "meta puff" fleck burst from mass designating is capped per tick. Pure performance, no gameplay change. Turn off to compare against vanilla behavior.</DS_PerfToggleDesc>
   <DS_WorkerBudget>Proxy workers: max {0} completions per tick (0 = unlimited)</DS_WorkerBudget>

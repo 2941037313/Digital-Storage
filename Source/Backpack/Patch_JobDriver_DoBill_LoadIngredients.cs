@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DigitalStorage.Components;
 using HarmonyLib;
@@ -62,6 +63,21 @@ namespace DigitalStorage.Backpack
             Toil toil = ToilMaker.MakeToil("DS_LoadBillIngredients");
             toil.defaultCompleteMode = ToilCompleteMode.Instant;
             toil.initAction = delegate
+            {
+                LoadIngredients(toil);
+            };
+            return toil;
+        }
+
+        /// <summary>
+        /// 取料本体。**整段 try/catch 是硬要求**：这个 toil 被前置进**每一个** DoBill 作业
+        /// （<c>JobDriver_DoBill.MakeNewToils</c>），异常一旦抛出去，这个 pawn 的每一条 bill 作业
+        /// 都会在第一步就失败 —— 玩家看到的就是"这个小人干不了活"。
+        /// 失败时什么都不做：原版后面的 toil 照旧走"走到核心去拿"的老路，最坏只是慢。
+        /// </summary>
+        private static void LoadIngredients(Toil toil)
+        {
+            try
             {
                 Pawn actor = toil.actor;
                 if (actor == null) return;
@@ -159,8 +175,11 @@ namespace DigitalStorage.Backpack
                             actorMap.reservationManager.Release(t, actor, job);
                     }
                 }
-            };
-            return toil;
+            }
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] bill 取料（背包）失败，本作业退回原版路径：" + e, 0x44534252);
+            }
         }
     }
 }

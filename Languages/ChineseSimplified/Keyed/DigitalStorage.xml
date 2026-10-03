@@ -37,16 +37,14 @@
   <DS_Confirm>确定</DS_Confirm>
   <DS_Cancel>取消</DS_Cancel>
 
-  <!-- ========== CompUseEffect_TerminalImplant ========== -->
-
   <!-- ========== Settings ========== -->
   <DS_SettingsCategory>数字存储 Digital Storage 4.0</DS_SettingsCategory>
   <DS_CostSettings>倍率设置</DS_CostSettings>
-  <DS_CostMultiplier>造价倍率: {0:0.##}×</DS_CostMultiplier>
+  <DS_CostMultiplier>造价倍率: {0}</DS_CostMultiplier>
   <DS_CostMultiplierDesc>范围 1/100 ~ 100×。所有建筑、地板与物品的建造材料消耗，拖完立刻生效（已经放下的蓝图沿用当时的价格）。</DS_CostMultiplierDesc>
-  <DS_PowerMultiplier>电力倍率: {0:0.##}×</DS_PowerMultiplier>
+  <DS_PowerMultiplier>电力倍率: {0}</DS_PowerMultiplier>
   <DS_PowerMultiplierDesc>范围 1/100 ~ 100×。所有建筑的耗电量，拖完立刻生效；发电机出力不受影响。</DS_PowerMultiplierDesc>
-  <DS_ResearchMultiplier>研究点数倍率: {0:0.##}×</DS_ResearchMultiplier>
+  <DS_ResearchMultiplier>研究点数倍率: {0}</DS_ResearchMultiplier>
   <DS_ResearchMultiplierDesc>范围 1/100 ~ 100×。所有研究的所需点数，拖完立刻生效。</DS_ResearchMultiplierDesc>
   <DS_DebugSettings>调试设置</DS_DebugSettings>
   <DS_EnableDebugLog>启用详细日志</DS_EnableDebugLog>
@@ -56,6 +54,8 @@
   <DS_AccessSettings>访问与自动化</DS_AccessSettings>
   <DS_AutoIngestToggle>自动收纳</DS_AutoIngestToggle>
   <DS_AutoIngestToggleDesc>允许核心自动吸收附近散落物品，无需搬运工。若发现物品在地图上"瞬移"，关闭此项。</DS_AutoIngestToggleDesc>
+  <DS_BackpackMechToggle>机械族也挂背包</DS_BackpackMechToggle>
+  <DS_BackpackMechToggleDesc>数字存储背包也会挂给殖民地机械族（含其它 mod 的无人机 / 机器人），默认开。若怀疑某个机械族 mod 的报错与本 mod 有关，关掉它即可让机械族身上不再有任何本 mod 的东西（殖民者不受影响），用于一键对照。</DS_BackpackMechToggleDesc>
   <DS_PerfToggle>原版性能修复</DS_PerfToggle>
   <DS_PerfToggleDesc>修三个原版热点（在你框选/标记很多目标时会明显卡顿）：视野外的选中括号不再绘制；标记图标改为增量更新，而不是原版那样每帧把整张图的标记重算一遍；批量标记时喷的"元气泡"改为每 tick 限量。纯性能，不改玩法。关掉可对比原版行为。</DS_PerfToggleDesc>
   <DS_WorkerBudget>代理建筑：每 tick 最多完成 {0} 件（0 = 无限制）</DS_WorkerBudget>
