@@ -41,9 +41,13 @@
 
   <!-- ========== Settings ========== -->
   <DS_SettingsCategory>Digital Storage 4.0</DS_SettingsCategory>
-  <DS_CostSettings>Cost settings</DS_CostSettings>
-  <DS_CostMultiplier>Cost multiplier: {0:F1}x</DS_CostMultiplier>
-  <DS_CostMultiplierDesc>Adjust material cost for all buildings and items.</DS_CostMultiplierDesc>
+  <DS_CostSettings>Multipliers</DS_CostSettings>
+  <DS_CostMultiplier>Cost multiplier: {0:0.##}x</DS_CostMultiplier>
+  <DS_CostMultiplierDesc>Range 1/100 to 100x. Build material cost of every building, floor and item; applies as soon as you let go (blueprints already placed keep the price they were placed at).</DS_CostMultiplierDesc>
+  <DS_PowerMultiplier>Power multiplier: {0:0.##}x</DS_PowerMultiplier>
+  <DS_PowerMultiplierDesc>Range 1/100 to 100x. Electricity consumption of every building; applies as soon as you let go. Generator output is unaffected.</DS_PowerMultiplierDesc>
+  <DS_ResearchMultiplier>Research cost multiplier: {0:0.##}x</DS_ResearchMultiplier>
+  <DS_ResearchMultiplierDesc>Range 1/100 to 100x. Research points required for every project; applies as soon as you let go.</DS_ResearchMultiplierDesc>
   <DS_DebugSettings>Debug settings</DS_DebugSettings>
   <DS_EnableDebugLog>Enable detailed log</DS_EnableDebugLog>
   <DS_EnableDebugLogDesc>Print detailed debug information to the log.</DS_EnableDebugLogDesc>

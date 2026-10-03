@@ -4,11 +4,24 @@ using Verse;
 namespace DigitalStorage.Settings
 {
     /// <summary>
-    /// Mod 设置：造价倍率、日志开关、以及社区反馈要求的访问/收纳开关。
+    /// Mod 设置：三个<b>数值倍率</b>（造价 / 电力 / 研究点数）、日志开关、以及社区反馈要求的访问/收纳开关。
+    ///
+    /// <para>倍率都是**全局**的（含原版与其它 mod），施加逻辑见 <see cref="DefMultipliers"/> ——
+    /// 这里只负责改值 + 立刻施加。滑条是<b>离散档位</b>（<see cref="MultiplierLadder"/>）：
+    /// 1/100 ~ 100× 跨了四个数量级，线性滑条会让"1×"挤在 1% 的位置上没法用，
+    /// 所以档位按等比铺开，两端都点得到。</para>
     /// </summary>
     public class DigitalStorageSettings : ModSettings
     {
+        /// <summary>造价倍率：所有建筑 / 地板 / 物品的建造材料。</summary>
         public static float costMultiplier = 1.0f;
+
+        /// <summary>电力倍率：所有建筑的耗电量（发电不受影响）。</summary>
+        public static float powerMultiplier = 1.0f;
+
+        /// <summary>研究点数倍率：所有研究的所需点数。</summary>
+        public static float researchMultiplier = 1.0f;
+
         public static bool enableDebugLog = false;
 
         /// <summary>
@@ -51,15 +64,30 @@ namespace DigitalStorage.Settings
         /// </summary>
         public static int fleckBudgetPerFrame = 500;
 
+        /// <summary>
+        /// 倍率档位：1/100 到 100× 等比铺开 18 档，两端都点得到，中间全是round数。
+        /// 顺序必须递增（滑条按下标取值）。
+        /// </summary>
+        private static readonly float[] MultiplierLadder =
+        {
+            0.01f, 0.02f, 0.05f, 0.1f, 0.15f, 0.2f, 0.3f, 0.5f, 0.75f,
+            1f, 1.5f, 2f, 3f, 5f, 10f, 20f, 50f, 100f
+        };
+
         public override void ExposeData()
         {
             Scribe_Values.Look(ref costMultiplier, "costMultiplier", 1.0f);
+            Scribe_Values.Look(ref powerMultiplier, "powerMultiplier", 1.0f);
+            Scribe_Values.Look(ref researchMultiplier, "researchMultiplier", 1.0f);
             Scribe_Values.Look(ref enableDebugLog, "enableDebugLog", false);
             Scribe_Values.Look(ref autoIngestEnabled, "autoIngestEnabled", true);
             Scribe_Values.Look(ref perfOptimizationsEnabled, "perfOptimizationsEnabled", true);
             Scribe_Values.Look(ref workerCompletionsPerTick, "workerCompletionsPerTick", 16);
             Scribe_Values.Look(ref fleckBudgetPerFrame, "fleckBudgetPerFrame", 500);
             base.ExposeData();
+
+            // 不在这里施加：读设置文件可能早于 XML 解析（DefDatabase 还空着）。
+            // 施加由 [StaticConstructorOnStartup]（DefMultipliers 静态构造）与下面的滑条负责。
         }
 
         public static void DoSettingsWindowContents(Rect inRect)
@@ -67,15 +95,29 @@ namespace DigitalStorage.Settings
             var listing = new Listing_Standard();
             listing.Begin(inRect);
 
+            bool changed = false;
+
             Text.Font = GameFont.Medium;
             listing.Label("DS_CostSettings".Translate());
             Text.Font = GameFont.Small;
             listing.Gap(12f);
 
             listing.Label("DS_CostMultiplier".Translate(costMultiplier));
-            costMultiplier = listing.Slider(costMultiplier, 0.1f, 20f);
+            costMultiplier = MultiplierSlider(listing, costMultiplier, ref changed);
             listing.Gap(6f);
             listing.Label("DS_CostMultiplierDesc".Translate());
+            listing.Gap(18f);
+
+            listing.Label("DS_PowerMultiplier".Translate(powerMultiplier));
+            powerMultiplier = MultiplierSlider(listing, powerMultiplier, ref changed);
+            listing.Gap(6f);
+            listing.Label("DS_PowerMultiplierDesc".Translate());
+            listing.Gap(18f);
+
+            listing.Label("DS_ResearchMultiplier".Translate(researchMultiplier));
+            researchMultiplier = MultiplierSlider(listing, researchMultiplier, ref changed);
+            listing.Gap(6f);
+            listing.Label("DS_ResearchMultiplierDesc".Translate());
             listing.Gap(24f);
 
             Text.Font = GameFont.Medium;
@@ -111,6 +153,43 @@ namespace DigitalStorage.Settings
                 "DS_EnableDebugLogDesc".Translate());
 
             listing.End();
+
+            // 离散档位 ⇒ 一次拖动最多触发十几次，代价可以忽略（改完立刻生效：造价/研究改 def、
+            // 电力把已建成建筑的 PowerOutput 重算一遍）。
+            if (changed) DefMultipliers.ApplyAll();
+        }
+
+        /// <summary>
+        /// 倍率滑条：滑的是**档位下标**，返回值是档位对应的倍率。
+        /// 当前值不在档位上时（老存档里的 0.37 之类）取最近档显示，但**不动**玩家的值 ——
+        /// 只有真的拖了才落到档位上。
+        /// </summary>
+        private static float MultiplierSlider(Listing_Standard listing, float current, ref bool changed)
+        {
+            int index = NearestLadderIndex(current);
+            float value = Widgets.HorizontalSlider(listing.GetRect(22f), index, 0f,
+                MultiplierLadder.Length - 1, true, null, null, null, 1f);
+            int newIndex = Mathf.Clamp(Mathf.RoundToInt(value), 0, MultiplierLadder.Length - 1);
+
+            float result = MultiplierLadder[newIndex];
+            if (!Mathf.Approximately(result, current)) changed = true;
+            return result;
+        }
+
+        private static int NearestLadderIndex(float value)
+        {
+            int best = 0;
+            float bestDelta = float.MaxValue;
+            for (int i = 0; i < MultiplierLadder.Length; i++)
+            {
+                float delta = Mathf.Abs(MultiplierLadder[i] - value);
+                if (delta < bestDelta)
+                {
+                    bestDelta = delta;
+                    best = i;
+                }
+            }
+            return best;
         }
     }
 }

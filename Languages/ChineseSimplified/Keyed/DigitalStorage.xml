@@ -41,9 +41,13 @@
 
   <!-- ========== Settings ========== -->
   <DS_SettingsCategory>数字存储 Digital Storage 4.0</DS_SettingsCategory>
-  <DS_CostSettings>造价设置</DS_CostSettings>
-  <DS_CostMultiplier>造价倍率: {0:F1}x</DS_CostMultiplier>
-  <DS_CostMultiplierDesc>调整所有建筑和物品的材料消耗</DS_CostMultiplierDesc>
+  <DS_CostSettings>倍率设置</DS_CostSettings>
+  <DS_CostMultiplier>造价倍率: {0:0.##}×</DS_CostMultiplier>
+  <DS_CostMultiplierDesc>范围 1/100 ~ 100×。所有建筑、地板与物品的建造材料消耗，拖完立刻生效（已经放下的蓝图沿用当时的价格）。</DS_CostMultiplierDesc>
+  <DS_PowerMultiplier>电力倍率: {0:0.##}×</DS_PowerMultiplier>
+  <DS_PowerMultiplierDesc>范围 1/100 ~ 100×。所有建筑的耗电量，拖完立刻生效；发电机出力不受影响。</DS_PowerMultiplierDesc>
+  <DS_ResearchMultiplier>研究点数倍率: {0:0.##}×</DS_ResearchMultiplier>
+  <DS_ResearchMultiplierDesc>范围 1/100 ~ 100×。所有研究的所需点数，拖完立刻生效。</DS_ResearchMultiplierDesc>
   <DS_DebugSettings>调试设置</DS_DebugSettings>
   <DS_EnableDebugLog>启用详细日志</DS_EnableDebugLog>
   <DS_EnableDebugLogDesc>在日志中显示详细的调试信息</DS_EnableDebugLogDesc>

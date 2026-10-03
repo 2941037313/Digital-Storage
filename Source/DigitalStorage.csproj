@@ -140,6 +140,7 @@
     <Compile Include="HarmonyPatches\Patch_GenPlace_DropRedirect.cs" />
     <Compile Include="HarmonyPatches\Patch_Building_SubcoreScanner_SupplyFromCore.cs" />
     <Compile Include="HarmonyPatches\Patch_Building_GrowthVat_SupplyFromCore.cs" />
+    <Compile Include="HarmonyPatches\Patch_PowerMultiplier.cs" />
     <Compile Include="HarmonyPatches\Patch_QualityUtility_SuppressCraftLetter.cs" />
 
     <!-- 原版热点优化（不是本 mod 的功能补丁，纯粹治原版在"框选一堆/标记一堆"时的每帧开销） -->
@@ -150,6 +151,7 @@
     <Compile Include="Performance\DevDrawProfiler.cs" />
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />
+    <Compile Include="Settings\DefMultipliers.cs" />
 
     <Compile Include="Services\DigitalStorageGameComponent.cs" />
     <Compile Include="Services\MapComponent_CraftRange.cs" />
