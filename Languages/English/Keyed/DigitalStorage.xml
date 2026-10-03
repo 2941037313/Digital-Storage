@@ -107,7 +107,6 @@
   <DS_BA_PlanFinished>finished</DS_BA_PlanFinished>
   <DS_BA_PlanDone>Order finished: {0} ({1} produced)</DS_BA_PlanDone>
   <DS_BA_Empty>No recipes yet. Click "Add recipe…" and pick one from what the benches in range can craft.</DS_BA_Empty>
-  <DS_BA_NoBench>No usable bench in range</DS_BA_NoBench>
   <DS_BA_NoRecipeAvailable>Nothing to add - no bench in this 13x13 can craft anything (or those recipes are not researched yet).</DS_BA_NoRecipeAvailable>
   <DS_BA_AlreadyAdded>already added</DS_BA_AlreadyAdded>
   <DS_BA_ClickToAdd>click to add</DS_BA_ClickToAdd>

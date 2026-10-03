@@ -93,7 +93,7 @@ namespace DigitalStorage.UI
                 else if (plan.suspended) tail = "DS_BA_Suspended".Translate().ToString();
                 else if (plan.mode == CraftPlan.ModeTarget && plan.paused) tail = plan.countedCount + "/" + plan.targetCount;
                 else if (first != null && first.HasWork) tail = (first.Progress01 * 100f).ToString("0") + "%";
-                else tail = "DS_BA_NoBench".Translate().ToString();
+                else tail = "DS_CA_Waiting".Translate().ToString();
 
                 Widgets.Label(new Rect(rect.x, rect.y + y, rect.width - 46f, 20f), label);
                 Text.Anchor = TextAnchor.MiddleRight;

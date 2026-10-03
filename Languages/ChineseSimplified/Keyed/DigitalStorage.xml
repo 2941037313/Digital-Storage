@@ -107,7 +107,6 @@
   <DS_BA_PlanFinished>已完成</DS_BA_PlanFinished>
   <DS_BA_PlanDone>「{0}」订单完成（共 {1} 件）</DS_BA_PlanDone>
   <DS_BA_Empty>还没有配方。点右上角「添加配方…」，从范围内工作台能做的配方里挑一个。</DS_BA_Empty>
-  <DS_BA_NoBench>范围内没有可用的工作台</DS_BA_NoBench>
   <DS_BA_NoRecipeAvailable>没有可添加的配方 —— 这个 13×13 范围内没有能做东西的工作台（或那些配方都还没研究出来）。</DS_BA_NoRecipeAvailable>
   <DS_BA_AlreadyAdded>已添加</DS_BA_AlreadyAdded>
   <DS_BA_ClickToAdd>点击添加</DS_BA_ClickToAdd>
