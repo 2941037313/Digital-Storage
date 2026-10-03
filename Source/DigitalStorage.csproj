@@ -137,6 +137,7 @@
     <Compile Include="HarmonyPatches\Patch_MakeLordsAsAppropriate_InstantLoad.cs" />
     <Compile Include="HarmonyPatches\Patch_ReservationManager_CanReserve.cs" />
     <Compile Include="HarmonyPatches\Patch_GenPlace_DropRedirect.cs" />
+    <Compile Include="HarmonyPatches\Patch_Building_SubcoreScanner_SupplyFromCore.cs" />
     <Compile Include="HarmonyPatches\Patch_QualityUtility_SuppressCraftLetter.cs" />
 
     <!-- 原版热点优化（不是本 mod 的功能补丁，纯粹治原版在"框选一堆/标记一堆"时的每帧开销） -->
