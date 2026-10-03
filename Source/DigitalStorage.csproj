@@ -76,6 +76,7 @@
     <Compile Include="Core\ItemGroup.cs" />
     <Compile Include="Core\ContainerAutoLoader.cs" />
     <Compile Include="Core\DigitalDropRedirect.cs" />
+    <Compile Include="Core\CoreSupply.cs" />
 
     <Compile Include="AI\DigitalStorage_JobDefOf.cs" />
     <Compile Include="AI\JobDriver_DS_Withdraw.cs" />
@@ -138,6 +139,7 @@
     <Compile Include="HarmonyPatches\Patch_ReservationManager_CanReserve.cs" />
     <Compile Include="HarmonyPatches\Patch_GenPlace_DropRedirect.cs" />
     <Compile Include="HarmonyPatches\Patch_Building_SubcoreScanner_SupplyFromCore.cs" />
+    <Compile Include="HarmonyPatches\Patch_Building_GrowthVat_SupplyFromCore.cs" />
     <Compile Include="HarmonyPatches\Patch_QualityUtility_SuppressCraftLetter.cs" />
 
     <!-- 原版热点优化（不是本 mod 的功能补丁，纯粹治原版在"框选一堆/标记一堆"时的每帧开销） -->
@@ -151,6 +153,7 @@
 
     <Compile Include="Services\DigitalStorageGameComponent.cs" />
     <Compile Include="Services\MapComponent_CraftRange.cs" />
+    <Compile Include="Services\MapComponent_HopperSupply.cs" />
 
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
