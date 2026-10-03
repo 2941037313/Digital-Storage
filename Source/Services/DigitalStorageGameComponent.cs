@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using DigitalStorage.Backpack;
 using RimWorld;
 using Verse;
 
@@ -14,12 +16,47 @@ namespace DigitalStorage.Services
     /// ⇒ 从 3.0 升上来的玩家**照样会看到这封信**（这正是我们要的）。</para>
     ///
     /// <para>信本身用 <c>LetterDefOf.NeutralEvent</c>，不需要自定义 LetterDef。</para>
+    ///
+    /// <para><b>第二个职责：背包对账</b>（见 <see cref="GameComponentTick"/>）。</para>
     /// </summary>
     public class DigitalStorageGameComponent : GameComponent
     {
         private bool shown40Letter;
 
+        /// <summary>对账周期（tick）。250 ≈ 4 秒。</summary>
+        private const int ReconcileInterval = 250;
+
         public DigitalStorageGameComponent(Game game) { }
+
+        public override void GameComponentTick()
+        {
+            base.GameComponentTick();
+
+            // 「谁该有数字存储背包」的**周期性对账**。
+            //
+            // 为什么不能只靠事件钩子：① 原版招募那一步的顺序很坑 —— RecruitUtility.Recruit 先
+            // guest.SetGuestStatus(null) 再 pawn.SetFaction(player)（RecruitUtility.cs:24-27），
+            // 挂在 SetGuestStatus 上的钩子跑在**换阵营之前**，那一瞬间看到的是旧阵营 ⇒ 判定"不该有"
+            // （2026-10-03 用户反馈"招募囚犯后不加背包"就是它）；② 任何"换了阵营却不走 Pawn.SetFaction"
+            // 的第三方路径都会漏。对账一次只花"pawn 数 × 一次 hediff 查表"，4 秒一次，最便宜的自愈。
+            if (Find.TickManager == null || Find.TickManager.TicksGame % ReconcileInterval != 0) return;
+
+            List<Map> maps = Find.Maps;
+            if (maps == null) return;
+
+            for (int i = 0; i < maps.Count; i++)
+            {
+                Map map = maps[i];
+                if (map == null || map.mapPawns == null) continue;
+
+                IReadOnlyList<Pawn> pawns = map.mapPawns.AllPawnsSpawned;
+                for (int j = 0; j < pawns.Count; j++)
+                {
+                    // Sync 自带判据与 try/catch：不归我们管的 pawn 一次字段判空就返回。
+                    BackpackImplant.Sync(pawns[j]);
+                }
+            }
+        }
 
         public override void FinalizeInit()
         {

@@ -108,12 +108,14 @@ namespace DigitalStorage.Backpack
     }
 
     /// <summary>
-    /// 囚犯 ↔ 殖民者的**身份切换点**。
+    /// 囚犯 ↔ 殖民者的**身份切换点**（guest 状态那一半）。
     ///
-    /// <para>只挂 <c>SpawnSetup</c> 会漏掉"游戏中途被俘 / 被招募"（两者都不重新 Spawn）：
-    /// 被俘的殖民者会**留着**背包，被招募的囚犯要等下次读档才拿到。
-    /// <c>Pawn_GuestTracker.SetGuestStatus</c> 是权威切换点（俘虏 = 玩家派系 + Prisoner；
-    /// 招募 = 清空 guest 状态），postfix 时状态已经落定，两个方向都能判对。</para>
+    /// <para>⚠️ <b>这个钩子单独用不够</b>（2026-10-03 用户反馈「招募囚犯后不会加背包」就是它）：
+    /// 招募时它跑得<b>早了一步</b> —— 见 <see cref="Patch_BackpackOnFactionChanged"/> 里的解释。
+    /// 但它对"囚犯 ↔ 奴隶"这种**阵营不变、只有 guest 状态变**的切换仍然是对的那个点，
+    /// 所以两个钩子都留着（<c>Sync</c> 幂等，重复调用无副作用）。</para>
+    ///
+    /// <para>只挂 <c>SpawnSetup</c> 会漏掉"游戏中途被俘 / 被招募 / 被买奴"（都不重新 Spawn）。</para>
     /// </summary>
     [HarmonyPatch(typeof(Pawn_GuestTracker), "SetGuestStatus")]
     internal static class Patch_BackpackOnGuestStatusChanged
@@ -124,6 +126,35 @@ namespace DigitalStorage.Backpack
         {
             if (___pawn == null) return;
             BackpackImplant.Sync(___pawn);
+        }
+    }
+
+    /// <summary>
+    /// <b>阵营变更点</b>：<c>Pawn.SetFaction</c> 的 postfix —— <b>招募的正确钩子</b>。
+    ///
+    /// <para><b>为什么必须补这一条</b>：<c>RecruitUtility.Recruit</c>
+    /// （<c>RecruitUtility.cs:24-27</c>）的顺序是</para>
+    /// <code>
+    /// if (pawn.guest != null) pawn.guest.SetGuestStatus(null);        // ① 先清 guest 状态
+    /// if (pawn.Faction != faction) pawn.SetFaction(faction, recruiter); // ② 再换阵营
+    /// </code>
+    /// <para>只挂 <c>SetGuestStatus</c> 的话，我们的 postfix 在 <b>①</b> 跑 —— 那一刻
+    /// <c>pawn.Faction</c> 还是**原来那个敌对阵营**，于是
+    /// <c>BackpackImplant.Sync</c> 判定"不该有" ⇒ 什么都不做；等 <b>②</b> 把阵营换成玩家时，
+    /// 已经没有任何钩子会再调一次 <c>Sync</c> ⇒ <b>招募来的小人一直没有背包</b>
+    /// （要等下次读档 / 重新 Spawn 才补上）。用户 2026-10-03 反馈的正是这个。</para>
+    ///
+    /// <para>挂 <c>SetFaction</c> 之后，招募 / 被俘 / 买奴 / 释放 / 加入派系 全部会自动重算
+    /// （<c>Sync</c> 幂等，且判据只看"当前 Faction + 是不是囚犯"）。</para>
+    /// </summary>
+    [HarmonyPatch(typeof(Pawn), "SetFaction")]
+    internal static class Patch_BackpackOnFactionChanged
+    {
+        [HarmonyPostfix]
+        private static void Postfix(Pawn __instance)
+        {
+            if (__instance == null) return;
+            BackpackImplant.Sync(__instance);
         }
     }
 
