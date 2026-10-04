@@ -1,18 +1,16 @@
-/.claude
+# 开发 / 私人文件，不随 public 发布
 /.claude
 /.codex
-.claude/settings.local.json
-.codex/hooks.json
-.claude/settings.local.json
-/Docs
-/Docs
-log.txt
-.claude/settings.local.json
-AGENTS.md
+/.memoria
 /memoria
-
-# 私人文件,不随 public 发布 (8.1)
 CLAUDE.md
+AGENTS.md
+log.txt
+
+# 内部文档（唯一例外：Docs/开发日志.md 已入库，作为开发历史保留）
+/Docs
+
+# 构建产物
 Source/bin/
 Source/obj/
 Source/.sonarqube/

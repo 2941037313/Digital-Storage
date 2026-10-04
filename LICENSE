@@ -1,7 +1,11 @@
 数字存储 Digital Storage — 自定义许可协议 (DS License)
+版本 1.1（2026-10-03）
 
 版权所有 (C) 2026 Cagier.阳 (CagierAsh123)
-源仓库: https://github.com/CagierAsh123/Digital-Storage
+源仓库（主仓库）: https://github.com/CagierAsh123/Digital-Storage
+
+一句话摘要：**非商用 + 必须署名（作者与主仓库）+ 衍生作品必须开源并以本协议发布。**
+（本摘要仅为便于阅读，实际以下方条款为准。）
 
 【允许】
 - 自由使用、修改、复制、分发本模组（非商用）
@@ -9,15 +13,22 @@
 - 参考、借鉴、引用本模组代码（非商用）
 
 【必须遵守】
-1. 禁止商用：不得以任何形式利用本模组获取直接或间接的商业利益，
-   包括但不限于：付费下载、订阅收费、打赏/捐赠墙、广告收入、
-   捆绑付费产品等。
+1. 禁止商用：不得以任何形式利用本模组（或其衍生作品）获取直接或间接的商业利益，
+   包括但不限于：付费下载、订阅收费、打赏 / 捐赠墙、广告收入、
+   捆绑付费产品、付费整合包 / 服务器特权等。
 2. 署名与来源：分发、修改、衍生、参考本模组的任何作品（含代码片段），
-   必须明确标注原作者，并提供本仓库源地址：
+   必须明确标注原作者（Cagier.阳 / CagierAsh123）并提供主仓库地址：
    https://github.com/CagierAsh123/Digital-Storage
-   标注需在作品的文档、README 或关于页面中清晰可见。
-3. 衍生作品同样适用：任何基于本模组的衍生作品在分发时，必须注明
-   源仓库地址，并遵守本协议全部条款。
+   标注需在作品的文档、README、关于页面或创意工坊描述中清晰可见。
+3. 衍生作品同样适用本协议：任何基于本模组的衍生作品在分发时，必须
+   ① 注明主仓库地址与原作者；② 遵守本协议全部条款；
+   ③ 以本协议（或与之等效的「非商用 + 署名 + 相同方式共享」协议）发布，
+   不得附加任何额外限制。
+4. 衍生作品必须开源：分发衍生作品（含修改版、整合版、只改数值的版本）时，
+   必须同时以公开、可自由获取的方式提供其**完整源代码**（即改动后的源码，
+   含 .cs / .xml 等全部源文件），不得只分发编译产物（.dll 等）。
+   公开渠道可以是主仓库的分支 / 你自己的公开仓库 / 随作品一并发布的源码包。
+   仅在自己服务器或私群内部分发、不公开源码的，视为违反本协议。
 
 【免责声明】
 本模组按"现状"提供，不提供任何明示或暗示的担保。
@@ -26,9 +37,13 @@
 ---
 
 Digital Storage — Custom License (DS License)
+Version 1.1 (2026-10-03)
 
 Copyright (c) 2026 Cagier.阳 (CagierAsh123)
 Source repository: https://github.com/CagierAsh123/Digital-Storage
+
+Summary: **non-commercial + attribution (author and main repository) + derivatives must be
+open source and released under this license.** (Summary only; the terms below govern.)
 
 【Permitted】
 - Free use, modification, copying and distribution of this mod (non-commercial)
@@ -36,17 +51,27 @@ Source repository: https://github.com/CagierAsh123/Digital-Storage
 - Referencing, borrowing or citing code from this mod (non-commercial)
 
 【Obligations】
-1. Non-commercial only: no direct or indirect commercial gain from this mod
-   in any form, including but not limited to: paid downloads, subscriptions,
-   tip/donation walls, ad revenue, bundling with paid products.
+1. Non-commercial only: no direct or indirect commercial gain from this mod or any
+   derivative of it, including but not limited to: paid downloads, subscriptions,
+   tip/donation walls, ad revenue, bundling with paid products, paid modpacks or
+   paid server perks.
 2. Attribution: any work (including code snippets) that distributes, modifies,
-   derives from, or references this mod must clearly credit the original
-   author and provide the source repository:
+   derives from, or references this mod must clearly credit the original author
+   (Cagier.阳 / CagierAsh123) and provide the main repository:
    https://github.com/CagierAsh123/Digital-Storage
-   The attribution must be visible in the work's documentation, README or
-   About page.
-3. Derivatives inherit this license: any derivative work must state the
-   source repository and comply with all terms of this license.
+   The attribution must be visible in the work's documentation, README, About page
+   or Workshop description.
+3. Derivatives inherit this license: any derivative work must (a) state the main
+   repository and the original author, (b) comply with all terms of this license,
+   and (c) be released under this license or an equivalent
+   non-commercial + attribution + share-alike license, with no additional
+   restrictions.
+4. Derivatives must be open source: when you distribute a derivative work
+   (modified version, modpack, or even a rebalanced copy), you must also make its
+   **complete source code** (the modified .cs / .xml and all other source files)
+   publicly and freely available. Shipping compiled binaries (.dll) only is not
+   allowed. The source may live in a fork, your own public repository, or a source
+   archive shipped alongside the work.
 
 【Disclaimer】
 This mod is provided "as is", without warranty of any kind, express or implied.
