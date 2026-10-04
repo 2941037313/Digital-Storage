@@ -495,7 +495,33 @@ namespace DigitalStorage.AI
         {
             // 只认建筑蓝图（Blueprint_Build）：安装蓝图（Blueprint_Install）要的是"小化的建筑"，
             // 不是钢/木料，供料逻辑不适用。
-            return t is Blueprint_Build || t is Frame;
+            if (!(t is Blueprint_Build) && !(t is Frame)) return false;
+            return FactionMatches(pawn, t);
+        }
+
+        /// <summary>
+        /// 目标必须属于**自己派系** —— 原版三道建造闸门都有这一条，逐字相同：
+        /// <c>WorkGiver_ConstructDeliverResourcesToBlueprints.HasJobOnThing:12</c>、
+        /// <c>...ToFrames.HasJobOnThing:12</c>、<c>WorkGiver_ConstructFinishFrames.JobOnThing:19</c>
+        /// 全都是 <c>if (t.Faction != pawn.Faction) return …</c>。
+        ///
+        /// <para><b>为什么本适配器必须自己查</b>：本类的 <see cref="TrustWorkGiver"/> = false
+        /// （原版闸门里含可达性判定，而代理建筑是隔空干活的）⇒ 上面那三行**一次都不会跑**。
+        /// 而围攻 / 迫击炮袭击的 <c>SiegeBlueprintPlacer:126/147</c> 放下的沙袋与迫击炮蓝图
+        /// 带的就是**袭击者派系**（那里传的正是 lord 的 faction）——
+        /// 少这一条，代理会拿我们核心里的材料把敌方蓝图变成框、还替它把料填满。</para>
+        ///
+        /// <para>口径与原版完全一致（<c>Faction == null</c> 也算"不是我的"）：玩家自己放下的蓝图/框
+        /// 一定是 <c>Faction.OfPlayer</c> —— <c>Designator_Build:522</c> 直接传 <c>Faction.OfPlayer</c>，
+        /// 而蓝图转框时 <c>Blueprint.TryReplaceWithSolidThing:71-73</c> 会把 <c>workerPawn.Faction</c>
+        /// 写进框里。殖民者的取料路径（<c>WorkGiver_DS_WithdrawForConstruct:42</c> /
+        /// <c>DSConstructionDelivery.IsValidTarget:120</c>）用的也是同一个判据，两条路从此一致。</para>
+        /// </summary>
+        internal static bool FactionMatches(Pawn pawn, Thing t)
+        {
+            if (t == null) return false;
+            if (pawn == null || pawn.Faction == null) return false;
+            return t.Faction == pawn.Faction;
         }
     }
 
@@ -518,12 +544,15 @@ namespace DigitalStorage.AI
             if (target == null || target.Destroyed || !target.Spawned) return false;
 
             Blueprint bp = target as Blueprint;
-            if (bp != null) return true;   // 蓝图：等我们供料；核心凑不齐会自己放手（见 Work）
+            // 蓝图：等我们供料；核心凑不齐会自己放手（见 Work）。
+            // ⚠️ 阵营同样要查 —— 围攻袭击的沙袋/迫击炮蓝图属于袭击者，
+            // 放它过去就等于"用我们的材料替敌人转框+供料"（见 FactionMatches 的注释）。
+            if (bp != null) return DigitalTaskAdapter_Construct.FactionMatches(pawn, bp);
 
             Frame f = FrameTarget;
             if (f == null) return false;
             if (!f.IsCompleted() || f.WorkLeft <= 0f) return false;
-            if (f.Faction != null && pawn.Faction != null && f.Faction != pawn.Faction) return false;
+            if (!DigitalTaskAdapter_Construct.FactionMatches(pawn, f)) return false;
             if (f.IsBurning()) return false;
             if (f.def.constructionSkillPrerequisite > 0 && pawn.skills != null
                 && pawn.skills.GetSkill(SkillDefOf.Construction).Level < f.def.constructionSkillPrerequisite)
