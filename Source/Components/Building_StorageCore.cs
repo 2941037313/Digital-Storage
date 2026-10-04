@@ -261,6 +261,22 @@ namespace DigitalStorage.Components
             storeSettings.filter.SetAllow(ThingCategoryDefOf.Weapons, allowWeaponsInStorage);
         }
 
+        /// <summary>
+        /// 「<b>设置</b>变了」通知：过滤器 / 优先级 / 通断 变了才该调它。
+        ///
+        /// <para><b>⚠️ 别拿它当"内容物变了"使</b>（吸货 / 直塞 / 生产入库都**不该**调）：
+        /// 它走的是原版 <c>ListerHaulables.Notify_HaulSourceChanged</c> —— 对**核心里的每一堆**
+        /// 跑一次完整储存搜索（<c>ShouldBeHaulable</c> → <c>IsInValidBestStorage</c> →
+        /// <c>TryFindBestBetterStorageFor</c>，实测 ~1.8µs/件，几百堆 ⇒ 约 1.6ms），
+        /// 外加一次列表重排。自动收纳每 15 tick 吸 <c>rate</c> 件 ⇒ 吸货越勤白烧越多。</para>
+        ///
+        /// <para>而内容物增加时原版侧**没有需要失效的缓存**：新东西是 <c>DeSpawn</c> 进来的，
+        /// <c>ListerHaulables.Notify_DeSpawned</c> 已经把它从待搬表摘掉；
+        /// <c>Accepts</c> 以及每个目的地的判定都是被问到时现算。
+        /// "核心里存在过滤器不收的东西"这条自愈由
+        /// <c>Performance/Patch_ListerHaulables_CoreSweep</c> 在轮转时逐件核对负责
+        /// （它会主动退回原版全量判定）。</para>
+        /// </summary>
         public void Notify_SettingsChanged()
         {
             if (!Spawned || MapHeld == null) return;
@@ -317,6 +333,17 @@ namespace DigitalStorage.Components
                 mgr.RemoveHaulDestination(compatSlotGroup); // 会连带把 SlotGroup 从 allGroupsInOrder 摘掉
             CompatSlotGroupRegistered = false;
         }
+
+        // ===== 性能：搬运源重算节流 =====
+
+        /// <summary>
+        /// 上一次对内容物走"原版全量重算"的 tick，供
+        /// <c>Performance/Patch_ListerHaulables_CoreSweep</c> 在「地图上真有更高优先级目的地」
+        /// 那条罕见路径上采样用（那条路上每件内容物都要跑一次完整储存搜索）。
+        ///
+        /// <para>**不 Scribe**：读档后从 0 开始 ⇒ 第一次必定重算一遍，正是想要的。</para>
+        /// </summary>
+        internal int lastHaulSweepTick;
 
         // ===== 对外小接口 =====
 

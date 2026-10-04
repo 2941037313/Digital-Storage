@@ -292,7 +292,9 @@ namespace DigitalStorage.Components
             t.DeSpawn();
             if (core.GetDirectlyHeldThings().TryAdd(t, true))
             {
-                core.Notify_SettingsChanged();
+                // 刻意**不**调 core.Notify_SettingsChanged()：那是"设置变了"的通知，
+                // 会对核心里的每一堆跑一次完整储存搜索（≈1.6ms/几百堆）。
+                // 内容物增加不需要任何原版侧失效 —— 详见 Building_StorageCore.Notify_SettingsChanged 的注释。
                 return true;
             }
 

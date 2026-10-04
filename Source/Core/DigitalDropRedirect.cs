@@ -104,7 +104,9 @@ namespace DigitalStorage.Core
             if (target.Map == null) return false;
             if (!target.Accepts(t)) return false;
             if (!target.GetDirectlyHeldThings().TryAdd(t, true)) return false;
-            target.Notify_SettingsChanged();
+            // 刻意**不**调 target.Notify_SettingsChanged()：内容物增加不需要原版侧失效，
+            // 而那个通知会对核心里的每一堆跑一次完整储存搜索。
+            // 详见 Building_StorageCore.Notify_SettingsChanged 的注释。
             return true;
         }
     }

@@ -149,6 +149,7 @@
     <Compile Include="Performance\Patch_FleckMaker_MetaPuffThrottle.cs" />
     <Compile Include="Performance\Patch_FleckManager_CreationBudget.cs" />
     <Compile Include="Performance\DevDrawProfiler.cs" />
+    <Compile Include="Performance\Patch_ListerHaulables_CoreSweep.cs" />
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />
     <Compile Include="Settings\DefMultipliers.cs" />

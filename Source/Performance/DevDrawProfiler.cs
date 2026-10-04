@@ -65,7 +65,7 @@ namespace DigitalStorage.Performance
         /// <c>SelDraw</c> 在 <c>MapInterfaceUpdate</c> 里。</summary>
         private static readonly string[] Keys =
         {
-            "Ticks", "MapUpd", "DSWork",
+            "Ticks", "MapUpd", "DSWork", "HaulSweep",
             "DS-valid", "DS-scan", "DS-work", "DS-finish", "DS-visual", "DS-allocMB", "ScanSet",
             "Drops", "DropsDirect",
             "MapMesh", "DynThings", "Designations", "Overlays", "Motes", "Flecks", "SelDraw"
