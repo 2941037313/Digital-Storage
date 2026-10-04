@@ -731,6 +731,16 @@ namespace DigitalStorage.Components
         public static void Enter(Pawn pawn, Map map, IntVec3 cell)
         {
             if (pawn == null || map == null || MapIndexField == null) return;
+            // ★ 每次进作用域都把假 pawn 的 AI 关掉（工厂里已经设过一次，这里是双保险：
+            //   原版 `Pawn_HealthTracker.cs:335` 会在健康状态变化时把 mindState.Active 翻回 true）。
+            //   我们只是借它当地图上的"手"；一旦它看起来 Spawned（下面直接把 mapIndexOrState 设成
+            //   map.Index）而 AI 还开着，原版就可能给它派活/让它寻路，而我们在本 tick 末尾就把它"退图"
+            //   ⇒ 留下一条指向它的 PathRequest ⇒ PathFinder 每 tick 报
+            //   "Tried to FindPath for pawn which is spawned in another map"（用户实测日志：
+            //   pawn=数字工人 pawn.Map=null）。注意这条只是防"原版主动驱动它"，
+            //   真正踩过的触发点是 `Blueprint.TryReplaceWithSolidThing` 里的
+            //   `workerPawn.jobs.EndCurrentJob(...)`（见 DigitalTask_Construct.Work 阶段 0）。
+            if (pawn.mindState != null) pawn.mindState.Active = false;
             pawn.Position = cell.IsValid ? cell : map.Center;
             MapIndexField.SetValue(pawn, (sbyte)map.Index);
         }

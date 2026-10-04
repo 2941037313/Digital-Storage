@@ -547,7 +547,16 @@ namespace DigitalStorage.AI
             // 蓝图：等我们供料；核心凑不齐会自己放手（见 Work）。
             // ⚠️ 阵营同样要查 —— 围攻袭击的沙袋/迫击炮蓝图属于袭击者，
             // 放它过去就等于"用我们的材料替敌人转框+供料"（见 FactionMatches 的注释）。
-            if (bp != null) return DigitalTaskAdapter_Construct.FactionMatches(pawn, bp);
+            if (bp != null)
+            {
+                if (!DigitalTaskAdapter_Construct.FactionMatches(pawn, bp)) return false;
+                // 挡路的**植物**照旧认领（Work 阶段 0 会把它割掉）；
+                // 物品/建筑不认领 —— 原版会派人把它搬走 / 拆掉（HandleBlockingThingJob），
+                // 我们不抢那种活，也就不会去碰 TryReplaceWithSolidThing 的 EndCurrentJob 分支。
+                Thing blocker = GenConstruct.FirstBlockingThing(bp, pawn);
+                if (blocker != null && !(blocker is Plant)) return false;
+                return true;
+            }
 
             Frame f = FrameTarget;
             if (f == null) return false;
@@ -583,6 +592,26 @@ namespace DigitalStorage.AI
             Blueprint bp = target as Blueprint;
             if (bp != null)
             {
+                // ---- 阶段 0：挡路的东西（原版先给"清障作业"：GenConstruct.HandleBlockingThingJob:767）----
+                // 植物 ⇒ 原版派 CutPlant；我们是隔空干活的，直接照割除语义砍掉（收尾走与植物任务
+                // 共用的 DigitalPlantWork.Harvest）。**绝不能**带着阻挡去调
+                // Blueprint.TryReplaceWithSolidThing —— 它在有阻挡时会调
+                // `workerPawn.jobs.EndCurrentJob(...)`（Blueprint.cs:51），而这是**假 pawn**：
+                // 于是（a）日志爆红，（b）给它装上找活/寻路，留下一条指向它的 PathRequest，
+                // 出作用域后 pawn.Map 变 null ⇒ PathFinder 报 "Tried to FindPath for pawn
+                // which is spawned in another map"。物品/建筑交给原版（搬走 / 拆除）。
+                Thing blocker = GenConstruct.FirstBlockingThing(bp, pawn);
+                if (blocker is Plant blockerPlant && !blockerPlant.Destroyed && blockerPlant.Spawned)
+                {
+                    DigitalPlantWork.Harvest(pawn, blockerPlant, false);   // asHarvest:false = 割除
+                    return;                                               // 下一 tick 再供料/转框
+                }
+                if (blocker != null)
+                {
+                    Abort = true;
+                    return;
+                }
+
                 if (!TrySupplyFromCores(pawn, map, bp))
                 {
                     // 核心凑不齐 ⇒ 让路给原版搬运工（只放弃这一件，别动别的活）
