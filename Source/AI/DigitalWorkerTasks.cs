@@ -551,7 +551,10 @@ namespace DigitalStorage.AI
 
             Frame f = FrameTarget;
             if (f == null) return false;
-            if (!f.IsCompleted() || f.WorkLeft <= 0f) return false;
+            // 材料没齐 ⇒ 等阶段 1 供料。**不再要求 WorkLeft > 0**：
+            // "活干完了但没结算"的框（旧版本预算不足留下的残留、或别的路径中途放手）
+            // 也要继续认领 —— 阶段 2 会直接把它结算掉，等于自愈（见 Work 里的预算前置检查）。
+            if (!f.IsCompleted()) return false;
             if (!DigitalTaskAdapter_Construct.FactionMatches(pawn, f)) return false;
             if (f.IsBurning()) return false;
             if (f.def.constructionSkillPrerequisite > 0 && pawn.skills != null
@@ -618,9 +621,17 @@ namespace DigitalStorage.AI
                 }
             }
 
+            // ⚠️ 结算票必须在**加工作量之前**拿。先 `+= num` 再因为没票而不 CompleteConstruction，
+            //    框会停在"活干完了但没结算"的状态，而 StillValid 只认 WorkLeft > 0
+            //    ⇒ 这只手下一 tick 直接放手 ⇒ **框架永久残留**
+            //    （用户实测：代理把地板建好了、框架还在 = 上一次超预算的那一格）。
+            //    所以这一步会把活干完时：先拿票，拿不到就这一 tick 什么都不做，下一 tick 重试。
+            bool willFinish = f.workDone + num >= workToBuild;
+            if (willFinish && !DigitalWorkBudget.AllowCompletion()) return;
+
             f.workDone += num;
             StrikeCount++;
-            if (f.workDone >= workToBuild && DigitalWorkBudget.AllowCompletion())
+            if (willFinish)
             {
                 f.CompleteConstruction(pawn);
             }
