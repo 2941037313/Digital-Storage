@@ -52,7 +52,7 @@ Everything else from 3.0 is gone for good: **disk cabinets, storage interfaces, 
 
 **Settings** — cost / power / research multipliers (1/100 to 100x, applied to everything) plus toggles: auto-ingest, the vanilla performance fixes, backpack on mechanoids, worker completions per tick, fleck budget and detailed logging
 
-**Trade** — caravans, orbital trade beacons and visiting traders can all buy and sell straight from the core; Phinix (multiplayer chat/trade) and its Red Packet plugin are supported
+**Trade** — visiting caravans, orbital trade beacons, faction base trade and caravan-to-caravan trade can all buy and sell straight from the core; settlement/caravan trade happens on the world map, where there is no "current map", so every powered core of yours is on the list (no need to move goods into a pawn's pockets first). Phinix (multiplayer chat/trade) and its Red Packet plugin are supported
 
 **Vanilla systems recognise the core natively** — resource readout, low food/medicine alerts, wealth, warm-clothes alert, auto apparel, opportunistic weapon pickup, transport pod loading, portals, caravan loading, bill ×N counting, doctors fetching medicine, refuelling, repairs and feeding
 
@@ -135,7 +135,8 @@ Verified compatible with Phinix (+ Red Packet), Vanilla Expanded Framework, Pick
 **设置** —— 造价 / 电力 / 研究点数三个倍率（1/100 ~ 100×，全局生效），以及若干开关：自动收纳、原版性能修复、机械族是否挂背包、每 tick 完成件数、每帧特效上限、详细日志
 
 **交易**
-- 商队、轨道交易信标、来访商队都能直接买卖核心里的东西
+- 来访商队、轨道交易信标、**据点交易**与**远行队之间的交易**都能直接买卖核心里的东西
+- 据点 / 远行队交易发生在世界地图上，那里没有"当前地图"可言，所以**你所有通电核心**都在可卖清单里 —— 不用先把货塞进小人背包
 - Phinix（联机聊天交易）与红包插件已适配，含「允许交易不在储存区中的物品」分支
 
 **原版系统原生就认核心**

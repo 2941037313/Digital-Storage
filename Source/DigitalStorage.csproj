@@ -129,6 +129,7 @@
     <Compile Include="HarmonyPatches\Patch_FeedFromStorage.cs" />
     <Compile Include="HarmonyPatches\Patch_OrbitalTradeBeacon.cs" />
     <Compile Include="HarmonyPatches\Patch_TradeDeal_InSellablePosition.cs" />
+    <Compile Include="HarmonyPatches\Patch_WorldTrade_FromCore.cs" />
     <Compile Include="HarmonyPatches\Patch_HaulAIUtility.cs" />
     <Compile Include="HarmonyPatches\Patch_JobDriver_Equip.cs" />
     <!-- ⚠️ 这个项目是**显式文件清单**，新增 .cs 必须在这里加一行，否则构建照样成功、
