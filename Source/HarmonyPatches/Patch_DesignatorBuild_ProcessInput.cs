@@ -119,6 +119,21 @@ namespace DigitalStorage.HarmonyPatches
 
         private static bool Prefix(Designator_Build __instance)
         {
+            // 整段自吞：Prefix 抛异常会直接穿出 ProcessInput ⇒ 设计器选不中 ⇒
+            // 玩家看到"点了没反应、放不下去"。真出问题时退回原版菜单（只是看不到核心里的选材）。
+            try
+            {
+                return PrefixInner(__instance);
+            }
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] 选材菜单兜底失败（已退回原版菜单，不影响能否建造）：" + e, 0x5D52D);
+                return true;
+            }
+        }
+
+        private static bool PrefixInner(Designator_Build __instance)
+        {
             if (Patch_DesignatorBuild_ProcessInput_Transpiler.Applied) return true;
 
             var thingDef = __instance.PlacingDef as ThingDef;
@@ -207,8 +222,23 @@ namespace DigitalStorage.HarmonyPatches
         public static List<Thing> ExtendList(List<Thing> list, Map map, ThingDef stuffDef)
         {
             if (list == null || list.Count > 0 || map == null || stuffDef == null) return list;
-            if (!GetContainerStuffDefs(map).Contains(stuffDef)) return list;
-            return new List<Thing>(1) { null };
+
+            // ⚠️ 这段在**原版 ProcessInput 的循环体里**执行：一旦抛异常，异常会一路穿出
+            // Designator_Build.ProcessInput ⇒ 那个设计器根本没被选中 ⇒ 玩家看到的是
+            // "建筑菜单里点了没反应 / 放不下去"。而 GetContainerStuffDefs 会去遍历
+            // **别的 mod 的 IHaulSource**（AllHaulSourcesListForReading 是全体搬运源），
+            // 任何第三方容器的 GetDirectlyHeldThings() 抛一次就够毁掉原版菜单。
+            // 所以这里必须自吞：最坏结果只是"没扩展"，原版菜单照常。
+            try
+            {
+                if (!GetContainerStuffDefs(map).Contains(stuffDef)) return list;
+                return new List<Thing>(1) { null };
+            }
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] 选材菜单扩展失败（已降级为原版菜单，不影响能否建造）：" + e, 0x5D52C);
+                return list;
+            }
         }
 
         private static HashSet<ThingDef> GetContainerStuffDefs(Map map)
