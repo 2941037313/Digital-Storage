@@ -56,7 +56,7 @@ namespace DigitalStorage.UI
             // ★ 目标③：外框统一走 AE2Draw.WindowFrame（面板 + 标题带 + 面板内右上角的 ×）
             bool closeClicked;
             AE2Draw.HandlePauseHotkey();   // ★ 用户要求：界面开着时空格也能暂停/继续
-            Rect ri = AE2Draw.WindowFrame(inRect.ContractedBy(2f), "ME 合成终端 · 添加配方", out closeClicked);
+            Rect ri = AE2Draw.WindowFrame(inRect.ContractedBy(2f), "合成终端 · 添加配方", out closeClicked);
             if (closeClicked) { Close(); return; }
 
             // ---- 搜索框（AE2 风格输入框）----
@@ -161,7 +161,7 @@ namespace DigitalStorage.UI
                 AE2Draw.DragBar(new Rect(area.xMax - 12f, area.y, 12f, area.height), ref scroll,
                     Mathf.Clamp01((float)vis / shown.Count));
             }
-            AE2Draw.WheelScroll(area, ref scroll);   // ★ 鼠标在列表里滚滚轮也能滚
+            AE2Draw.WheelScroll(area, ref scroll, maxStart);   // ★ 鼠标在列表里滚滚轮也能滚
         }
 
         /// <summary>★ 物品的"顶层分类"名（与存储页签分组同一口径：原料/食物/制成品/药品…）。</summary>

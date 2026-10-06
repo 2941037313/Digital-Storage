@@ -186,6 +186,15 @@ namespace DigitalStorage.UI
         /// ★ 用户要求：鼠标**在列表区域内**滚滚轮也要能滚（原来只有按住右侧滚动条拖才行 ——
         /// 滚轮判断挂在细条 rect 上，指针在列表里时不算"悬停滚动条"）。各列表画完后调一次。
         /// </summary>
+        /// <summary>★ 用户要求：滚轮滚一格 = 一行。maxStart = 可滚动的行数（列表条数 - 可见行数）。</summary>
+        public static void WheelScroll(Rect area, ref float frac, int maxStart)
+        {
+            Event e = Event.current;
+            if (e == null || !Mouse.IsOver(area)) return;
+            if (e.type != EventType.ScrollWheel) return;
+            frac = Mathf.Clamp01(frac + e.delta.y / Mathf.Max(1f, maxStart));   // 一格 = 一行
+            e.Use();
+        }
         public static void WheelScroll(Rect area, ref float frac)
         {
             Event e = Event.current;

@@ -135,7 +135,7 @@ namespace DigitalStorage.Components
         /// </summary>
         public List<IntVec3> RangeCellsForDrawing()
         {
-            int radius = Math.Max(0, Props.scanRadius);
+            int radius = ScanRadius;
             IntVec3 center = parent.PositionHeld;
 
             if (rangeCells == null || rangeCachedCenter != center || rangeCachedRadius != radius)
@@ -296,7 +296,45 @@ namespace DigitalStorage.Components
         /// **只认 <c>Building</c>**：Pawn / Corpse 也是 <c>IBillGiver</c>（手术、屠宰），
         /// 但它们不是"工作台"，也不该出现在制作面板里。</para>
         /// </summary>
-        private void RescanBenches(Map map)
+                /// <summary>
+        /// 通用配方兼容（新写）：把"玩家当前能做"的所有配方并入可做清单 ——
+        /// 这样任何 mod 新增的配方（没有挂到任何工作台上）也能被制作代理接单。
+        /// </summary>
+        private void MergePlayerCraftableRecipes()
+        {
+            try
+            {
+                List<RecipeDef> all = DefDatabase<RecipeDef>.AllDefsListForReading;
+                for (int i = 0; i < all.Count; i++)
+                {
+                    RecipeDef r = all[i];
+                    if (r == null || r.ProducedThingDef == null) continue;      // 只收有产物的
+                    if (r.researchPrerequisite != null && !r.researchPrerequisite.IsFinished) continue;   // 研究未解锁
+                    if (r.recipeUsers == null || r.recipeUsers.Count == 0) continue;                       // 没有任何工作台（= 被隐藏的测试配方）
+                    // 只在"范围内**已有**的工作台能做这条配方"时才并入（读到了制作点再加）
+                    bool hasBench = false;
+                    for (int k = 0; k < r.recipeUsers.Count && !hasBench; k++)
+                    {
+                        ThingDef u = r.recipeUsers[k];
+                        if (u == null) continue;
+                        for (int b = 0; b < benchDefs.Count; b++)
+                        {
+                            if (benchDefs.Contains(u)) { hasBench = true; break; }
+                        }
+                    }
+                    if (!hasBench) continue;
+                    // MergePlayerCraftableRecipesV2
+                    if (unlocked.Contains(r)) continue;
+                    unlocked.Add(r);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.WarningOnce("[DigitalStorage] 并入全部可用配方时出错（已忽略）：" + ex.Message, 889912);
+            }
+        }
+
+private void RescanBenches(Map map)
         {
             if (slotsMap != null && slotsMap != map) ReleaseAll();
             slotsMap = map;
@@ -304,7 +342,7 @@ namespace DigitalStorage.Components
             benches.Clear();
             benchDefs.Clear();
 
-            int radius = Math.Max(0, Props.scanRadius);
+            int radius = ScanRadius;
             CellRect rect = CellRect.CenteredOn(parent.PositionHeld, radius);
             List<Thing> all = map.listerThings.ThingsInGroup(ThingRequestGroup.PotentialBillGiver);
 
@@ -324,6 +362,7 @@ namespace DigitalStorage.Components
             }
 
             CraftUnlocks.MenuRecipes(benchDefs, unlocked);
+            MergePlayerCraftableRecipes();   // ★ 通用兼容：并入所有玩家可做的配方
         }
 
         // ===================================================================
@@ -1514,6 +1553,15 @@ namespace DigitalStorage.Components
                 toggleAction = () => { showRange = !showRange; }
             };
 
+            // 范围档位（新写）：点一下轮换，显示当前范围
+            yield return new Command_Action
+            {
+                icon = GizmoTex(ref texRange, "UI/Gizmos/制作代理-显示范围"),
+                defaultLabel = "范围 " + RangeLabel(),
+                defaultDesc = "点一下切换扫描范围（默认 → 更大 → 全图 → 回默认）。范围越大，能扫到的工作台与核心越多。",
+                action = () => { CycleRange(); }
+            };
+
             // ★ 第 2 步验证件：自测按钮（点一下把内核自测结果写进 Player.log，测试订单自动撤销）
             yield return new Command_Action
             {
@@ -1597,8 +1645,47 @@ namespace DigitalStorage.Components
             slotsMap = null;
         }
 
-        public override void PostExposeData()
+                // ---- 扫描范围可调（新写）----
+        private const int RangeWholeMap = -1;   // 全图
+        private const int RangeDefault = 0;     // 用 Def 的 scanRadius
+        private int rangeOverride = RangeDefault;
+
+        /// <summary>本建筑实际生效的扫描半径（格子）。</summary>
+        internal int ScanRadius
         {
+            get
+            {
+                if (rangeOverride == RangeWholeMap)
+                {
+                    Map m = (parent != null) ? parent.Map : null;
+                    return (m != null) ? Math.Max(m.Size.x, m.Size.z) : 200;
+                }
+                return (rangeOverride > 0) ? rangeOverride : Math.Max(0, Props.scanRadius);
+            }
+        }
+
+        /// <summary>范围文字：全图 / N×N。</summary>
+        internal string RangeLabel()
+        {
+            if (rangeOverride == RangeWholeMap) return "全图";
+            int r = ScanRadius;
+            return (r * 2 + 1) + "x" + (r * 2 + 1);
+        }
+
+        /// <summary>档位轮换：默认 → +0/4/9/17 → 全图 → 默认。</summary>
+        internal void CycleRange()
+        {
+            int d = Math.Max(0, Props.scanRadius);
+            int[] seq = new int[] { RangeDefault, d, d + 4, d + 9, d + 17, RangeWholeMap };
+            int at = 0;
+            for (int i = 0; i < seq.Length; i++) { if (seq[i] == rangeOverride) { at = i; break; } }
+            rangeOverride = seq[(at + 1) % seq.Length];
+        }
+
+        internal void SetRange(int r) { rangeOverride = (r == RangeWholeMap) ? RangeWholeMap : Math.Max(0, Math.Min(60, r)); }
+public override void PostExposeData()
+        {
+            Scribe_Values.Look(ref rangeOverride, "dsRangeOverride", RangeDefault);
             base.PostExposeData();
             Scribe_Values.Look(ref enabled, "billAutoEnabled", true);
             Scribe_Values.Look(ref overclockTier, "billAutoOverclock", 0);

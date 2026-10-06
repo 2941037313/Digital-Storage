@@ -254,6 +254,7 @@ namespace DigitalStorage.UI
             Rect list = new Rect(li.x, searchR.yMax + 3f, li.width, li.yMax - searchR.yMax - 3f);
 
             List<KeyValuePair<ThingDef, int>> items = CoreItems(map);
+                // ★ 类别读取修正：配方的原料常写成"类别"（如肉类）⇒ 把核心实际库存中符合该类别的物品并进候选，                 //   否则只用 AllowedThingDefs 会漏掉鹿肉/猪肉等类别成员，导致"核心 0"而永不开工。                 for (int ci2 = 0; ci2 < it.Count; ci2++)                 {                     ThingDef cd = it[ci2].Key;                     if (cd != null && ic.filter.Allows(cd) && !allowed.Contains(cd)) allowed.Add(cd);                 }
             // ★ 搜索过滤（空 = 全部）
             if (!string.IsNullOrEmpty(searchCore))
             {
@@ -305,7 +306,7 @@ namespace DigitalStorage.UI
             if (items.Count > vis)   // C8：不够一屏不画滚动条
             AE2Draw.DragBar(new Rect(list.xMax - 12f, list.y, 12f, list.height), ref scrollCore,
                 (items.Count <= 0) ? 1f : Mathf.Clamp01((float)vis / items.Count));
-            AE2Draw.WheelScroll(list, ref scrollCore);   // ★ 滚轮在列表里也能滚
+            AE2Draw.WheelScroll(list, ref scrollCore, maxStart);   // ★ 一格 = 一行   // ★ 滚轮在列表里也能滚
         }
 
         private static List<KeyValuePair<ThingDef, int>> CoreItems(Map map)
@@ -411,7 +412,7 @@ namespace DigitalStorage.UI
             if (shown.Count > vis)   // C8：不够一屏不画滚动条
             AE2Draw.DragBar(new Rect(list.xMax - 12f, list.y, 12f, list.height), ref scrollOrders,
                 (shown.Count <= 0) ? 1f : Mathf.Clamp01((float)vis / shown.Count));
-            AE2Draw.WheelScroll(list, ref scrollOrders);   // ★ 滚轮在列表里也能滚
+            AE2Draw.WheelScroll(list, ref scrollOrders, maxStart);   // ★ 一格 = 一行   // ★ 滚轮在列表里也能滚
         }
 
         private static string CountLabel(CraftPlan p)
@@ -735,17 +736,30 @@ namespace DigitalStorage.UI
             {
                 IngredientCount ic = p.recipe.ingredients[i];
                 if (ic == null || ic.filter == null) continue;
-                List<ThingDef> allowed = (ic.filter.AllowedThingDefs != null) ? new List<ThingDef>(ic.filter.AllowedThingDefs) : null;
+                // ★ 类别读取修正：不再只看 filter.AllowedThingDefs（那只含配方里显式写出的物品），
+                //   改为用 filter.Allows() 遍历**全部核心库存** ⇒ 类别成员（鹿肉/猪肉…）既进列表也计数。
                 string names = "";
                 int have = 0;
-                if (allowed != null)
+                int shown = 0;
+                foreach (KeyValuePair<ThingDef, int> kv in stock)
                 {
-                    for (int k = 0; k < allowed.Count && k < 3; k++)
+                    if (kv.Key == null || kv.Value <= 0) continue;
+                    if (!ic.filter.Allows(kv.Key)) continue;
+                    have += kv.Value;
+                    if (shown < 3)
                     {
-                        if (allowed[k] == null) continue;
-                        names += ((names.Length > 0) ? " / " : "") + allowed[k].LabelCap;
-                        int n; stock.TryGetValue(allowed[k], out n);
-                        if (n > have) have = n;
+                        names += ((names.Length > 0) ? " / " : "") + kv.Key.LabelCap;
+                        shown++;
+                    }
+                }
+                if (shown == 0 && ic.filter.AllowedThingDefs != null)
+                {
+                    // 核心里一个都没有 ⇒ 退回显示配方显式列出的前几个（让玩家知道要什么）
+                    foreach (ThingDef d0 in ic.filter.AllowedThingDefs)
+                    {
+                        if (d0 == null) continue;
+                        names += ((names.Length > 0) ? " / " : "") + d0.LabelCap;
+                        if (++shown >= 3) break;
                     }
                 }
                 int __need = 0;
@@ -762,6 +776,7 @@ namespace DigitalStorage.UI
         private static string CoreSummary(Map map)
         {
             List<KeyValuePair<ThingDef, int>> it = CoreItems(map);
+
             int total = 0;
             for (int k = 0; k < it.Count; k++) total += it[k].Value;
             return it.Count + " 种 · " + total + " 件";
