@@ -6,13 +6,16 @@ using Verse;
 namespace DigitalStorage.HarmonyPatches
 {
     /// <summary>
-    /// 铺「地基（Foundation）」地形时补上原版设计器的那半截：先把这一格的上层地形清掉。
+    /// 铺「地基（Foundation）」地形时的**最后一道网**：真要撞车时先把这一格的上层地形清掉。
     ///
-    /// <para><b>原版两条路不一致</b>：</para>
-    /// <list type="bullet">
-    /// <item><c>Designator_Build.DesignateSingleCell</c>（god mode / 零工时分支，<c>Designator_Build.cs:479-486</c>）：
-    /// 先 <c>CanRemoveTopLayerAt</c> → <c>RemoveTopLayer</c>，再 <c>SetFoundation</c>；</item>
-    /// <item><c>Frame.CompleteConstruction</c>（小人正常建造的收尾，<c>Frame.cs:353-356</c>）：直接 <c>SetFoundation</c>。</item>
+    /// <para><b>原版把这一步放在哪</b>（三处，唯独建造收尾没有）：</para>
+    /// <list type="number">
+    /// <item><c>Designator_Build.DesignateSingleCell</c>（god mode / 零工时分支，<c>Designator_Build.cs:479-486</c>）；</item>
+    /// <item><c>WorkGiver_ConstructDeliverResourcesToBlueprints.JobOnThing</c>（<c>:89-93</c>）——
+    /// 送料**之前**先派一个 <c>JobDefOf.RemoveFloor</c>（<c>ignoreDesignations:true</c>），
+    /// 由 <c>JobDriver_RemoveFloor.DoEffect</c> 清掉旧地板；下一趟才 <c>ResourceDeliverJobFor</c> 送料。
+    /// 这才是"在地板上铺地基"的正常路径；</item>
+    /// <item><c>GravshipPlacementUtility.SpawnTerrain</c>（飞船落地，<c>:209-215</c>）。</item>
     /// </list>
     ///
     /// <para><b>为什么会撞</b>：<c>TerrainGrid.SetFoundation</c>（<c>TerrainGrid.cs:337-341</c>）在
@@ -22,17 +25,17 @@ namespace DigitalStorage.HarmonyPatches
     /// 且 <c>TerrainDef.Removable =&gt; layerable</c>，<c>TerrainDef.cs:304</c>）
     /// ⇒ <c>SetTerrain</c> 会把旧地形挪进 <c>underGrid</c>（<c>TerrainGrid.cs:215-229</c>）。
     /// 于是「在已有地板的格子上铺逆重飞船基架」（<c>TerrainDef Substructure</c>，<c>isFoundation=true</c>，
-    /// <c>XML/Odyssey/Defs/TerrainDefs/Terrain_Foundation.xml:4-41</c>）必然撞上这条拒绝。</para>
+    /// <c>XML/Odyssey/Defs/TerrainDefs/Terrain_Foundation.xml:4-41</c>）必然需要第 2 条那一步。</para>
     ///
     /// <para><b>代价</b>：<c>Frame.CompleteConstruction</c> 在铺地形**之前**就把框 <c>Destroy()</c> 了
-    /// （<c>Frame.cs:277-280</c>）⇒ 拒绝之后框没了、料没了、工也没了，只剩一行红字，
-    /// 玩家看到的是「造完了但地基没出现」。数字工人与殖民者走的是同一个 <c>CompleteConstruction</c>，
-    /// 所以这不是数字存储独有的问题 —— 只是数字工人干活快、并行多，更容易撞上。</para>
+    /// （<c>Frame.cs:277-280</c>）⇒ 拒绝之后框没了、料没了、工没了，只剩一行红字，
+    /// 玩家看到的是「造完了但地基没出现」。</para>
     ///
-    /// <para><b>本补丁</b>：只在真要撞车时（<c>underGrid != null</c>）先做设计器那一步，
-    /// 让任何人（殖民者 / 数字工人）铺地基都得到与 god mode 即时放置一致的结果：
-    /// 上层地板作为掉落物清掉、下层地形顶上来，然后原版照常 <c>SetFoundation</c> 成功。
-    /// 撞不上（绝大多数格子）时本前缀**一行都不做**，零行为变化。</para>
+    /// <para><b>本 mod 的两层处理</b>：正路是
+    /// <c>DSConstructionDelivery.RemoveExistingFloorFirstIfNeeded</c>（数字工人的供料路径 +
+    /// 殖民者的 <c>JobDriver_DS_Withdraw</c> 各调用一次，等价于原版第 2 条），本前缀是**兜底**：
+    /// 框不是经我们供料建完的（第三方路径 / 供料到完成之间这一格被别人加了地板 / 顺序竞争）时，
+    /// 至少别让框白白消失。撞不上的格子（<c>underGrid == null</c>）一行都不做，零行为变化。</para>
     /// </summary>
     [HarmonyPatch(typeof(Frame), nameof(Frame.CompleteConstruction))]
     internal static class Patch_Frame_CompleteConstruction_Foundation

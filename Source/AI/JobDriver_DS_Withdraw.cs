@@ -128,10 +128,13 @@ namespace DigitalStorage.AI
                 yield return Toils_Goto.GotoThing(TargetIndex.A, PathEndMode.ClosestTouch);
             }
 
-            // 3) 蓝图 → Frame（原版 HaulToContainer 同款，解决 #5）
+            // 3) 地形蓝图：先拆掉这一格的旧地板（原版交付层那一步，见 RemoveExistingFloor 的注释）
+            yield return RemoveExistingFloor();
+
+            // 4) 蓝图 → Frame（原版 HaulToContainer 同款，解决 #5）
             yield return Toils_Construct.MakeSolidThingFromBlueprintIfNecessary(TargetIndex.A, TargetIndex.None);
 
-            // 4) 塞容器优先（解决 #1 搬运死循环），失败则落地 + 移除 haul 标记
+            // 5) 塞容器优先（解决 #1 搬运死循环），失败则落地 + 移除 haul 标记
             yield return PlaceHauled();
         }
 
@@ -162,6 +165,44 @@ namespace DigitalStorage.AI
                 if (pawn.HasReserved(dest, job)) return;     // 已经是我的
                 if (pawn.Reserve(dest, job, 1, -1, null, false)) return; // 再试一次（errorOnFailed:false）
                 EndJobWith(JobCondition.Incompletable);      // 别人订着 ⇒ 让工作分配重新挑一个
+            };
+            return toil;
+        }
+
+        /// <summary>
+        /// 地形蓝图（地板 / 地基）那一格的「先拆旧地板」。
+        ///
+        /// <para><b>原版在哪做的</b>：<c>WorkGiver_ConstructDeliverResourcesToBlueprints.JobOnThing</c>（<c>:89-93</c>）
+        /// 对地形蓝图**先**返回一个 <c>JobDefOf.RemoveFloor</c>（<c>ignoreDesignations:true</c>），
+        /// 由 <c>JobDriver_RemoveFloor.DoEffect</c> → <c>TerrainGrid.RemoveTopLayer</c> 拆掉旧地板（材料掉落），
+        /// 下一趟才送料 → 转框 → 完成时 <c>SetFoundation</c> 才成立。
+        /// 殖民者走我们的取料作业（本 WorkGiver / <c>Patch_ResourceDeliverJobFor</c> 派发）绕过了那一步
+        /// ⇒ 这里补上；否则完成时 <c>SetFoundation</c> 会因为「there is an under terrain there」被拒，
+        /// 而那时框已经 <c>Destroy</c>（料与工全丢）。</para>
+        ///
+        /// <para>纯 Instant：本作业本来就是隔空取料，不该为这一步再排一次 200 工时的拆地板作业。
+        /// 清上层会让原版 <c>DoTerrainChangedEffects</c> 重算这一格，可能**取消**这一格上建不下的蓝图 / 框
+        /// ⇒ 目标没了就干净退出，绝不把手里的料塞进一个已经 Destroy 的容器。</para>
+        /// </summary>
+        private Toil RemoveExistingFloor()
+        {
+            var toil = ToilMaker.MakeToil("DS_RemoveExistingFloor");
+            toil.defaultCompleteMode = ToilCompleteMode.Instant;
+            toil.initAction = () =>
+            {
+                try
+                {
+                    Thing dest = job.GetTarget(TargetIndex.A).Thing;
+                    var constructible = dest as IConstructible;
+                    if (constructible == null) return;
+
+                    if (!DSConstructionDelivery.RemoveExistingFloorFirstIfNeeded(constructible, pawn.Map)) return;
+                    if (dest.Destroyed || !dest.Spawned) EndJobWith(JobCondition.Incompletable);
+                }
+                catch (Exception e)
+                {
+                    Log.ErrorOnce("[DigitalStorage] 地形蓝图旧地板清理失败（本格退回原版行为）：" + e, 0x5D52F);
+                }
             };
             return toil;
         }

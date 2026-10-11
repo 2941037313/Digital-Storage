@@ -612,6 +612,13 @@ namespace DigitalStorage.AI
                     return;
                 }
 
+                // 地形蓝图（地板 / 地基）铺在"已经有可拆上层"的格子上：原版交付层会**先**拆掉旧地板
+                // （WorkGiver_ConstructDeliverResourcesToBlueprints.JobOnThing:89 → RemoveExistingFloorJob
+                // → JobDriver_RemoveFloor → TerrainGrid.RemoveTopLayer），下一趟才送料。我们绕过了那一层
+                // ⇒ 这里补上：本 tick 只清地，下一 tick 再供料；否则完成时 SetFoundation 会因为
+                // "there is an under terrain there" 被拒，而框那时已经 Destroy（框 / 料 / 工全丢）。
+                if (DSConstructionDelivery.RemoveExistingFloorFirstIfNeeded(bp, map)) return;
+
                 if (!TrySupplyFromCores(pawn, map, bp))
                 {
                     // 核心凑不齐 ⇒ 让路给原版搬运工（只放弃这一件，别动别的活）
