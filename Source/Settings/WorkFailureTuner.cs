@@ -45,9 +45,9 @@ namespace DigitalStorage.Settings
     /// <para><b>范围</b>：全局（含原版与其它 mod 的小人）。只碰上面这几条"失败判定"stat，
     /// 速度 / 产量 / 品质类 stat 一律不动。</para>
     ///
-    /// <para><b>不覆盖</b>（与本 mod 的自动化工种无关，需要再说）：手术
-    /// （<c>MedicalSurgerySuccessChance</c>，走 <c>SurgeryOutcomeEffectDef</c> 那套独立机制）、
-    /// 逮捕（<c>ArrestSuccessChance</c>）、驯服 / 训练。</para>
+    /// <para><b>不覆盖</b>（2026-10-11 拍板：不做 —— 本 mod 没有这三类工作的代理，且机制不同）：
+    /// 手术（<c>MedicalSurgerySuccessChance</c>，走 <c>SurgeryOutcomeEffectDef</c> 那套独立机制，失败可能致命）、
+    /// 逮捕（<c>ArrestSuccessChance</c>）、驯服 / 训练。采矿 / 挤奶 / 伐木只有产量没有失败判定，无需处理。</para>
     /// </summary>
     [StaticConstructorOnStartup]
     internal static class WorkFailureTuner
