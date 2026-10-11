@@ -527,8 +527,6 @@ namespace DigitalStorage.AI
 
     public class DigitalTask_Construct : DigitalTask
     {
-        private bool failed;
-
         public override string Label
         {
             get { return "DS_Task_Build".Translate().ToString(); }
@@ -645,17 +643,10 @@ namespace DigitalStorage.AI
                 return;
             }
 
-            if (pawn.Faction == Faction.OfPlayer && !TutorSystem.TutorialMode)
-            {
-                float successChance = pawn.GetStatValue(StatDefOf.ConstructSuccessChance);
-                if (Rand.Value < 1f - Mathf.Pow(successChance, num / workToBuild))
-                {
-                    // 原版这里结束 toil 去重新拿材料；我们也交还这只"手"，下次重找
-                    f.FailConstruction(pawn);
-                    failed = true;
-                    return;
-                }
-            }
+            // ⚠️ 这里**没有**原版那条"建造失败"掷骰（JobDriver_ConstructFinishFrame.cs:59-67：
+            //    `Rand.Value < 1 - Pow(ConstructSuccessChance, 本次进度/总工时)` ⇒ Frame.FailConstruction，
+            //    框里的材料白费、还要重新取料）。代理是机器："活干完了就该有产出"。
+            //    全局口径（含殖民者）见 Settings.WorkFailureTuner。
 
             // ⚠️ 结算票必须在**加工作量之前**拿。先 `+= num` 再因为没票而不 CompleteConstruction，
             //    框会停在"活干完了但没结算"的状态，而 StillValid 只认 WorkLeft > 0
@@ -677,7 +668,7 @@ namespace DigitalStorage.AI
         {
             get
             {
-                if (Abort || failed) return true;
+                if (Abort) return true;
                 Frame f = FrameTarget;
                 if (f != null && !f.Destroyed && f.IsCompleted() && f.WorkLeft <= 0f) return true;
                 return base.Finished;

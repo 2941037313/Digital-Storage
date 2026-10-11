@@ -168,6 +168,8 @@
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />
     <Compile Include="Settings\DefMultipliers.cs" />
+    <!-- 工作失败率设置：把"收割 / 建造 / 修故障"三处掷骰变成必成（改的是那三条 stat 的因子，见文件头注释） -->
+    <Compile Include="Settings\WorkFailureTuner.cs" />
 
     <Compile Include="Services\DigitalStorageGameComponent.cs" />
     <Compile Include="Services\MapComponent_CraftRange.cs" />

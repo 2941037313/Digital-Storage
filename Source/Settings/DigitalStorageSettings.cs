@@ -52,6 +52,16 @@ namespace DigitalStorage.Settings
         public static bool perfOptimizationsEnabled = true;
 
         /// <summary>
+        /// <b>工作不会失败</b>：把原版三处"干完才发现白干"的掷骰（收割 / 建造 / 修故障）变成必成。
+        /// 实际施加在 <see cref="WorkFailureTuner"/>（夹 stat 的因子，不动任何补丁）。
+        ///
+        /// <para>默认开 —— 本 mod 的取向是"代理建筑把活干完就该有产出"，
+        /// 而这三处失败都是同一档体验：进度条走完、材料/作物已经消耗，最后给你一个红字。
+        /// 关掉完全恢复原版（低技能小人照旧收获失败 / 建造失败）。</para>
+        /// </summary>
+        public static bool noWorkFailure = true;
+
+        /// <summary>
         /// <b>每 tick 最多让代理"真正落地"几件活</b>（0 = 无限制）。
         ///
         /// <para>落地 = 走原版那一次性代价（挖完生成掉落物 / 建完生成建筑 / 拆完还材料 / 收获生成作物），
@@ -94,6 +104,7 @@ namespace DigitalStorage.Settings
             Scribe_Values.Look(ref autoIngestEnabled, "autoIngestEnabled", true);
             Scribe_Values.Look(ref backpackForMechanoids, "backpackForMechanoids", true);
             Scribe_Values.Look(ref perfOptimizationsEnabled, "perfOptimizationsEnabled", true);
+            Scribe_Values.Look(ref noWorkFailure, "noWorkFailure", true);
             Scribe_Values.Look(ref workerCompletionsPerTick, "workerCompletionsPerTick", 16);
             Scribe_Values.Look(ref fleckBudgetPerFrame, "fleckBudgetPerFrame", 500);
             base.ExposeData();
@@ -145,6 +156,13 @@ namespace DigitalStorage.Settings
             listing.Gap(6f);
             listing.CheckboxLabeled("DS_PerfToggle".Translate(), ref perfOptimizationsEnabled,
                 "DS_PerfToggleDesc".Translate());
+            listing.Gap(6f);
+            // 改的是那几条 stat 的因子（不是补丁），勾完立刻生效，不需要重启。
+            // （Listing_Standard 的 CheckboxLabeled 不返回"变了吗"，自己比一次。）
+            bool noFailBefore = noWorkFailure;
+            listing.CheckboxLabeled("DS_NoWorkFailureToggle".Translate(), ref noWorkFailure,
+                "DS_NoWorkFailureToggleDesc".Translate());
+            if (noFailBefore != noWorkFailure) WorkFailureTuner.Apply();
             listing.Gap(6f);
             listing.Label("DS_WorkerBudget".Translate(workerCompletionsPerTick));
             float budget = workerCompletionsPerTick;
