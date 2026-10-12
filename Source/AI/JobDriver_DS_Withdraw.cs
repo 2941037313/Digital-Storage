@@ -312,8 +312,15 @@ namespace DigitalStorage.AI
                 }
                 if (actor.carryTracker.TryDropCarriedThing(dropCell, ThingPlaceMode.Near, out Thing dropped, null))
                 {
-                    if (dropped != null && !(targetThing is IConstructible))
-                        dropped.SetForbidden(true, false);
+                    // ★ 落地就进自动收纳的"别碰"窗口（300 tick）：本作业的料是**给目的地用的**，
+                    //   不是散落物。置禁止只挡得住走待搬表的那条路（ListerHaulables.ShouldBeHaulable
+                    //   会把禁止物踢出去），而构造场景**刻意不置禁止**（原版建造失败退回材料时也不带
+                    //   forbidden）⇒ 那条路上只能靠这个窗口挡住"刚放下就被吸回核心、小人再取一趟"的循环。
+                    if (dropped != null)
+                    {
+                        CompAutoIngest.MarkWithdrawn(dropped);
+                        if (!(targetThing is IConstructible)) dropped.SetForbidden(true, false);
+                    }
                 }
             };
             return toil;

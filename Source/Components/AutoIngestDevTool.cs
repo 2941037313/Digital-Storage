@@ -20,7 +20,7 @@ namespace DigitalStorage.Components
     /// <item><b>候选层</b>：候选**只来自原版待搬表** `map.listerHaulables.ThingsPotentiallyNeedingHauling()`
     ///   —— 不在这张表里的东西我们**根本看不见**，而"为什么不在表里"由原版
     ///   `ListerHaulables.ShouldBeHaulable:194` 回答（四道门，全部静默）</item>
-    /// <item><b>过滤层</b>：<see cref="CompAutoIngest.RejectReason"/>（不在图上 / 工作台材料区 / 关押区 / 被预订 / 刚取出）</item>
+    /// <item><b>过滤层</b>：<see cref="CompAutoIngest.RejectReason"/>（不在图上 / 工作台材料区 / 作业目标 / 关押区 / 被预订 / 刚取出 / 工作台旁边宽限中）</item>
     /// <item><b>目的地层</b>：<see cref="CompAutoIngest.WouldVanillaHaulIntoCore"/> ——
     ///   走原版 `StoreUtility.TryFindBestBetterNonSlotGroupStorageFor`（`acceptSamePriority: false`！）
     ///   外加一条"格子型储存有同级或更高优先级就让给格子"的保护</item>
@@ -614,7 +614,9 @@ namespace DigitalStorage.Components
                 case CompAutoIngest.Reject.NotOnMap: return "不在图上（在别人背包/容器里）——不能对它 DeSpawn";
                 case CompAutoIngest.Reject.InPrisonArea: return "在关押区（牢房或有囚犯的房间）——囚犯的饭不能被收";
                 case CompAutoIngest.Reject.OnBillGiver: return "在工作台的材料区（= 工作台自己占的格）——收了会触发原版把料搬走的循环";
+                case CompAutoIngest.Reject.OnBillGiverRim: return "在**还在等料的工作台旁边一圈**里、还没躺够宽限（300 tick）——先让位给原版/搬运工，躺够了自己会被收";
                 case CompAutoIngest.Reject.Reserved: return "已被某个 pawn 预订";
+                case CompAutoIngest.Reject.JobTarget: return "★ 它是某个 pawn **当前或排队中作业的目标**（原版/搬运 mod 正准备拿它）——吸走会让那个作业找不到东西、反复重取";
                 case CompAutoIngest.Reject.RecentlyWithdrawn: return "刚被取出（300 tick 保护窗口内）";
                 default: return r.ToString();
             }
