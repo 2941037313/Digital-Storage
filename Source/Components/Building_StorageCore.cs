@@ -364,8 +364,21 @@ namespace DigitalStorage.Components
         public bool IsUsableNow => Spawned && !Destroyed && Powered;
 
         /// <summary>
-        /// 可选范围全集：所有 <c>ThingCategory.Item</c> 非尸体 def（「全放开」）。
+        /// 可选范围全集：所有 <c>ThingCategory.Item</c> def，<b>含尸体</b>（「全放开」）。
         /// 静态缓存。**不要返回 <see cref="StorageFilter"/>** —— 见 parentFilter 字段的注释。
+        ///
+        /// <para><b>尸体为什么也能收</b>（2026-10-12 用户拍板）：尸体的 ThingDef 由
+        /// <c>ThingDefGenerator_Corpses.GenerateCorpseDef</c> 生成，而它<b>就是
+        /// <c>ThingCategory.Item</c></b>（<c>category = Item</c>、<c>alwaysHaulable = true</c>、
+        /// <c>thingCategories = CorpsesHumanlike</c> 或 <c>FleshType.corpseCategory</c>）
+        /// ⇒ 唯一把它挡在外面的是这里原先那句 <c>&amp;&amp; !def.IsCorpse</c>。
+        /// 拿掉之后：尸体进全集 ⇒ 新核心的默认过滤（<c>SetAllowAll(全集)</c>）就允许尸体，
+        /// 筛选窗口里也出现「尸体」那一支，可随时勾掉。</para>
+        ///
+        /// <para><b>连带效果</b>（都可接受，也都写在工坊说明里）：① 尸体 <c>Tradeability.None</c>，
+        /// 交易路径本来就不认它（Phinix 兼容层也照旧跳过）；② 核心 <c>dontTickContents = true</c>
+        /// ⇒ 尸体在里面<b>不腐烂、不掉耐久</b>（想让它烂就别收）；
+        /// ③ 需要屠宰/埋葬时把它取出来、或把筛选里「尸体」那一支关掉。</para>
         /// </summary>
         public ThingFilter GetParentFilterPublic()
         {
@@ -374,7 +387,8 @@ namespace DigitalStorage.Components
                 parentFilter = new ThingFilter();
                 foreach (ThingDef def in DefDatabase<ThingDef>.AllDefs)
                 {
-                    if (def.category == ThingCategory.Item && !def.IsCorpse)
+                    // 尸体是 Item 类别（见上）；写成 || IsCorpse 只是"某个 mod 把尸体挪到别的类别"时的保险
+                    if (def.category == ThingCategory.Item || def.IsCorpse)
                         parentFilter.SetAllow(def, true);
                 }
             }
@@ -451,6 +465,12 @@ namespace DigitalStorage.Components
         private ThingFilter legacyStorageFilter;
         private bool legacy30Migrated;
 
+        /// <summary>
+        /// 一次性：把"后来才加进可选全集"的 def 补进**已有存档**的筛选器（目前只有尸体，见
+        /// <see cref="MigrateCorpseFilterIfNeeded"/>）。标记 Scribe 下去 ⇒ 玩家之后自己的勾选不会再被覆盖。
+        /// </summary>
+        private bool corpseFilterMigrated;
+
         public override void ExposeData()
         {
             base.ExposeData();
@@ -465,6 +485,7 @@ namespace DigitalStorage.Components
             Scribe_Deep.Look(ref legacyLedger, "ledger");
             Scribe_Deep.Look(ref legacyStorageFilter, "storageFilter");
             Scribe_Values.Look(ref legacy30Migrated, "dsLegacy30Migrated", false);
+            Scribe_Values.Look(ref corpseFilterMigrated, "dsCorpseFilterMigrated", false);
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
@@ -472,6 +493,50 @@ namespace DigitalStorage.Components
                 innerContainer.dontTickContents = true;
                 // 保存的筛选已经完整恢复, 不再重置武器分类
                 GetStoreSettings();
+                // 老存档的筛选是"逐 def 白名单"，后加进全集的 def 不在里面 ⇒ 补一次（见方法注释）
+                MigrateCorpseFilterIfNeeded();
+            }
+        }
+
+        /// <summary>
+        /// <b>一次性</b>：把尸体补进**已有存档**的存储筛选器（2026-10-12 拍板"核心能放尸体"）。
+        ///
+        /// <para><b>为什么非补不可</b>：<c>StorageSettings.filter</c> 是**逐 def 的白名单**
+        /// （<c>ThingFilter.Allows(ThingDef) = allowedDefs.Contains(def)</c>，见 <c>ThingFilter.cs:908</c>），
+        /// 而它只在核心**第一次创建**时照当时的全集 <c>SetAllowAll(GetParentFilterPublic())</c> 填一次
+        /// （<c>SetAllowAll</c> 就是逐 def 复制父过滤器的 <c>allowedDefs</c>，<c>ThingFilter.cs:842</c>）。
+        /// 老存档的过滤器里**根本没有尸体 def** ⇒ <c>Allows</c> 恒 false，
+        /// 于是"往全集里加尸体"只对新档生效，老档照样不收 —— 这类"更新只对一半人有效"的 bug
+        /// 只能靠一次性迁移兜住。</para>
+        ///
+        /// <para>只动**当前不允许**的尸体 def；玩家自己勾过的状态不会被覆盖，迁移标记也 Scribe 下去。</para>
+        /// </summary>
+        private void MigrateCorpseFilterIfNeeded()
+        {
+            if (corpseFilterMigrated) return;
+            corpseFilterMigrated = true;
+
+            try
+            {
+                StorageSettings st = GetStoreSettings();
+                if (st == null || st.filter == null) return;
+
+                ThingFilter universe = GetParentFilterPublic();
+                bool changed = false;
+                foreach (ThingDef def in DefDatabase<ThingDef>.AllDefs)
+                {
+                    if (!def.IsCorpse) continue;             // 目前只有这一类是"后加进全集"的
+                    if (!universe.Allows(def)) continue;     // 全集都不认 ⇒ 别硬塞
+                    if (st.filter.Allows(def)) continue;     // 已经允许（新档 / 玩家自己勾过）⇒ 不动
+                    st.filter.SetAllow(def, true);
+                    changed = true;
+                }
+                // 筛选变了要重算库存：否则核心内容物不会立刻进待搬表 / 搬运工看不见新去处
+                if (changed) Notify_SettingsChanged();
+            }
+            catch (Exception e)
+            {
+                Log.ErrorOnce("[DigitalStorage] 尸体筛选一次性迁移失败（其余功能不受影响）：" + e, 0x44534401);
             }
         }
 
