@@ -74,6 +74,7 @@
     <Compile Include="Components\CompProperties_AutoIngest.cs" />
     <Compile Include="Components\CompAutoIngest.cs" />
     <Compile Include="Components\AutoIngestDevTool.cs" />
+    <Compile Include="Components\DigitalWorkerDevTool.cs" />
     <Compile Include="Components\CompProperties_DigitalWorker.cs" />
     <Compile Include="Components\CompDigitalWorker.cs" />
     <Compile Include="Components\CompProperties_BillAutomation.cs" />

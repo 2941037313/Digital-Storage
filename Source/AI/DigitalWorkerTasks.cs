@@ -131,6 +131,45 @@ namespace DigitalStorage.AI
         /// <summary>对应的原版 WorkGiver 类（用 <c>IsAssignableFrom</c> ⇒ 子类/mod 扩展也算）。</summary>
         public abstract Type WorkGiverClass { get; }
 
+        /// <summary>
+        /// <b>这个适配器只认这几族工作类型</b>（<see cref="WorkTypeDef.defName"/>；返回 null = 不限制）。
+        ///
+        /// <para><b>为什么非有这条不可</b>：<see cref="DigitalTaskRegistry.FindGivers"/> 只用
+        /// <c>WorkGiverDef.workType</c> 问"这个工作类型下有哪些 giver"，而 <see cref="WorkGiverClass"/>
+        /// 是用 <c>IsAssignableFrom</c> 认的 ⇒ <b>"某族活的 giver 被塞进别的工作类型"</b>时，
+        /// 那族适配器就会在那个工作类型下被启用。<b>2026-10 用户上报的「种植代理可以建造」正是这么来的</b>：
+        /// 只要有一个"建造族"giver（<c>WorkGiver_ConstructFinishFrames</c> 或其派生类）落在
+        /// <c>Growing</c> / <c>PlantCutting</c> 下（"把地形当蓝图建"的整地 / 农地类 mod 很容易这么写），
+        /// 种植代理就会把它当建造活干。原版 Core 的 Growing / PlantCutting 里**没有**这种 giver
+        /// （见 <c>WorkGiverDefs</c>：只有 Replant / GrowerHarvest / GrowerSow / PlantSeed / ExtractTree / PlantsCut），
+        /// 所以只有装了那类 mod 才会出现 —— 本机自然复现不出来。</para>
+        ///
+        /// <para>这一条把"哪个适配器能在哪个工作类型下跑"从<b>隐式</b>（只看 giver 的类）变成<b>显式声明</b>：
+        /// 适配器的族 × 建筑配置的 <c>workTypes</c> 必须相交，否则连候选都不生成
+        /// ⇒ <b>"种植代理不可能建造"成为结构保证</b>，与玩家装了什么 mod 无关。</para>
+        ///
+        /// <para>清单里顺带列了 Complex Jobs 的拆分类工作类型（<c>FSFHarvesting</c> / <c>FSFDeconstruct</c>）：
+        /// 不装该 mod 时这些 defName 根本不存在，列着零成本；装了以后若仍想让代理干那类活，
+        /// 在建筑的 <c>workTypes</c> 里补上同名工作类型即可（<b>两处都放开才生效</b>）。</para>
+        /// </summary>
+        public virtual string[] HomeWorkTypes
+        {
+            get { return null; }
+        }
+
+        /// <summary><paramref name="workType"/> 下允许用本适配器吗（见 <see cref="HomeWorkTypes"/>）。</summary>
+        public bool AcceptsWorkType(WorkTypeDef workType)
+        {
+            string[] home = HomeWorkTypes;
+            if (home == null) return true;
+            if (workType == null || workType.defName == null) return false;
+            for (int i = 0; i < home.Length; i++)
+            {
+                if (home[i] == workType.defName) return true;
+            }
+            return false;
+        }
+
         public abstract DigitalTask MakeTask(Thing t, CompDigitalWorker comp);
 
         /// <summary>
@@ -261,7 +300,15 @@ namespace DigitalStorage.AI
                 WorkGiverDef d = all[i];
                 if (d == null || d.workType != workType) continue;
                 WorkGiver w = d.Worker;
-                if (w == null || AdapterFor(w) == null) continue;
+                if (w == null) continue;
+
+                // ⚠️ 两道门都要过：① 有适配器（按 giverClass 认）；② 那个适配器**允许在这个工作类型下跑**
+                //    （见 DigitalTaskAdapter.HomeWorkTypes —— 它就是"种植代理可以建造"那个 bug 的根治：
+                //    别的 mod 把建造族 giver 塞进 Growing 也不会被我们接）。只有第 ① 道的话，
+                //    "giver 被塞错工作类型"就会直接把活派给不对的代理建筑。
+                DigitalTaskAdapter adapter = AdapterFor(w);
+                if (adapter == null || !adapter.AcceptsWorkType(workType)) continue;
+
                 found.Add(w);
             }
             giversCache[workType] = found;
@@ -316,9 +363,17 @@ namespace DigitalStorage.AI
     // ==========================================================================================
     public class DigitalTaskAdapter_Mine : DigitalTaskAdapter
     {
+        /// <summary>只认 Mining（见 <see cref="DigitalTaskAdapter.HomeWorkTypes"/>）。</summary>
+        private static readonly string[] Homes = { "Mining" };
+
         public override Type WorkGiverClass
         {
             get { return typeof(WorkGiver_Miner); }
+        }
+
+        public override string[] HomeWorkTypes
+        {
+            get { return Homes; }
         }
 
         public override DigitalTask MakeTask(Thing t, CompDigitalWorker comp)
@@ -460,9 +515,17 @@ namespace DigitalStorage.AI
     // ==========================================================================================
     public class DigitalTaskAdapter_Construct : DigitalTaskAdapter
     {
+        /// <summary>只认 Construction（见 <see cref="DigitalTaskAdapter.HomeWorkTypes"/>）。</summary>
+        private static readonly string[] Homes = { "Construction" };
+
         public override Type WorkGiverClass
         {
             get { return typeof(WorkGiver_ConstructFinishFrames); }
+        }
+
+        public override string[] HomeWorkTypes
+        {
+            get { return Homes; }
         }
 
         /// <summary>
@@ -770,9 +833,17 @@ namespace DigitalStorage.AI
     // ==========================================================================================
     public class DigitalTaskAdapter_Clean : DigitalTaskAdapter
     {
+        /// <summary>只认 Cleaning（见 <see cref="DigitalTaskAdapter.HomeWorkTypes"/>）。</summary>
+        private static readonly string[] Homes = { "Cleaning" };
+
         public override Type WorkGiverClass
         {
             get { return typeof(WorkGiver_CleanFilth); }
+        }
+
+        public override string[] HomeWorkTypes
+        {
+            get { return Homes; }
         }
 
         /// <summary>
@@ -986,9 +1057,17 @@ namespace DigitalStorage.AI
     // ==========================================================================================
     public class DigitalTaskAdapter_PlantCut : DigitalTaskAdapter
     {
+        /// <summary>只认 PlantCutting（见 <see cref="DigitalTaskAdapter.HomeWorkTypes"/>）。</summary>
+        private static readonly string[] Homes = { "PlantCutting" };
+
         public override Type WorkGiverClass
         {
             get { return typeof(WorkGiver_PlantsCut); }
+        }
+
+        public override string[] HomeWorkTypes
+        {
+            get { return Homes; }
         }
 
         public override DigitalTask MakeTask(Thing t, CompDigitalWorker comp)
@@ -1082,9 +1161,18 @@ namespace DigitalStorage.AI
     // ==========================================================================================
     public class DigitalTaskAdapter_Deconstruct : DigitalTaskAdapter
     {
+        /// <summary>Construction —— 外加 Complex Jobs 把 <c>Deconstruct</c> 搬去的 <c>FSFDeconstruct</c>
+        /// （见 <see cref="DigitalTaskAdapter.HomeWorkTypes"/>；不装那个 mod 时这个 defName 不存在）。</summary>
+        private static readonly string[] Homes = { "Construction", "FSFDeconstruct" };
+
         public override Type WorkGiverClass
         {
             get { return typeof(WorkGiver_Deconstruct); }
+        }
+
+        public override string[] HomeWorkTypes
+        {
+            get { return Homes; }
         }
 
         public override DigitalTask MakeTask(Thing t, CompDigitalWorker comp)

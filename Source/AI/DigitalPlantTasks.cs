@@ -194,9 +194,17 @@ namespace DigitalStorage.AI
     // ==========================================================================================
     public class DigitalTaskAdapter_GrowerSow : DigitalTaskAdapter_CellOnly
     {
+        /// <summary>只认 Growing（见 <see cref="DigitalTaskAdapter.HomeWorkTypes"/>）。</summary>
+        private static readonly string[] Homes = { "Growing" };
+
         public override Type WorkGiverClass
         {
             get { return typeof(WorkGiver_GrowerSow); }
+        }
+
+        public override string[] HomeWorkTypes
+        {
+            get { return Homes; }
         }
 
         public override DigitalTask MakeCellTask(IntVec3 cell, Map map, Pawn pawn, WorkGiver_Scanner scanner, CompDigitalWorker comp)
@@ -356,9 +364,18 @@ namespace DigitalStorage.AI
     // ==========================================================================================
     public class DigitalTaskAdapter_GrowerHarvest : DigitalTaskAdapter_CellOnly
     {
+        /// <summary>Growing —— 外加 Complex Jobs 把 <c>GrowerHarvest</c> 搬去的 <c>FSFHarvesting</c>
+        /// （见 <see cref="DigitalTaskAdapter.HomeWorkTypes"/>；不装那个 mod 时这个 defName 不存在）。</summary>
+        private static readonly string[] Homes = { "Growing", "FSFHarvesting" };
+
         public override Type WorkGiverClass
         {
             get { return typeof(WorkGiver_GrowerHarvest); }
+        }
+
+        public override string[] HomeWorkTypes
+        {
+            get { return Homes; }
         }
 
         public override DigitalTask MakeCellTask(IntVec3 cell, Map map, Pawn pawn, WorkGiver_Scanner scanner, CompDigitalWorker comp)
