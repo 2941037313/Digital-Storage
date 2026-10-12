@@ -61,13 +61,19 @@ namespace DigitalStorage.Services
         public override void FinalizeInit()
         {
             base.FinalizeInit();
-            if (shown40Letter) return;
 
-            shown40Letter = true;
-            Find.LetterStack.ReceiveLetter(
-                "DigitalStorage_Letter40_Label".Translate(),
-                "DigitalStorage_Letter40_Text".Translate(),
-                LetterDefOf.NeutralEvent);
+            if (!shown40Letter)
+            {
+                shown40Letter = true;
+                Find.LetterStack.ReceiveLetter(
+                    "DigitalStorage_Letter40_Label".Translate(),
+                    "DigitalStorage_Letter40_Text".Translate(),
+                    LetterDefOf.NeutralEvent);
+            }
+
+            // 与 Pick Up And Haul 的冲突：**每次进档都弹**（不兼容声明，不是一次性通知）。
+            // 刻意放在 4.0 更新信之后 ⇒ 它压在信件栏最上面，最显眼。
+            Compatibility.PickUpAndHaulConflict.ReceiveLetter();
         }
 
         public override void ExposeData()

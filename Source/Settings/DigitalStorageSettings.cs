@@ -34,6 +34,20 @@ namespace DigitalStorage.Settings
         public static bool autoIngestEnabled = true;
 
         /// <summary>
+        /// <b>自动收纳是否"避让正在用这件东西的人"</b>（作业目标 / 还有 bill 在等料的工作台旁边那一圈）。
+        ///
+        /// <para><b>默认关 = 算中即入</b>（2026-10-12 用户拍板）：候选一进原版待搬表，
+        /// 15 tick 内就瞬移进核心，不管有没有小人的作业正指着它 —— 这是本 mod「搬运取消」的取向，
+        /// 也正因如此"有核心就不需要搬运 mod"。</para>
+        ///
+        /// <para>打开 = 让位：那两族物品会被跳过（作业目标一直让到作业结束；工作台旁边让 300 tick）。
+        /// 这两条闸门是 commit <c>e66978d</c> 为「小人取出材料准备制造 → 材料立刻被吸走 → 反复取物卡住」
+        /// 那个死循环加的，默认关掉后它们不再介入；留着是为了**万一**那类循环再出现时玩家能一键对照，
+        /// 而不用等发版。</para>
+        /// </summary>
+        public static bool autoIngestYieldToJobs = false;
+
+        /// <summary>
         /// 是否把「数字存储背包」也挂给**殖民地机械族**（含别的 mod 的无人机 / 机器人）。
         ///
         /// <para>背包的唯一用途是让"从核心取料"这一跳变成 0 距离（机械族也会做 bill），
@@ -102,6 +116,7 @@ namespace DigitalStorage.Settings
             Scribe_Values.Look(ref researchMultiplier, "researchMultiplier", 1.0f);
             Scribe_Values.Look(ref enableDebugLog, "enableDebugLog", false);
             Scribe_Values.Look(ref autoIngestEnabled, "autoIngestEnabled", true);
+            Scribe_Values.Look(ref autoIngestYieldToJobs, "autoIngestYieldToJobs", false);
             Scribe_Values.Look(ref backpackForMechanoids, "backpackForMechanoids", true);
             Scribe_Values.Look(ref perfOptimizationsEnabled, "perfOptimizationsEnabled", true);
             Scribe_Values.Look(ref noWorkFailure, "noWorkFailure", true);
@@ -150,6 +165,10 @@ namespace DigitalStorage.Settings
 
             listing.CheckboxLabeled("DS_AutoIngestToggle".Translate(), ref autoIngestEnabled,
                 "DS_AutoIngestToggleDesc".Translate());
+            listing.Gap(6f);
+            // 默认关 = 算中即入；开 = 让位给"正在用这件东西的人"（见字段注释）
+            listing.CheckboxLabeled("DS_AutoIngestYieldToggle".Translate(), ref autoIngestYieldToJobs,
+                "DS_AutoIngestYieldToggleDesc".Translate());
             listing.Gap(6f);
             listing.CheckboxLabeled("DS_BackpackMechToggle".Translate(), ref backpackForMechanoids,
                 "DS_BackpackMechToggleDesc".Translate());

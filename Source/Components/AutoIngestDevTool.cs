@@ -348,6 +348,8 @@ namespace DigitalStorage.Components
         {
             SB.AppendLine("--- 核心层 ---");
             SB.AppendLine("  设置·自动收纳总开关 autoIngestEnabled = " + DigitalStorage.Settings.DigitalStorageSettings.autoIngestEnabled);
+            SB.AppendLine("  设置·避让作业 autoIngestYieldToJobs = " + DigitalStorage.Settings.DigitalStorageSettings.autoIngestYieldToJobs
+                          + "（关 = 算中即入：『作业目标 / 工作台旁边宽限』那两条闸门不参与判定）");
             SB.AppendLine("  研究·DigitalStorage_AutoIngest1 = " + ResearchDone("DigitalStorage_AutoIngest1")
                           + " / 2 = " + ResearchDone("DigitalStorage_AutoIngest2")
                           + " / 3 = " + ResearchDone("DigitalStorage_AutoIngest3"));

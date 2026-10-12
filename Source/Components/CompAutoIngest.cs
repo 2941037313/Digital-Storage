@@ -346,10 +346,12 @@ namespace DigitalStorage.Components
             InPrisonArea,
             /// <summary>在工作台的**材料区**（= 工作台自己占的格子）—— 见 <see cref="IsOnBillGiver"/>。</summary>
             OnBillGiver,
-            /// <summary>在"还在等料"的工作台**旁边一圈**里、还没过宽限 —— 见 <see cref="IsInWaitingBillGiverRim"/>。</summary>
+            /// <summary>在"还在等料"的工作台**旁边一圈**里、还没过宽限 —— 见 <see cref="IsInWaitingBillGiverRim"/>。
+            /// <b>默认不生效</b>（设置 <c>autoIngestYieldToJobs</c>）。</summary>
             OnBillGiverRim,
             Reserved,
-            /// <summary>是某个 pawn 当前 / 排队中作业的目标 —— 见 <see cref="IsTargetOfAnyPawnJob"/>。</summary>
+            /// <summary>是某个 pawn 当前 / 排队中作业的目标 —— 见 <see cref="IsTargetOfAnyPawnJob"/>。
+            /// <b>默认不生效</b>（设置 <c>autoIngestYieldToJobs</c>）。</summary>
             JobTarget,
             RecentlyWithdrawn
         }
@@ -359,7 +361,8 @@ namespace DigitalStorage.Components
         /// （<c>listerHaulables</c> 里会出现"因过滤器变更而要从核心里搬出去"的内容物，
         /// 甲-1 的机制，对容器里的东西 <c>DeSpawn</c> 是错的）、**工作台材料区 / 关押区**两条豁免、
         /// **只读的预订检查**（不碰 <c>ReservationManager.Reserve</c>，与 MoreOrgans 的劳务手同款）、
-        /// **"刚被取出"保护窗口**，以及 2026-10 补上的两条（都是"东西正被别人用着"的形态）：
+        /// **"刚被取出"保护窗口**，以及 2026-10 加的两条（都是"东西正被别人用着"的形态，
+        /// <b>由设置 <c>autoIngestYieldToJobs</c> 控制、默认关</b>）：
         /// <see cref="Reject.JobTarget"/>（是某个 pawn 作业的目标）与
         /// <see cref="Reject.OnBillGiverRim"/>（躺在"还在等料"的工作台旁边、还没过宽限）。
         ///
@@ -385,10 +388,13 @@ namespace DigitalStorage.Components
             // 容器内 / 背包里的东西 Spawned == false，一条判断就够。
             if (!t.Spawned) return Reject.NotOnMap;
             if (IsOnBillGiver(t, map)) return Reject.OnBillGiver;
-            // ★ 2026-10：作业已经指着它 / 刚指着它 —— 抢走 = 让那个作业找不到东西（见方法注释）。
-            //   刻意排在预订检查**之前**：绝大多数 job 目标同时也被预订着，但"作业在手、预订还没写"
-            //   与"落地的料根本没人预订"这两种情况只有这条能拦。
-            if (IsTargetOfAnyPawnJob(t, map)) return Reject.JobTarget;
+            // ★ 2026-10：作业已经指着它 —— 抢走 = 让那个作业找不到东西（见方法注释）。
+            //   **默认不生效**（见设置 autoIngestYieldToJobs）：本 mod 的取向是"算中即入"，
+            //   让位只是留给"万一起了取料死循环"时的一键对照。
+            //   生效时刻意排在预订检查**之前**：绝大多数 job 目标同时也被预订着，
+            //   但"作业在手、预订还没写"与"落地的料根本没人预订"这两种情况只有这条能拦。
+            if (DigitalStorage.Settings.DigitalStorageSettings.autoIngestYieldToJobs
+                && IsTargetOfAnyPawnJob(t, map)) return Reject.JobTarget;
             // 【曾经在这里加过一条 Reject.OnConstructionSite（工地 3×3 不收），已删除】
             // 当时我以为"送料到工地会落地、落地就会被吸走"。**这个前提是错的**：
             //   Frame : Building, IThingHolder（Frame.cs:11）带 resourceContainer，
@@ -402,9 +408,10 @@ namespace DigitalStorage.Components
             if (IsRecentlyWithdrawn(t)) return Reject.RecentlyWithdrawn;
 
             // ★ 2026-10：别的都放行了，但它躺在"还在等料"的工作台旁边、还没躺够宽限 —— 再让一会儿。
-            //   刻意放最后：这是唯一一条要额外花代价的判据（最多 8 次 GetEdifice），
-            //   只想拦住"其余全通过"的那批，不想给每一件候选都加钱。
-            if (IsInWaitingBillGiverRim(t, map)) return Reject.OnBillGiverRim;
+            //   **默认不生效**（见设置 autoIngestYieldToJobs）。刻意放最后：这是唯一一条要额外花
+            //   代价的判据（最多 8 次 GetEdifice），只想拦住"其余全通过"的那批，不想给每件候选加钱。
+            if (DigitalStorage.Settings.DigitalStorageSettings.autoIngestYieldToJobs
+                && IsInWaitingBillGiverRim(t, map)) return Reject.OnBillGiverRim;
             return Reject.None;
         }
 
