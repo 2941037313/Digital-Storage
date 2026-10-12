@@ -76,10 +76,19 @@ namespace DigitalStorage.Compatibility
         /// 进入存档后弹一封**红信**（<c>LetterDefOf.NegativeEvent</c>，留在信件栏、不挡操作）。
         /// 刻意做成"每次进档都弹"：这是**不兼容声明**，不是一次性通知 ——
         /// 玩家换了档、换了 mod 列表，都可能重新踩进来。
+        /// <para>唯一的例外：**玩家已经关掉「自动收纳」**（信里给的那条共存出路）⇒ 冲突已解，
+        /// 这时不再弹（否则每次读档都误报一次）。启动日志不受此限。</para>
         /// </summary>
         public static void ReceiveLetter()
         {
             if (!IsActive) return;
+
+            // 玩家已经按信里的出路做了 ⇒ 冲突**已经解开**，再每次读档弹红信就是误报：
+            // 关掉「自动收纳」= 瞬移停止、搬运交还给殖民者与 PUAH，这正是共存那条路。
+            // （启动时那三行日志仍然照打：它是"装了 PUAH"这个**事实** + 共存办法，
+            //   对排查有用，且不在玩家眼前刷屏。）
+            if (!DigitalStorage.Settings.DigitalStorageSettings.autoIngestEnabled) return;
+
             Find.LetterStack.ReceiveLetter(
                 "DS_PUAH_LetterLabel".Translate(),
                 "DS_PUAH_LetterText".Translate(),
