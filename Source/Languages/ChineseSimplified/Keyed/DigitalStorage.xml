@@ -328,4 +328,6 @@
     <DS_CA_SkillNone>无</DS_CA_SkillNone>
     <DS_CA_DeletedOne>已删除订单「{0}」</DS_CA_DeletedOne>
     <DS_CA_DeletedTree>已删除整棵合成树（{0} 条订单）</DS_CA_DeletedTree>
+    <DS_PUAH_LetterLabel>Pick Up And Haul 冲突（数字存储）</DS_PUAH_LetterLabel>
+    <DS_PUAH_LetterText>数字存储的核心入库是【瞬移】：散落物自动进核心、材料直送工作台，整个流程没有"搬运作业"可以交接。\n\n而 Pick Up And Haul 的核心机制是"先组批、再把东西一件件塞进容器"，它全程拿着 Thing 引用，\n靠一份自己的列表判断"这件东西还在不在小人背包里"。我们把小人正要拿的那件东西瞬移进核心时\n【并没有销毁它】⇒ 对方的引用不会失效，两边状态就此脱节。\n\n已经观察到的表现：小人原地发呆 / 反复取物 / 日志里每 tick 刷一条红字。\n\n—— 怎么共存 ——\n设置 → 模组设置 → 数字存储 → 关掉【自动收纳】。\n\n关掉之后瞬移停止，搬运交还给殖民者与 Pick Up And Haul，两者就能一起用\n（核心仍然可以手动存取、仍然给工作台供料）。\n\n如果你不需要 Pick Up And Haul：有数字存储核心时它其实没有用武之地\n—— 它省的是"搬运趟数"，而核心根本不搬运。\n\n本提示每次进入存档都会出现一次（换了档、换了 mod 列表都可能重新踩进来）。\n关掉【自动收纳】之后不再提示。</DS_PUAH_LetterText>
 </LanguageData>
