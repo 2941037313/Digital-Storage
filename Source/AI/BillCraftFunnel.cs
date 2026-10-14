@@ -137,7 +137,20 @@ namespace DigitalStorage.AI
             plan.NoteCompleted();
 
             // ⑥ 产物：直塞核心，塞不进就落在台子旁（绝不吞）
-            StoreProducts(comp, products, map, bench);
+            StoreProducts(comp, plan, products, map, bench);
+            // ★ "造完就立马扫出来"：产物入库后立刻按新数量重算维持状态，
+            //   否则调度会在计数更新前又配新线 ⇒ 同一步骤多做 1 个。
+            //
+            //   ★★ 注意：这里要重算的是**这一件产物对应的那条订单**，不是根订单！
+            //   上游步骤（中间产物）的维持订单和根是两条不同的 plan，原来只重算 plan（=根）
+            //   ⇒ 中间产物那条要等 30 tick 才更新 ⇒ 中间产物多做（实机反馈：
+            //   "一直在造一个东西然后读不到数量增加"）。
+            if (bill != null && bill.recipe != null)
+            {
+                CraftPlan ownerPlan = CraftTree.FindPlan(comp, bill.recipe);
+                if (ownerPlan != null) comp.RecountNow(ownerPlan);
+            }
+            comp.RecountNow(plan);
             Performance.DevDrawProfiler.Bump("账单完成", 1);
             return CraftResult.Done;
         }
@@ -146,7 +159,7 @@ namespace DigitalStorage.AI
         /// 产物去向（用户拍板）：**直塞最近的核心**；核心不收（过滤器/容量）或没有核心 ⇒ 落在台子旁。
         /// 不走 <c>bill.GetStoreMode()</c> —— 自动化出来的东西一律进核心，"落地"只是失败兜底。
         /// </summary>
-        private static void StoreProducts(CompBillAutomation comp, List<Thing> products, Map map, Thing bench)
+        private static void StoreProducts(CompBillAutomation comp, CraftPlan plan, List<Thing> products, Map map, Thing bench)
         {
             if (products == null || products.Count == 0) return;
 
@@ -167,15 +180,14 @@ namespace DigitalStorage.AI
                     continue;
                 }
 
-                // ★ A+（窄口径白名单）：这件产物是**某个在跑的合成 Job 需要的**（根或中间步骤）
-                //   ⇒ 允许不看过滤器进核心，只受容量约束。
-                //   不这样做的话：中间产物落在台子旁 ⇒ 前置树的下一步永远等不到料 ⇒ 链断在第二步
-                //   （实机反馈：测试物品不会被吸入数字核心、卡在第二步）。
-                //   口径仍然很窄 —— 只有"自动合成出来的、且在跑 Job 需要的"东西能走这条；
-                //   玩家手工搬、别处搬，一律照旧受过滤器约束（那条路走 Accepts）。
-                //   绕过容器的动作封装在 DigitalDropRedirect 里，本类不直接碰容器。
-                if (core != null && comp.IsProductNeededByActiveJob(p.def)
-                    && DigitalDropRedirect.TryIngestUnspawnedIgnoringFilter(core, p))
+                // ★ 修复（用户反馈："造好的树测试的物品没被吸进核心里"）：
+                //   原来这里要求"这件产物是**某个在跑的 Job 需要的**"才允许不看过滤器进核心。
+                //   但合成**做完那一刻** Job 可能已经结束 / 已被清理 ⇒ 判定为 false ⇒ 产物落地，
+                //   于是核心明明还有容量却堆在台子旁边（实况：已产出 26 件、落地 12 件）。
+                //   现在口径改成：**自动合成出来的产物一律优先送进核心**，只受容量约束
+                //   （AcceptsByCapacityOnly：Spawned / haulDestination / maxStacks / 堆叠合并都照旧管）。
+                //   玩家手工搬、别处搬仍然照旧走 Accepts（受过滤器约束）——那条路不经过这里。
+                if (core != null && DigitalDropRedirect.TryIngestUnspawnedIgnoringFilter(core, p))
                 {
                     comp.NoteProduct(p, true);
                     continue;
