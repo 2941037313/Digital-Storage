@@ -81,7 +81,7 @@ namespace DigitalStorage.AI
 
             // ② 产物（唯一漏斗）。生成期间抑制"大师/传奇"信件 —— 工厂量产会把信件栏刷爆；
             //    品质信息由左上角那条完成提示带上（见 CompBillAutomation.NoteProduct / DescribeProduct）。
-            Thing dominant = DominantIngredient(bill.recipe, ingredients);
+            Thing dominant = DominantIngredient(bill.recipe, ingredients, line.StuffDef);
             List<Thing> products;
             bool prevSuppress = BillAutomationScope.SuppressCraftLetters;
             BillAutomationScope.SuppressCraftLetters = true;
@@ -158,11 +158,29 @@ namespace DigitalStorage.AI
                 Thing p = products[i];
                 if (p == null || p.Destroyed) continue;
 
+                // ★ 恢复原语义：Accepts 说不收就**落地**（不再绕过核心自己的存储筛选/容量判断直塞容器）。
+                //   "绕过"会把被禁用的物品塞进核心、并且每件都打一条未限流的 Warning（刷日志），
+                //   两件事都不该进上游。
                 if (core != null && DigitalDropRedirect.TryIngestUnspawned(core, p))
                 {
                     comp.NoteProduct(p, true);
                     continue;
                 }
+
+                // ★ A+（窄口径白名单）：这件产物是**某个在跑的合成 Job 需要的**（根或中间步骤）
+                //   ⇒ 允许不看过滤器进核心，只受容量约束。
+                //   不这样做的话：中间产物落在台子旁 ⇒ 前置树的下一步永远等不到料 ⇒ 链断在第二步
+                //   （实机反馈：测试物品不会被吸入数字核心、卡在第二步）。
+                //   口径仍然很窄 —— 只有"自动合成出来的、且在跑 Job 需要的"东西能走这条；
+                //   玩家手工搬、别处搬，一律照旧受过滤器约束（那条路走 Accepts）。
+                //   绕过容器的动作封装在 DigitalDropRedirect 里，本类不直接碰容器。
+                if (core != null && comp.IsProductNeededByActiveJob(p.def)
+                    && DigitalDropRedirect.TryIngestUnspawnedIgnoringFilter(core, p))
+                {
+                    comp.NoteProduct(p, true);
+                    continue;
+                }
+
                 if (GenPlace.TryPlaceThing(p, cell, map, ThingPlaceMode.Near))
                 {
                     comp.NoteProduct(p, false);
@@ -177,12 +195,31 @@ namespace DigitalStorage.AI
         }
 
         /// <summary>
-        /// 照抄原版 <c>Toils_Recipe.CalculateDominantIngredient:348-370</c>（去掉未完成品那一支 ——
-        /// v1 不做 UFT 配方）。这个值决定 stuff 类产物的材质与颜色，**传 null 会在 GenRecipe.cs:21 直接 NRE**。
+        /// 照抄原版 <c>Toils_Recipe.CalculateDominantIngredient</c>。
+        /// 这个值决定 stuff 类产物的材质与颜色，**传 null 会在 GenRecipe.cs:21 直接 NRE**。
+        ///
+        /// <para><b>未完成品（UFT）那一支现在补回来了。</b>原版对该配方的第一支是
+        /// <c>if (uft != null &amp;&amp; uft.def.MadeFromStuff) return uft.ingredients.First(ing =&gt; ing.def == uft.Stuff);</c>
+        /// —— 即"认未完成品身上那个 stuff"。代理不造 UFT，但把同一件事记在
+        /// <see cref="CraftLine.StuffDef"/> 上（取活时定，见 <see cref="BillProbe.UftStuffDef"/>），
+        /// 于是这里用 <paramref name="preferredStuff"/> 复现同一支，保证"算工时用的材质"与"做产物用的材质"一致。</para>
+        ///
+        /// <para>普通配方的 <paramref name="preferredStuff"/> 恒为 null，行为和改之前完全一样。</para>
         /// </summary>
-        private static Thing DominantIngredient(RecipeDef recipe, List<Thing> ingredients)
+        internal static Thing DominantIngredient(RecipeDef recipe, IList<Thing> ingredients, ThingDef preferredStuff)
         {
             if (ingredients == null || ingredients.Count == 0) return null;
+
+            // ★ UFT 配方：取活时定下的主材质优先（= 原版 uft.ingredients.First(ing => ing.def == uft.Stuff)）
+            if (preferredStuff != null)
+            {
+                for (int i = 0; i < ingredients.Count; i++)
+                {
+                    Thing t = ingredients[i];
+                    if (t != null && t.def == preferredStuff) return t;
+                }
+            }
+
             if (recipe.productHasIngredientStuff) return ingredients[0];
 
             bool stuffProduct = false;
