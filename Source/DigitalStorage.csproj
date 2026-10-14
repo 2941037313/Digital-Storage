@@ -10,6 +10,14 @@
     <AssemblyName>DigitalStorage</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <!-- 可覆盖的引用路径：默认值 = 开发机上的常见布局；换机器时用命令行 `-p:` 覆盖，不必改仓库。
+         例：msbuild Source\DigitalStorage.csproj -c Release `
+               -p:RimWorldManagedDir="D:\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed"
+         框架参考程序集（mscorlib / System / System.Core …）**交给 MSBuild 标准解析**，不要手工拼 HintPath：
+         自己拼的路径一旦算错，装了开发包 / rarpack 的机器会静默回退（0 error、看起来一切正常），
+         而真正需要它的那台机器依然找不到 —— 属于最难发现的一类失效。 -->
+    <RimWorldManagedDir Condition=" '$(RimWorldManagedDir)' == '' ">$(MSBuildProjectDirectory)\..\..\..\..\..\..\..\SteamLibrary\steamapps\common\RimWorld\RimWorldWin64_Data\Managed</RimWorldManagedDir>
+    <HarmonyPath Condition=" '$(HarmonyPath)' == '' ">$(MSBuildProjectDirectory)\..\Assemblies\0Harmony.dll</HarmonyPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -34,22 +42,22 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>..\Assemblies\0Harmony.dll</HintPath>
+      <HintPath>$(HarmonyPath)</HintPath>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\..\..\..\..\SteamLibrary\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(RimWorldManagedDir)\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\..\..\..\..\..\SteamLibrary\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(RimWorldManagedDir)\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>..\..\..\..\..\..\..\SteamLibrary\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>$(RimWorldManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>..\..\..\..\..\..\..\SteamLibrary\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>$(RimWorldManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System" />
@@ -63,9 +71,11 @@
     <Compile Include="Compatibility\CoreSlotGroupAdapter.cs" />
     <Compile Include="Compatibility\Legacy30Migration.cs" />
     <Compile Include="Compatibility\PhinixCompatPatch.cs" />
+    <Compile Include="Compatibility\PickUpAndHaulConflict.cs" />
     <Compile Include="Components\CompProperties_AutoIngest.cs" />
     <Compile Include="Components\CompAutoIngest.cs" />
     <Compile Include="Components\AutoIngestDevTool.cs" />
+    <Compile Include="Components\DigitalWorkerDevTool.cs" />
     <Compile Include="Components\CompProperties_DigitalWorker.cs" />
     <Compile Include="Components\CompDigitalWorker.cs" />
     <Compile Include="Components\CompProperties_BillAutomation.cs" />
@@ -73,6 +83,7 @@
 
     <Compile Include="Core\CoreTier.cs" />
     <Compile Include="Core\HaulSourceContents.cs" />
+    <Compile Include="Core\CoreStorageContainer.cs" />
     <Compile Include="Core\ItemGroup.cs" />
     <Compile Include="Core\ContainerAutoLoader.cs" />
     <Compile Include="Core\DigitalDropRedirect.cs" />
@@ -123,6 +134,7 @@
     <Compile Include="HarmonyPatches\Patch_DrugPaths.cs" />
     <Compile Include="HarmonyPatches\Patch_ResourceCounter_HaulSources.cs" />
     <Compile Include="HarmonyPatches\Patch_SlotGroup_HeldThings.cs" />
+    <Compile Include="HarmonyPatches\Patch_Bill_Production_CoreGroups.cs" />
     <Compile Include="HarmonyPatches\Patch_DesignatorBuild_ProcessInput.cs" />
     <Compile Include="HarmonyPatches\Patch_ResourceDeliverJobFor.cs" />
     <Compile Include="HarmonyPatches\Patch_RecipeDef_MissingIngredients.cs" />
@@ -146,6 +158,10 @@
     <Compile Include="HarmonyPatches\Patch_Building_GrowthVat_SupplyFromCore.cs" />
     <Compile Include="HarmonyPatches\Patch_PowerMultiplier.cs" />
     <Compile Include="HarmonyPatches\Patch_QualityUtility_SuppressCraftLetter.cs" />
+    <!-- 原版 Frame.CompleteConstruction 缺了 Designator_Build 那半截 RemoveTopLayer：
+         在地板上铺"地基"地形（逆重飞船基架 / 重型桥）会被 SetFoundation 拒绝，
+         而框那时已经 Destroy ⇒ 白丢。这里补上前置清理。 -->
+    <Compile Include="HarmonyPatches\Patch_Frame_CompleteConstruction.cs" />
 
     <!-- 原版热点优化（不是本 mod 的功能补丁，纯粹治原版在"框选一堆/标记一堆"时的每帧开销） -->
     <Compile Include="Performance\Patch_SelectionDrawer_BracketCull.cs" />
@@ -157,6 +173,8 @@
     <Compile Include="Settings\DigitalStorageMod.cs" />
     <Compile Include="Settings\DigitalStorageSettings.cs" />
     <Compile Include="Settings\DefMultipliers.cs" />
+    <!-- 工作失败率设置：把"收割 / 建造 / 修故障"三处掷骰变成必成（改的是那三条 stat 的因子，见文件头注释） -->
+    <Compile Include="Settings\WorkFailureTuner.cs" />
 
     <Compile Include="Services\DigitalStorageGameComponent.cs" />
     <Compile Include="Services\MapComponent_CraftRange.cs" />
