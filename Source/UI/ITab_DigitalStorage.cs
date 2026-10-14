@@ -282,8 +282,14 @@ namespace DigitalStorage.UI
             Map map = core.Map;
             if (map == null) return;
 
-            int got = HaulSourceContents.ExtractMatchingTo(amount, core.Position, map,
-                delegate (Thing t) { return t.def == row.def && t.Stuff == row.stuff && QualityOrdinalOf(t) == row.qualityOrdinal; });
+            // ★ 适配上游 2026-10-12 的重构：ExtractMatchingTo 签名已变
+            //   旧：ExtractMatchingTo(int count, IntVec3 pos, Map map, Predicate<Thing> filter)     4 参
+            //   新：ExtractMatchingTo(Building_StorageCore core, int count, IntVec3 pos, Map map,
+            //                        Predicate<Thing> filter, bool forbid = true)                     6 参
+            //   forbid: false ⇒ 面板取物不把东西设成禁止（那是 3.0 的"防送回"语义，这里不需要）。
+            int got = HaulSourceContents.ExtractMatchingTo(core, amount, core.Position, map,
+                delegate (Thing t) { return t.def == row.def && t.Stuff == row.stuff && QualityOrdinalOf(t) == row.qualityOrdinal; },
+                forbid: false);
 
             if (got <= 0)
                 Messages.Message("DS_NoSpaceNearCore".Translate(), core, MessageTypeDefOf.RejectInput);

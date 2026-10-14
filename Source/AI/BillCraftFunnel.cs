@@ -181,13 +181,17 @@ namespace DigitalStorage.AI
                 }
 
                 // ★ 修复（用户反馈："造好的树测试的物品没被吸进核心里"）：
-                //   原来这里要求"这件产物是**某个在跑的 Job 需要的**"才允许不看过滤器进核心。
-                //   但合成**做完那一刻** Job 可能已经结束 / 已被清理 ⇒ 判定为 false ⇒ 产物落地，
-                //   于是核心明明还有容量却堆在台子旁边（实况：已产出 26 件、落地 12 件）。
-                //   现在口径改成：**自动合成出来的产物一律优先送进核心**，只受容量约束
-                //   （AcceptsByCapacityOnly：Spawned / haulDestination / maxStacks / 堆叠合并都照旧管）。
-                //   玩家手工搬、别处搬仍然照旧走 Accepts（受过滤器约束）——那条路不经过这里。
-                if (core != null && DigitalDropRedirect.TryIngestUnspawnedIgnoringFilter(core, p))
+                //   口径：**自动合成出来的产物一律优先送进核心**，只受容量 + 入库开关约束。
+                //   原来要求"这件产物是某个在跑 Job 需要的"才允许绕过筛选，但合成**做完那一刻**
+                //   Job 可能已经结束 / 已被清理 ⇒ 判定 false ⇒ 产物落地
+                //   （实况：已产出 26 件、落地 12 件）。
+                //
+                //   ⚠️ 适配上游 2026-10-12 的重构：旧接口
+                //     DigitalDropRedirect.TryIngestUnspawnedIgnoringFilter
+                //     Building_StorageCore.AcceptsByCapacityOnly
+                //   上游已删除（新版 TryStore 一律走 Accepts ⇒ 受筛选约束）。
+                //   这里自己判：容器有容量 + 入库开关/电力允许 ⇒ 直接塞进容器（跳过筛选）。
+                if (core != null && TryIngestIgnoringFilter(core, p))
                 {
                     comp.NoteProduct(p, true);
                     continue;
@@ -204,6 +208,33 @@ namespace DigitalStorage.AI
                 Log.Error("[DigitalStorage] 制作代理产物既塞不进核心也落不了地，已丢弃：" + p);
                 if (!p.Destroyed) p.Destroy();
             }
+        }
+
+        /// <summary>
+        /// 把**未 spawn** 的产物塞进核心，**跳过筛选**（但入库开关 / 电力 / 容量照旧管）。
+        ///
+        /// <para><b>为什么自己写</b>：上游 2026-10-12 删掉了
+        /// <c>DigitalDropRedirect.TryIngestUnspawnedIgnoringFilter</c> 与
+        /// <c>Building_StorageCore.AcceptsByCapacityOnly</c>，新版 <c>TryStore</c> 内部一律走
+        /// <c>Accepts</c>（含筛选）。而自动合成的产物不能因为没勾筛选器就落地 —— 那会让
+        /// 前置树的下一步永远等不到料（链断在第二步），实机现象是"已产出 26 件、落地 12 件"。</para>
+        ///
+        /// <para>口径仍然窄：**只有自动合成的产物**走这条；玩家手工搬运、别处的自动化
+        /// 一律照旧走 <c>Accepts</c>（受筛选约束），那条路不经过这里。</para>
+        /// </summary>
+        private static bool TryIngestIgnoringFilter(Building_StorageCore core, Thing t)
+        {
+            if (core == null || t == null || t.Destroyed) return false;
+            if (t.Spawned || t.holdingOwner != null) return false;   // 只处理未落地的
+            if (core.Map == null || !core.Spawned) return false;
+            if (!core.HaulDestinationEnabled) return false;          // 玩家关掉入库 ⇒ 不硬塞
+            if (core.GetDirectlyHeldThings().GetCountCanAccept(t) <= 0) return false;   // 满了就落地
+            // innerContainer 是 protected ⇒ 走公开的 TryStore；它内部会再查一次 Accepts（筛选），
+            // 所以这里先用容量判定"值不值得绕"，绕不过筛选时再直接塞容器。
+            int take = t.stackCount;
+            if (core.TryStore(t, take) == take) return true;
+            // 筛选不允许 ⇒ 直接进容器（跳过筛选，容量已确认）
+            return core.GetDirectlyHeldThings().TryAdd(t, true);
         }
 
         /// <summary>
