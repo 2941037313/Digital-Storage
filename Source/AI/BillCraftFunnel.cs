@@ -166,6 +166,21 @@ namespace DigitalStorage.AI
             Building_StorageCore core = DigitalDropRedirect.NearestUsableCore(map, bench.PositionHeld);
             IntVec3 cell = bench.PositionHeld;
 
+            // ★ 兜底：NearestUsableCore 只认【已通电】的核心（IsUsableNow = Spawned && Powered）。
+            //   核心没电 / 刚好在断电瞬间时它会返回 null ⇒ 产物全部落地 ⇒
+            //   「制作完成：X（核心放不下或未启用，放在工作台旁）」一直刷。
+            //   这里退一步：本图有核心就挑最近的那台（哪怕没电）——产物进核心比落一地好，
+            //   等来电了自己会被正常使用。
+            if (core == null)
+            {
+                core = FindNearestCoreIgnoringPower(map, bench.PositionHeld);
+                if (core != null)
+                {
+                    Log.ErrorOnce("[DigitalStorage] 没有【已通电】的核心，产物改送最近的核心（"
+                        + core.Position + "）—— 检查核心供电。", 0x44534398);
+                }
+            }
+
             for (int i = 0; i < products.Count; i++)
             {
                 Thing p = products[i];
@@ -211,30 +226,61 @@ namespace DigitalStorage.AI
         }
 
         /// <summary>
-        /// 把**未 spawn** 的产物塞进核心，**跳过筛选**（但入库开关 / 电力 / 容量照旧管）。
+        /// 本图**最近的核心**，<b>不管有没有电</b>（供 <see cref="StoreProducts"/> 兜底用）。
+        /// 只在"没有已通电核心"时调用，所以不做缓存 —— 顺手遍历一次就够。
+        /// </summary>
+        private static Building_StorageCore FindNearestCoreIgnoringPower(Map map, IntVec3 near)
+        {
+            if (map == null) return null;
+            List<Thing> all = map.listerThings.AllThings;
+            if (all == null) return null;
+
+            Building_StorageCore best = null;
+            float bestDist = float.MaxValue;
+            for (int i = 0; i < all.Count; i++)
+            {
+                Building_StorageCore c = all[i] as Building_StorageCore;
+                if (c == null || !c.Spawned || c.Destroyed) continue;
+                float d = (c.Position - near).LengthHorizontalSquared;
+                if (d < bestDist) { bestDist = d; best = c; }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// 把**未落地**的产物优先送进核心（自动合成产物专用）。
         ///
-        /// <para><b>为什么自己写</b>：上游 2026-10-12 删掉了
-        /// <c>DigitalDropRedirect.TryIngestUnspawnedIgnoringFilter</c> 与
-        /// <c>Building_StorageCore.AcceptsByCapacityOnly</c>，新版 <c>TryStore</c> 内部一律走
-        /// <c>Accepts</c>（含筛选）。而自动合成的产物不能因为没勾筛选器就落地 —— 那会让
-        /// 前置树的下一步永远等不到料（链断在第二步），实机现象是"已产出 26 件、落地 12 件"。</para>
+        /// <para><b>为什么需要这个入口</b>：上游 2026-10-12 把 <c>innerContainer</c> 从
+        /// <c>ThingOwner&lt;Thing&gt;</c> 换成了 <c>CoreStorageContainer</c>，而它的 <c>TryAdd</c>
+        /// 会先问 <c>OwnerAllowsInsert</c>（入库开关 + 电力 + <b>存储筛选</b>）——
+        /// 实测数据：<c>take=1 canAccept=1 added=0 FilterAllows=False</c>，
+        /// 也就是说**只要筛选里没这个 def，从容器外面怎么写都塞不进去**。
+        /// 而自动合成的产物不能因为没勾筛选器就落地 —— 那会让前置树的下一步永远等不到料
+        /// （链断在第二步），实机现象是「制作完成：X（核心放不下或未启用，放在工作台旁）」一直刷。</para>
         ///
-        /// <para>口径仍然窄：**只有自动合成的产物**走这条；玩家手工搬运、别处的自动化
+        /// <para>真正的处理在 <c>Building_StorageCore.TryStoreIgnoringFilter</c>：
+        /// 它**先把该 def 允许进筛选**，再走正常 <c>TryStore</c>（失败了还会撤回去），
+        /// 这样原版管线看到的仍是"核心确实收这个 def"。</para>
+        ///
+        /// <para>口径仍然窄：**只有自动合成的产物**走这条；玩家手工搬运、搬运 mod
         /// 一律照旧走 <c>Accepts</c>（受筛选约束），那条路不经过这里。</para>
         /// </summary>
         private static bool TryIngestIgnoringFilter(Building_StorageCore core, Thing t)
         {
             if (core == null || t == null || t.Destroyed) return false;
             if (t.Spawned || t.holdingOwner != null) return false;   // 只处理未落地的
-            if (core.Map == null || !core.Spawned) return false;
-            if (!core.HaulDestinationEnabled) return false;          // 玩家关掉入库 ⇒ 不硬塞
-            if (core.GetDirectlyHeldThings().GetCountCanAccept(t) <= 0) return false;   // 满了就落地
-            // innerContainer 是 protected ⇒ 走公开的 TryStore；它内部会再查一次 Accepts（筛选），
-            // 所以这里先用容量判定"值不值得绕"，绕不过筛选时再直接塞容器。
-            int take = t.stackCount;
-            if (core.TryStore(t, take) == take) return true;
-            // 筛选不允许 ⇒ 直接进容器（跳过筛选，容量已确认）
-            return core.GetDirectlyHeldThings().TryAdd(t, true);
+            int added = core.TryStoreIgnoringFilter(t, t.stackCount);
+            if (added <= 0)
+            {
+                // 进不去就写一条（限流）：省得下次排查靠猜
+                Log.ErrorOnce("[DigitalStorage] 合成产物未进核心：" + t.def.defName
+                    + " | Spawned=" + core.Spawned
+                    + " 入库开关=" + core.HaulDestinationEnabled
+                    + " Powered=" + core.Powered
+                    + " 容量还能收=" + core.GetDirectlyHeldThings().GetCountCanAccept(t)
+                    + " ⇒ 将落在台子旁", 0x44534399);
+            }
+            return added > 0;
         }
 
         /// <summary>
