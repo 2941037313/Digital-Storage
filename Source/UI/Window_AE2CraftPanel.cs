@@ -41,6 +41,7 @@ namespace DigitalStorage.UI
         private string searchCore = "";   // ★ 用户要求：核心列物顶部搜索栏
         private string countBuf;
         private CraftPlan countBufPlan;
+        private int countBufShown = -1;   // ★ 槽里当前显示的数字（用来发现"外部改了数量"）
 
         private const float HeaderH = 24f;
         private const float InfoH = 18f;
@@ -56,8 +57,36 @@ namespace DigitalStorage.UI
             this.absorbInputAroundWindow = false;   // ★ 让环世界继续处理全局按键（空格/加速/摄像机）
             this.onlyOneOfTypeAllowed = true;
             this.draggable = true;
-            this.resizeable = true;   // ★ 第 11 轮：可缩放（布局全按 rect 算，能自适应）
+            // ★★ 缩放手柄必须关掉（实测 bug 的真凶）：
+            //   RimWorld 的 WindowResizer.DoResizeControl 会在窗口**右下角放一个 24×24 的
+            //   隐形 Widgets.ButtonImage 手柄**。详情栏最后几行按钮正好压在那个角上 ⇒
+            //   点击被缩放手柄先吃掉 ⇒ 实机表现"右下角这一片按钮点不动、
+            //   而且越靠右下角越点不动"（用户反馈：风格按钮全无反应、材料按钮最右一小段无反应）。
+            //   面板布局本来就全按 rect 自适应，默认 960×540 够用，不需要拖拽缩放。
+            this.resizeable = false;
             this.doWindowBackground = false;
+
+            // ★ 打开面板时**扫一次**维持数量，保证一打开看到的就是准的。
+            //   之后 UI **不再触发扫描**（Draw 里只读缓存），刷新只发生在：
+            //   产出时（BillCraftFunnel ⇒ comp.RecountNow）与调度侧 30 tick 兜底。
+            RefreshTargetCountsOnce(comp);
+        }
+
+        /// <summary>把所有"维持数量"订单的产物数扫一遍（只在面板打开时调一次）。</summary>
+        private static void RefreshTargetCountsOnce(CompBillAutomation comp)
+        {
+            if (comp == null) return;
+            Map map = Find.CurrentMap;
+            if (map == null) return;
+            IList<CraftPlan> all = comp.PlansForReading;
+            if (all == null) return;
+            for (int i = 0; i < all.Count; i++)
+            {
+                CraftPlan p = all[i];
+                if (p == null) continue;
+                try { comp.RecountNow(p); }
+                catch (Exception e) { Log.ErrorOnce("[DigitalStorage] 面板打开时重数失败：" + e, 771234); }
+            }
         }
 
         public override Vector2 InitialSize { get { return new Vector2(960f, 540f); } }
@@ -309,14 +338,14 @@ namespace DigitalStorage.UI
             const float actW = 56f;   // ★ 46→56：原来文字只余 1px，贴边像溢出
             // ★ 图标照目标图：+ 添加 / ;; 树（层级结构）/ [] 清。纯 ASCII（SimSun 无 ⚙ 等符号）
             string[] actIcon = new string[] { "+", "", "[]" };   // ★ 索引 1（树）改手绘 TreeGlyph
-            string[] actText = new string[] { "添加", "树", "清" };
+            string[] actText = new string[] { "添加", "树", "删树" };   // ★ 删"选中订单所在的那棵树"（不是清空全部）
             // ⚠️ 必须与 actIcon/actText **等长**：删掉"核心"按钮时漏改这里 ⇒
             //    "清"的 tooltip 显示成"存储核心"（实测踩过）
             string[] actTip = new string[]
             {
                 "DS_CA_AddRecipe".Translate().ToString(),
                 "DS_AE2_Tree_Btn".Translate().ToString(),
-                "DS_CA_Delete".Translate().ToString(),
+                "DS_CA_Delete".Translate().ToString(),   // ★ 单条删除（不是整树）—— 整树是右上角那个按钮
             };
             float ax = x0 + w - 6f - 3f * actW - 2f * gap;
             for (int i = 0; i < 3; i++)
@@ -366,9 +395,19 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
                         }
                     }
                     break;
-                case 2:   // 删除选中订单
-                    if (sel != null) { comp.RemovePlan(sel); sel = null; }
+                case 2:   // ★ 删除"选中订单所在的那棵合成树"（玩家自己加的独立订单不受影响）
+                {
+                    if (sel == null)
+                    {
+                        Messages.Message("DS_CA_DeleteTreeNoSel".Translate(),
+                            MessageTypeDefOf.RejectInput, false);
+                        break;
+                    }
+                    // ★ 用户要求：删树**不要二次确认**（要删就删）
+                    comp.RemoveSelectedTree(sel);
+                    sel = null;
                     break;
+                }
             }
         }
 
@@ -559,7 +598,7 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
                     List<FloatMenuOption> mo = new List<FloatMenuOption>();
                     CraftPlan cap = p;
                     mo.Add(new FloatMenuOption(cap.suspended ? "DS_BA_Resume".Translate().ToString() : "DS_BA_Suspend".Translate().ToString(), delegate { cap.suspended = !cap.suspended; }));
-                    mo.Add(new FloatMenuOption("+10", delegate { cap.AddCount(10); }));
+                    mo.Add(new FloatMenuOption("+10", delegate { cap.AddCount(10); comp.NotifyRootCountChanged(cap); }));
                     mo.Add(new FloatMenuOption("DS_CA_SetForever".Translate().ToString(), delegate { cap.SetForever(); }));
                     mo.Add(new FloatMenuOption("DS_CA_Delete".Translate().ToString(), delegate { comp.RemovePlan(cap); sel = null; }));
                     Find.WindowStack.Add(new FloatMenu(mo));
@@ -620,7 +659,10 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
             }
 
             CraftPlan p = sel;
-            comp.RefreshTargetStateIfStale(p, map);
+            // ★ 只读缓存，**绝不在这里扫描** —— 本方法是每帧重绘调用的，
+            //   原来在这里调 RefreshTargetStateIfStale ⇒ 每一帧都遍历所有核心数一遍产物。
+            //   刷新时机改为：窗口打开时一次（见 Window_AE2CraftPanel 构造函数）
+            //   + 每次产出时一次（BillCraftFunnel ⇒ comp.RecountNow）+ 调度侧 30 tick 兜底。
             CraftLine first = (p.lines.Count > 0) ? p.lines[0] : null;
 
             // ============================================================================
@@ -632,7 +674,7 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
             //     → 按钮 4 行（32px / 间隔 4）
             // ============================================================================
             const float LBL_X = 3f;      // 标签左缩进（目标实测）
-            const float VAL_X = 55f;     // ★ 值起点（SimSun 7pt 下"技能要求"实测 41.6px ⇒ 39 会裁切，改 55）
+            const float VAL_X = 68f;   // ★ 55→68：标签最宽到"技能要求"（4 字 ≈ 52px），55 会贴住值     // ★ 值起点（SimSun 7pt 下"技能要求"实测 41.6px ⇒ 39 会裁切，改 55）
             const float ROW_H = 19f;     // 行距（目标实测）
 
             // ── 详情头：AE2 按钮 + 槽位 + 产物名 ──
@@ -733,7 +775,7 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
                 {
                     p.mode = CraftPlan.ModeCount;
                     p.remaining = 0;
-                    p.AddCount(1);
+                    p.AddCount(1); comp.NotifyRootCountChanged(p);
                 }
             }
             else if (hitMode == 2)
@@ -744,16 +786,20 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
 
             // ---- 第二行：数量步进 −10 −1 [输入] +1 +10 · 暂停 ----
             x = ri.x;
-            if (AE2Draw.TextButton(new Rect(x, y, 42f, bh), "−10")) p.AddCount(-10);
+            if (AE2Draw.TextButton(new Rect(x, y, 42f, bh), "−10")) { p.AddCount(-10); comp.NotifyRootCountChanged(p); }
             x += 46f;
-            if (AE2Draw.TextButton(new Rect(x, y, 36f, bh), "−1")) p.AddCount(-1);
+            if (AE2Draw.TextButton(new Rect(x, y, 36f, bh), "−1")) { p.AddCount(-1); comp.NotifyRootCountChanged(p); }
             x += 40f;
 
             Rect countR = new Rect(x, y, 58f, bh);
-            if (countBufPlan != p)
+            // ★ 槽里的值 = 这条订单**当前**的数量。原来是"换订单时才刷新缓冲"，
+            //   于是点 −1/+1/+10 之后槽里还是旧数字（实机反馈："加减数量时候下面那个槽的数量怎么不变"）。
+            int curShown = (p.mode == CraftPlan.ModeTarget) ? p.targetCount : Mathf.Max(0, p.remaining);
+            if (countBufPlan != p || countBufShown != curShown)
             {
                 countBufPlan = p;
-                countBuf = (p.mode == CraftPlan.ModeTarget) ? p.targetCount.ToString() : Mathf.Max(0, p.remaining).ToString();
+                countBufShown = curShown;
+                countBuf = curShown.ToString();
             }
             AE2Draw.Sunken(countR, AE2Draw.Slot);
             string typed = Widgets.TextField(countR.ContractedBy(3f), countBuf ?? "");
@@ -765,12 +811,14 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
                 {
                     if (p.mode == CraftPlan.ModeTarget) p.SetTarget(Mathf.Max(1, v));
                     else p.remaining = v;
+                    countBufShown = (p.mode == CraftPlan.ModeTarget) ? p.targetCount : Mathf.Max(0, p.remaining);
+                    comp.NotifyRootCountChanged(p);   // ★ 手打数字也要让前置产物需求跟着变
                 }
             }
             x += 62f;
-            if (AE2Draw.TextButton(new Rect(x, y, 36f, bh), "+1")) p.AddCount(1);
+            if (AE2Draw.TextButton(new Rect(x, y, 36f, bh), "+1")) { p.AddCount(1); comp.NotifyRootCountChanged(p); }
             x += 40f;
-            if (AE2Draw.TextButton(new Rect(x, y, 42f, bh), "+10")) p.AddCount(10);
+            if (AE2Draw.TextButton(new Rect(x, y, 42f, bh), "+10")) { p.AddCount(10); comp.NotifyRootCountChanged(p); }
             x += 46f;
             string susLabel = p.suspended ? "DS_BA_Resume".Translate().ToString() : "DS_BA_Suspend".Translate().ToString();
             if (AE2Draw.TextButton(new Rect(x, y, 66f, bh), susLabel)) p.suspended = !p.suspended;
@@ -780,6 +828,8 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
             //  ★ 按**内容宽度**自适应 + 放不下自动换行。
             //    原来写死累加（56+60+60+78+124+114+124 = 514px）⇒ 详情栏只有
             //    ri.width 宽，必然溢出右边界（实测踩过）。
+            // ★ 顺序**钉死**：上移 / 下移 / 达标即暂停 / 材料 / 风格 / 删除
+            //   （用户口径：材料在左、风格在中、删除在最右）
             x = ri.x;
             string[] row3 =
             {
@@ -788,11 +838,15 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
                 "DS_CA_PauseWhenSatisfied".Translate().ToString(),
                 "DS_AE2_Stuff".Translate(StuffName(p)).ToString(),
                 "DS_AE2_Style".Translate(StyleName(p)).ToString(),
-                "DS_CA_Delete".Translate().ToString(),
+                "DS_CA_Delete".Translate().ToString(),   // ★ 单条删除（不是整树）—— 整树是右上角那个按钮
             };
+            // 这一行按钮多，单独用更紧的间距（2px）和内边距（14px），尽量排在一行里，
+            // 避免"删除"被挤到上一行 ⇒ 玩家看到顺序错乱（实机反馈）。
+            const float row3Gap = 2f;
+            const float row3Pad = 14f;
             for (int bi = 0; bi < row3.Length; bi++)
             {
-                float bw = Mathf.Ceil(Verse.Text.CalcSize(row3[bi]).x) + 20f;   // 文字宽 + 左右内边距
+                float bw = Mathf.Ceil(Verse.Text.CalcSize(row3[bi]).x) + row3Pad;
                 if (bw > ri.width) bw = ri.width;
                 if (x > ri.x && x + bw > ri.xMax)       // 放不下 ⇒ 换行
                 {
@@ -811,10 +865,10 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
                         case 2: p.pauseWhenSatisfied = !p.pauseWhenSatisfied; break;
                         case 3: OpenStuffMenu(p); break;
                         case 4: OpenStyleMenu(p); break;
-                        case 5: comp.RemovePlan(p); sel = null; break;
+                        case 5: comp.RemovePlan(p, true); sel = null; break;   // ★ 只删这一条（不是整树）
                     }
                 }
-                x += bw + bgap;
+                x += bw + row3Gap;
             }
         }
 
@@ -879,7 +933,9 @@ if (i == 1) TreeGlyph(new Rect(b.x + 4f, b.y + 4f, 15f, 15f));   // ★ 15×15�
                     return sr.skill.LabelCap.ToString() + " " + sr.minLevel;
                 }
             }
-            return r.workAmount.ToString("0");
+            // ★ 修复：没有技能要求的配方原来返回**工作量**（workAmount），
+            //   于是界面上显示成"技能要求 140"（测试配方 workAmount=140）—— 拿错字段了。
+            return "DS_CA_SkillNone".Translate().ToString();
         }
 
         private static string StuffName(CraftPlan p)
