@@ -315,7 +315,7 @@ namespace DigitalStorage.Components
                     RecipeDef r = all[i];
                     if (r == null || r.ProducedThingDef == null) continue;      // 只收有产物的
                     if (r.researchPrerequisite != null && !r.researchPrerequisite.IsFinished) continue;   // 研究未解锁
-                    if (r.recipeUsers == null || r.recipeUsers.Count == 0) continue;                       // 没有任何工作台（= 被隐藏的测试配方）
+                    if (r.recipeUsers == null || r.recipeUsers.Count == 0) continue;                       // 没有任何工作台，该配方无法被任何建筑制作
                     // 只在"范围内**已有**的工作台能做这条配方"时才并入（读到了制作点再加）
                     bool hasBench = false;
                     for (int k = 0; k < r.recipeUsers.Count && !hasBench; k++)
